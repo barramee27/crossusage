@@ -30,6 +30,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "linux": {
+      "deb": {
+        "depends": ["webkit2gtk-4.1", "libappindicator3-1"]
+      }
+    },
     "macOS": {
       "dmg": {
         "appPosition": {

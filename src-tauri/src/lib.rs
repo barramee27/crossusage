@@ -1,6 +1,11 @@
 #[cfg(target_os = "macos")]
 mod app_nap;
+#[cfg(target_os = "macos")]
 mod panel;
+#[cfg(target_os = "linux")]
+mod panel_linux;
+#[cfg(target_os = "linux")]
+use panel_linux as panel;
 mod plugin_engine;
 mod tray;
 #[cfg(target_os = "macos")]
@@ -193,9 +198,19 @@ fn init_panel(app_handle: tauri::AppHandle) {
 
 #[tauri::command]
 fn hide_panel(app_handle: tauri::AppHandle) {
-    use tauri_nspanel::ManagerExt;
-    if let Ok(panel) = app_handle.get_webview_panel("main") {
-        panel.hide();
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        if let Ok(panel) = app_handle.get_webview_panel("main") {
+            panel.hide();
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        if let Some(window) = app_handle.get_webview_window("main") {
+            window.hide().unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
+        }
     }
 }
 
@@ -343,12 +358,23 @@ async fn start_probe_batch(
 
 #[tauri::command]
 fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
-    // macOS log directory: ~/Library/Logs/{bundleIdentifier}
-    let home = dirs::home_dir().ok_or("no home dir")?;
-    let bundle_id = app_handle.config().identifier.clone();
-    let log_dir = home.join("Library").join("Logs").join(&bundle_id);
-    let log_file = log_dir.join(format!("{}.log", app_handle.package_info().name));
-    Ok(log_file.to_string_lossy().to_string())
+    #[cfg(target_os = "macos")]
+    {
+        // macOS log directory: ~/Library/Logs/{bundleIdentifier}
+        let home = dirs::home_dir().ok_or("no home dir")?;
+        let bundle_id = app_handle.config().identifier.clone();
+        let log_dir = home.join("Library").join("Logs").join(&bundle_id);
+        let log_file = log_dir.join(format!("{}.log", app_handle.package_info().name));
+        Ok(log_file.to_string_lossy().to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri::Manager;
+        // Linux/Windows log directory
+        let log_dir = app_handle.path().app_log_dir().map_err(|e| e.to_string())?;
+        let log_file = log_dir.join(format!("{}.log", app_handle.package_info().name));
+        Ok(log_file.to_string_lossy().to_string())
+    }
 }
 
 /// Update the global shortcut registration.
@@ -467,12 +493,15 @@ pub fn run() {
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = runtime.enter();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-6435241436").build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_nspanel::init())
-        .plugin(
+        .plugin(tauri_plugin_store::Builder::default().build());
+        
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+    
+    builder.plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
                     Target::new(TargetKind::Stdout),
