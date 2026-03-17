@@ -4,11 +4,17 @@ See your usage at a glance from your menu bar. No digging through dashboards.
 
 ![OpenUsage Screenshot](screenshot.png)
 
+> **Community fork with Windows & Linux support.** This fork adds native builds for Windows and Linux. Original [robinebers/openusage](https://github.com/robinebers/openusage) focuses on macOS.
+
 ## Download
 
-[**Download the latest release**](https://github.com/robinebers/openusage/releases/latest) (macOS, Apple Silicon & Intel)
+[**Download the latest release**](https://github.com/barramee27/openusage/releases/latest)
 
-The app auto-updates. Install once and you're set.
+- **Windows** — `OpenUsage_x64-setup.exe` (installer) or `openusage.exe` (portable)
+- **Linux** — `.deb`, `.rpm`, or `.AppImage`
+- **macOS** — use the [original OpenUsage](https://github.com/robinebers/openusage/releases/latest)
+
+Pre-built binaries mean no compiling. Install and run.
 
 ## What It Does
 
