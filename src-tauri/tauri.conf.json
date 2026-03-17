@@ -30,9 +30,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "barramee kottanawadee <barramee25038@gmail.com>",
     "linux": {
       "deb": {
-        "depends": ["webkit2gtk-4.1", "libappindicator3-1"]
+        "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1 | libappindicator3-1"]
       }
     },
     "macOS": {
@@ -62,11 +63,11 @@
       "resources/bundled_plugins/**/*",
       "icons/tray-icon.png"
     ],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2Njk4QTU0MDMzMEY5MTkKUldRWitUQURWSXBwVnFTY1FBWitxNlpaQnB5S3RVWW1qWHJ3NlRuZ2p3c2hPVzNTa3BUR0V0SXkK",
+      "pubkey": "",
       "endpoints": [
         "https://github.com/robinebers/openusage/releases/latest/download/latest.json"
       ]

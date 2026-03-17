@@ -7,6 +7,12 @@
   const LOCAL_CACHE_DB_PATHS = [
     "~/Library/Containers/ai.perplexity.mac/Data/Library/Caches/ai.perplexity.mac/Cache.db",
     "~/Library/Caches/ai.perplexity.mac/Cache.db",
+    "~/.config/Perplexity/Cache/Cache.db",
+    "~/.config/Perplexity/GPUCache/Cache.db",
+    "~/.cache/Perplexity/Cache.db",
+    "~/.var/app/ai.perplexity.mac/cache/ai.perplexity.mac/Cache.db",
+    "~/AppData/Local/Perplexity/Cache/Cache.db",
+    "~/AppData/Roaming/Perplexity/Cache/Cache.db",
   ]
 
   // Only need request_object; receiver body is optional and can be malformed.

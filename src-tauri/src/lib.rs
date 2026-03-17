@@ -6,6 +6,10 @@ mod panel;
 mod panel_linux;
 #[cfg(target_os = "linux")]
 use panel_linux as panel;
+#[cfg(target_os = "windows")]
+mod panel_windows;
+#[cfg(target_os = "windows")]
+use panel_windows as panel;
 mod plugin_engine;
 mod tray;
 #[cfg(target_os = "macos")]
@@ -206,6 +210,13 @@ fn hide_panel(app_handle: tauri::AppHandle) {
         }
     }
     #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        if let Some(window) = app_handle.get_webview_window("main") {
+            window.hide().unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
+        }
+    }
+    #[cfg(target_os = "windows")]
     {
         use tauri::Manager;
         if let Some(window) = app_handle.get_webview_window("main") {
@@ -598,7 +609,14 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_, _| {});
+        .run(|_app, event| {
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                // Only prevent exit for window close (code=None). Allow Restart and Quit from tray.
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
+        });
 }
 
 #[cfg(test)]

@@ -1,5 +1,10 @@
 use rquickjs::{Ctx, Exception, Function, Object};
+use rusqlite::{Connection, OpenFlags};
+use serde_json::{Map, Value as JsonValue};
 use std::collections::HashMap;
+
+#[cfg(unix)]
+use users::os::unix::UserExt;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -347,8 +352,32 @@ fn inject_log<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rquic
     Ok(())
 }
 
+fn home_dir() -> Option<std::path::PathBuf> {
+    dirs::home_dir()
+        .or_else(|| std::env::var_os("HOME").map(std::path::PathBuf::from))
+        .or_else(|| {
+            #[cfg(windows)]
+            {
+                std::env::var_os("USERPROFILE").map(std::path::PathBuf::from)
+            }
+            #[cfg(unix)]
+            {
+                let uid = users::get_current_uid();
+                users::get_user_by_uid(uid).map(|user| user.home_dir().to_path_buf())
+            }
+            #[cfg(not(any(windows, unix)))]
+            {
+                None
+            }
+        })
+}
+
 fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
     let fs_obj = Object::new(ctx.clone())?;
+
+    if let Some(home) = home_dir() {
+        fs_obj.set("homeDir", home.to_string_lossy().to_string())?;
+    }
 
     fs_obj.set(
         "exists",
@@ -927,10 +956,19 @@ fn inject_ls<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rquick
                     opts.markers
                 );
 
-                let ps_output = match std::process::Command::new("/bin/ps")
-                    .args(["-ax", "-o", "pid=,command="])
-                    .output()
+                // Windows: no ps command; plugins fall back to SQLite/Cloud API
+                #[cfg(windows)]
+                return Ok("null".to_string());
+
+                #[cfg(not(windows))]
                 {
+                // Use ps -e on Linux (GNU ps); -ax on macOS/BSD
+                let (ps_path, ps_args): (&str, &[&str]) = if std::env::consts::OS == "linux" {
+                    ("ps", &["-e", "-o", "pid=,args="][..])
+                } else {
+                    ("/bin/ps", &["-ax", "-o", "pid=,command="][..])
+                };
+                let ps_output = match std::process::Command::new(ps_path).args(ps_args).output() {
                     Ok(o) => o,
                     Err(e) => {
                         log::warn!("[plugin:{}] ps failed: {}", pid, e);
@@ -1099,6 +1137,7 @@ fn inject_ls<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rquick
                 serde_json::to_string(&result).map_err(|e| {
                     Exception::throw_message(&ctx_inner, &format!("serialize failed: {}", e))
                 })
+                }
             },
         )?,
     )?;
@@ -1862,6 +1901,57 @@ fn inject_keychain<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<
     Ok(())
 }
 
+fn rusqlite_value_to_json(v: rusqlite::types::Value) -> JsonValue {
+    match v {
+        rusqlite::types::Value::Null => JsonValue::Null,
+        rusqlite::types::Value::Integer(i) => JsonValue::Number(serde_json::Number::from(i)),
+        rusqlite::types::Value::Real(f) => serde_json::Number::from_f64(f)
+            .map(JsonValue::Number)
+            .unwrap_or(JsonValue::Null),
+        rusqlite::types::Value::Text(s) => JsonValue::String(s),
+        rusqlite::types::Value::Blob(b) => JsonValue::String(String::from_utf8_lossy(&b).into_owned()),
+    }
+}
+
+fn sqlite_query_impl(expanded: &str, sql: &str) -> Result<String, String> {
+    // Prefer normal read-only open so WAL contents are visible (common for app state DBs).
+    let conn = match Connection::open_with_flags(expanded, OpenFlags::SQLITE_OPEN_READ_ONLY) {
+        Ok(c) => c,
+        Err(e) => {
+            // Fall back to immutable=1 to bypass WAL/SHM lock issues after macOS sleep.
+            let encoded = expanded
+                .replace('%', "%25")
+                .replace(' ', "%20")
+                .replace('#', "%23")
+                .replace('?', "%3F");
+            let uri = format!("file:{}?immutable=1", encoded);
+            Connection::open_with_flags(&uri, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI)
+                .map_err(|e2| format!("sqlite open failed: {} (fallback: {})", e, e2))?
+        }
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let col_names: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
+    let rows = stmt
+        .query_map([], |row| {
+            let mut obj = Map::new();
+            for (i, name) in col_names.iter().enumerate() {
+                let v: rusqlite::types::Value = row.get(i).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                obj.insert(name.clone(), rusqlite_value_to_json(v));
+            }
+            Ok(JsonValue::Object(obj))
+        })
+        .map_err(|e| e.to_string())?;
+    let arr: Result<Vec<_>, _> = rows.collect();
+    let arr = arr.map_err(|e| e.to_string())?;
+    serde_json::to_string(&arr).map_err(|e| e.to_string())
+}
+
+fn sqlite_exec_impl(expanded: &str, sql: &str) -> Result<(), String> {
+    let conn = Connection::open(expanded).map_err(|e| e.to_string())?;
+    conn.execute_batch(sql).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn inject_sqlite<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
     let sqlite_obj = Object::new(ctx.clone())?;
 
@@ -1877,48 +1967,7 @@ fn inject_sqlite<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()
                     ));
                 }
                 let expanded = expand_path(&db_path);
-
-                // Prefer a normal read-only open so WAL contents are visible (common for app state DBs).
-                // Fall back to immutable=1 to bypass WAL/SHM lock issues after macOS sleep.
-                let primary = std::process::Command::new("sqlite3")
-                    .args(["-readonly", "-json", &expanded, &sql])
-                    .output()
-                    .map_err(|e| {
-                        Exception::throw_message(&ctx_inner, &format!("sqlite3 exec failed: {}", e))
-                    })?;
-
-                if primary.status.success() {
-                    return Ok(String::from_utf8_lossy(&primary.stdout).to_string());
-                }
-
-                // Percent-encode special chars for valid URI (% must be first!)
-                let encoded = expanded
-                    .replace('%', "%25")
-                    .replace(' ', "%20")
-                    .replace('#', "%23")
-                    .replace('?', "%3F");
-                let uri_path = format!("file:{}?immutable=1", encoded);
-                let fallback = std::process::Command::new("sqlite3")
-                    .args(["-readonly", "-json", &uri_path, &sql])
-                    .output()
-                    .map_err(|e| {
-                        Exception::throw_message(&ctx_inner, &format!("sqlite3 exec failed: {}", e))
-                    })?;
-
-                if !fallback.status.success() {
-                    let stderr_primary = String::from_utf8_lossy(&primary.stderr);
-                    let stderr_fallback = String::from_utf8_lossy(&fallback.stderr);
-                    return Err(Exception::throw_message(
-                        &ctx_inner,
-                        &format!(
-                            "sqlite3 error: {} (fallback: {})",
-                            stderr_primary.trim(),
-                            stderr_fallback.trim()
-                        ),
-                    ));
-                }
-
-                Ok(String::from_utf8_lossy(&fallback.stdout).to_string())
+                sqlite_query_impl(&expanded, &sql).map_err(|e| Exception::throw_message(&ctx_inner, &e))
             },
         )?,
     )?;
@@ -1935,22 +1984,7 @@ fn inject_sqlite<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()
                     ));
                 }
                 let expanded = expand_path(&db_path);
-                let output = std::process::Command::new("sqlite3")
-                    .args([&expanded, &sql])
-                    .output()
-                    .map_err(|e| {
-                        Exception::throw_message(&ctx_inner, &format!("sqlite3 exec failed: {}", e))
-                    })?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    return Err(Exception::throw_message(
-                        &ctx_inner,
-                        &format!("sqlite3 error: {}", stderr.trim()),
-                    ));
-                }
-
-                Ok(())
+                sqlite_exec_impl(&expanded, &sql).map_err(|e| Exception::throw_message(&ctx_inner, &e))
             },
         )?,
     )?;
@@ -1970,12 +2004,12 @@ fn iso_now() -> String {
 
 fn expand_path(path: &str) -> String {
     if path == "~" {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = home_dir() {
             return home.to_string_lossy().to_string();
         }
     }
     if path.starts_with("~/") {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = home_dir() {
             return home.join(&path[2..]).to_string_lossy().to_string();
         }
     }

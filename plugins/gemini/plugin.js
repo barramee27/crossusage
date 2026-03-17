@@ -1,12 +1,49 @@
 (function () {
   const SETTINGS_PATH = "~/.gemini/settings.json"
   const CREDS_PATH = "~/.gemini/oauth_creds.json"
+
+  function getHomeDir(ctx) {
+    var home = ctx.host.fs.homeDir
+    if (home) return home
+    if (ctx.app && ctx.app.appDataDir) {
+      var m = String(ctx.app.appDataDir).match(/^(.+)\/\.local\/share\/[^/]+$/)
+      if (m) return m[1]
+      // Windows: C:\Users\xxx\AppData\Roaming\com.sunstory.openusage
+      var mWin = String(ctx.app.appDataDir).match(/^(.+)[\\/]AppData[\\/]Roaming[\\/][^\\/]+$/)
+      if (mWin) return mWin[1]
+    }
+    return null
+  }
+
+  function getCredsPath(ctx) {
+    if (ctx.host.fs.exists(CREDS_PATH)) return CREDS_PATH
+    var home = getHomeDir(ctx)
+    if (home) {
+      var abs = home + "/.gemini/oauth_creds.json"
+      if (ctx.host.fs.exists(abs)) return abs
+    }
+    return CREDS_PATH
+  }
+
+  function getSettingsPath(ctx) {
+    if (ctx.host.fs.exists(SETTINGS_PATH)) return SETTINGS_PATH
+    var home = getHomeDir(ctx)
+    if (home) {
+      var abs = home + "/.gemini/settings.json"
+      if (ctx.host.fs.exists(abs)) return abs
+    }
+    return SETTINGS_PATH
+  }
+
   const OAUTH2_JS_PATHS = [
     "~/.bun/install/global/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
     "~/.npm-global/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
     "~/.nvm/versions/node/current/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
+    "~/.local/share/npm/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
+    "~/AppData/Roaming/npm/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
     "/opt/homebrew/opt/gemini-cli/libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
     "/usr/local/opt/gemini-cli/libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
+    "/usr/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
   ]
 
   const LOAD_CODE_ASSIST_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
@@ -23,9 +60,10 @@
   }
 
   function loadSettings(ctx) {
-    if (!ctx.host.fs.exists(SETTINGS_PATH)) return null
+    var path = getSettingsPath(ctx)
+    if (!ctx.host.fs.exists(path)) return null
     try {
-      return ctx.util.tryParseJson(ctx.host.fs.readText(SETTINGS_PATH))
+      return ctx.util.tryParseJson(ctx.host.fs.readText(path))
     } catch (e) {
       ctx.host.log.warn("failed reading settings: " + String(e))
       return null
@@ -48,9 +86,10 @@
   }
 
   function loadOauthCreds(ctx) {
-    if (!ctx.host.fs.exists(CREDS_PATH)) return null
+    var path = getCredsPath(ctx)
+    if (!ctx.host.fs.exists(path)) return null
     try {
-      const parsed = ctx.util.tryParseJson(ctx.host.fs.readText(CREDS_PATH))
+      const parsed = ctx.util.tryParseJson(ctx.host.fs.readText(path))
       if (!parsed || typeof parsed !== "object") return null
       if (!parsed.access_token && !parsed.refresh_token) return null
       return parsed
@@ -62,7 +101,8 @@
 
   function saveOauthCreds(ctx, creds) {
     try {
-      ctx.host.fs.writeText(CREDS_PATH, JSON.stringify(creds, null, 2))
+      var path = getCredsPath(ctx)
+      ctx.host.fs.writeText(path, JSON.stringify(creds, null, 2))
     } catch (e) {
       ctx.host.log.warn("failed persisting creds: " + String(e))
     }
@@ -77,8 +117,17 @@
   }
 
   function loadOauthClientCreds(ctx) {
-    for (let i = 0; i < OAUTH2_JS_PATHS.length; i += 1) {
-      const path = OAUTH2_JS_PATHS[i]
+    var paths = OAUTH2_JS_PATHS.slice()
+    var home = getHomeDir(ctx)
+    if (home) {
+      paths.unshift(
+        home + "/.bun/install/global/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
+        home + "/.npm-global/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js",
+        home + "/.local/share/npm/lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"
+      )
+    }
+    for (let i = 0; i < paths.length; i += 1) {
+      const path = paths[i]
       if (!ctx.host.fs.exists(path)) continue
       try {
         const parsed = parseOauthClientCreds(ctx.host.fs.readText(path))
@@ -349,13 +398,13 @@
     assertSupportedAuthType(ctx)
 
     const creds = loadOauthCreds(ctx)
-    if (!creds) throw "Not logged in. Run `gemini auth login` to authenticate."
+    if (!creds) throw "Not logged in. Run `gemini auth login` in a terminal, then refresh this plugin (right-click → Reload) or restart OpenUsage."
 
     let accessToken = creds.access_token
     if (needsRefresh(creds)) {
       const refreshed = refreshToken(ctx, creds)
       if (refreshed) accessToken = refreshed
-      else if (!accessToken) throw "Not logged in. Run `gemini auth login` to authenticate."
+      else if (!accessToken) throw "Not logged in. Run `gemini auth login` in a terminal, then refresh this plugin (right-click → Reload) or restart OpenUsage."
     }
 
     const idTokenPayload = decodeIdToken(ctx, creds.id_token)

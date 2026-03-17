@@ -1,6 +1,5 @@
 (function () {
   var LS_SERVICE = "exa.language_server_pb.LanguageServerService"
-  var STATE_DB = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
   var CLOUD_CODE_URLS = [
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
@@ -63,10 +62,34 @@
 
   // --- SQLite credential reading ---
 
+  function getAntigravityDbPath(ctx) {
+    var home = ctx.host.fs.homeDir
+    if (!home && ctx.app && ctx.app.appDataDir) {
+      var m = String(ctx.app.appDataDir).match(/^(.+)\/\.local\/share\/[^/]+$/)
+      if (m) home = m[1]
+    }
+    var macPath = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
+    var linuxPath = "~/.config/Antigravity/User/globalStorage/state.vscdb"
+    var winPath = "~/AppData/Roaming/Antigravity/User/globalStorage/state.vscdb"
+    if (ctx.host.fs.exists(macPath)) return macPath
+    if (ctx.host.fs.exists(linuxPath)) return linuxPath
+    if (ctx.host.fs.exists(winPath)) return winPath
+    if (home) { 
+      var linuxAbs = home + "/.config/Antigravity/User/globalStorage/state.vscdb"
+      var macAbs = home + "/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
+      var winAbs = home + "/AppData/Roaming/Antigravity/User/globalStorage/state.vscdb"
+      if (ctx.host.fs.exists(linuxAbs)) return linuxAbs
+      if (ctx.host.fs.exists(macAbs)) return macAbs
+      if (ctx.host.fs.exists(winAbs)) return winAbs
+    }
+    return macPath
+  }
+
   function loadApiKey(ctx) {
     try {
+      var dbPath = getAntigravityDbPath(ctx)
       var rows = ctx.host.sqlite.query(
-        STATE_DB,
+        dbPath,
         "SELECT value FROM ItemTable WHERE key = 'antigravityAuthStatus' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)
@@ -82,8 +105,9 @@
 
   function loadProtoTokens(ctx) {
     try {
+      var dbPath = getAntigravityDbPath(ctx)
       var rows = ctx.host.sqlite.query(
-        STATE_DB,
+        dbPath,
         "SELECT value FROM ItemTable WHERE key = 'jetskiStateSync.agentManagerInitState' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)
@@ -176,8 +200,9 @@
   // --- LS discovery ---
 
   function discoverLs(ctx) {
+    // "language_server" matches both language_server_macos and language_server_linux
     return ctx.host.ls.discover({
-      processName: "language_server_macos",
+      processName: "language_server",
       markers: ["antigravity"],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",

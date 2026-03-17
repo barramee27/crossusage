@@ -14,11 +14,44 @@
   const REFRESH_BUFFER_MS = 5 * 60 * 1000 // refresh 5 minutes before expiration
   const LOGIN_HINT = "Sign in via Cursor app or run `agent login`."
 
+  function getCursorDbPath(ctx) {
+    let home = ctx.host.fs.homeDir
+    if (!home && ctx.app && ctx.app.appDataDir) {
+      const m = String(ctx.app.appDataDir).match(/^(.+)\/\.local\/share\/[^/]+$/)
+      if (m) home = m[1]
+    }
+
+    // macOS
+    const macPath = "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+    // Linux
+    const linuxPath = "~/.config/Cursor/User/globalStorage/state.vscdb"
+    // Windows
+    const winPath = "~/AppData/Roaming/Cursor/User/globalStorage/state.vscdb"
+
+    if (ctx.host.fs.exists(macPath)) return macPath
+    if (ctx.host.fs.exists(linuxPath)) return linuxPath
+    if (ctx.host.fs.exists(winPath)) return winPath
+
+    // Fallback: try explicit paths when homeDir is available (e.g. when ~ expansion fails in some launch contexts)
+    if (home) {
+      const linuxAbs = home + "/.config/Cursor/User/globalStorage/state.vscdb"
+      const macAbs = home + "/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+      const winAbs = home + "/AppData/Roaming/Cursor/User/globalStorage/state.vscdb"
+      if (ctx.host.fs.exists(linuxAbs)) return linuxAbs
+      if (ctx.host.fs.exists(macAbs)) return macAbs
+      if (ctx.host.fs.exists(winAbs)) return winAbs
+    }
+
+    // Fallback to macPath if none found (original behavior)
+    return macPath
+  }
+
   function readStateValue(ctx, key) {
     try {
+      const dbPath = getCursorDbPath(ctx)
       const sql =
         "SELECT value FROM ItemTable WHERE key = '" + key + "' LIMIT 1;"
-      const json = ctx.host.sqlite.query(STATE_DB, sql)
+      const json = ctx.host.sqlite.query(dbPath, sql)
       const rows = ctx.util.tryParseJson(json)
       if (!Array.isArray(rows)) {
         throw new Error("sqlite returned invalid json")
@@ -34,6 +67,7 @@
 
   function writeStateValue(ctx, key, value) {
     try {
+      const dbPath = getCursorDbPath(ctx)
       // Escape single quotes in value for SQL
       const escaped = String(value).replace(/'/g, "''")
       const sql =
@@ -42,7 +76,7 @@
         "', '" +
         escaped +
         "');"
-      ctx.host.sqlite.exec(STATE_DB, sql)
+      ctx.host.sqlite.exec(dbPath, sql)
       return true
     } catch (e) {
       ctx.host.log.warn("sqlite write failed for " + key + ": " + String(e))

@@ -6,23 +6,51 @@
   // Windsurf variants — tried in order (Windsurf first, then Windsurf Next).
   // Markers use --ide_name exact matching in the Rust discover code.
   var VARIANTS = [
-    {
-      marker: "windsurf",
-      ideName: "windsurf",
-      stateDb: "~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb",
-    },
-    {
-      marker: "windsurf-next",
-      ideName: "windsurf-next",
-      stateDb: "~/Library/Application Support/Windsurf - Next/User/globalStorage/state.vscdb",
-    },
+    { marker: "windsurf", ideName: "windsurf" },
+    { marker: "windsurf-next", ideName: "windsurf-next" },
   ]
+
+  function getWindsurfStateDb(ctx, variant) {
+    var home = ctx.host.fs.homeDir
+    if (!home && ctx.app && ctx.app.appDataDir) {
+      var m = String(ctx.app.appDataDir).match(/^(.+)\/\.local\/share\/[^/]+$/)
+      if (m) home = m[1]
+    }
+    var macPaths = variant.marker === "windsurf-next"
+      ? ["~/Library/Application Support/Windsurf - Next/User/globalStorage/state.vscdb"]
+      : ["~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb"]
+    var linuxPaths = variant.marker === "windsurf-next"
+      ? ["~/.config/Windsurf - Next/User/globalStorage/state.vscdb"]
+      : ["~/.config/Windsurf/User/globalStorage/state.vscdb"]
+    var winPaths = variant.marker === "windsurf-next"
+      ? ["~/AppData/Roaming/Windsurf - Next/User/globalStorage/state.vscdb"]
+      : ["~/AppData/Roaming/Windsurf/User/globalStorage/state.vscdb"]
+    var all = macPaths.concat(linuxPaths).concat(winPaths)
+    for (var i = 0; i < all.length; i++) {
+      if (ctx.host.fs.exists(all[i])) return all[i]
+    }
+    if (home) {
+      var linuxAbs = variant.marker === "windsurf-next"
+        ? home + "/.config/Windsurf - Next/User/globalStorage/state.vscdb"
+        : home + "/.config/Windsurf/User/globalStorage/state.vscdb"
+      var macAbs = variant.marker === "windsurf-next"
+        ? home + "/Library/Application Support/Windsurf - Next/User/globalStorage/state.vscdb"
+        : home + "/Library/Application Support/Windsurf/User/globalStorage/state.vscdb"
+      var winAbs = variant.marker === "windsurf-next"
+        ? home + "/AppData/Roaming/Windsurf - Next/User/globalStorage/state.vscdb"
+        : home + "/AppData/Roaming/Windsurf/User/globalStorage/state.vscdb"
+      if (ctx.host.fs.exists(linuxAbs)) return linuxAbs
+      if (ctx.host.fs.exists(macAbs)) return macAbs
+      if (ctx.host.fs.exists(winAbs)) return winAbs
+    }
+    return macPaths[0]
+  }
 
   // --- LS discovery ---
 
   function discoverLs(ctx, variant) {
     return ctx.host.ls.discover({
-      processName: "language_server_macos",
+      processName: "language_server",
       markers: [variant.marker],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",
@@ -32,8 +60,9 @@
 
   function loadApiKey(ctx, variant) {
     try {
+      var stateDb = getWindsurfStateDb(ctx, variant)
       var rows = ctx.host.sqlite.query(
-        variant.stateDb,
+        stateDb,
         "SELECT value FROM ItemTable WHERE key = 'windsurfAuthStatus' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)

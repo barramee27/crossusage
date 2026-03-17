@@ -82,17 +82,33 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
     ];
 
     let separator = PredefinedMenuItem::separator(app_handle)?;
+    let restart = MenuItem::with_id(app_handle, "restart", "Restart", true, None::<&str>)?;
     let about = MenuItem::with_id(app_handle, "about", "About OpenUsage", true, None::<&str>)?;
     let quit = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app_handle, &[&show_stats, &go_to_settings, &log_level_submenu, &separator, &about, &quit])?;
+    let menu = Menu::with_items(app_handle, &[&show_stats, &go_to_settings, &log_level_submenu, &separator, &restart, &about, &quit])?;
 
-    TrayIconBuilder::with_id("tray")
+    let mut builder = TrayIconBuilder::with_id("tray")
         .icon(icon)
         .icon_as_template(true)
-        .tooltip("OpenUsage")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
+        .tooltip("OpenUsage");
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.menu(&menu).show_menu_on_left_click(false);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Linux AppIndicator: left-click typically shows menu. Use "Show Stats" to open window.
+        builder = builder.menu(&menu).show_menu_on_left_click(true);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: left-click shows menu, same as Linux.
+        builder = builder.menu(&menu).show_menu_on_left_click(true);
+    }
+
+    builder
         .on_menu_event(move |app_handle, event| {
             log::debug!("tray menu: {}", event.id.as_ref());
             match event.id.as_ref() {
@@ -107,6 +123,10 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                 "about" => {
                     show_panel(app_handle);
                     let _ = app_handle.emit("tray:show-about", ());
+                }
+                "restart" => {
+                    log::info!("restart requested via tray");
+                    let _ = app_handle.restart();
                 }
                 "quit" => {
                     log::info!("quit requested via tray");
@@ -165,7 +185,23 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                                 return;
                             }
                             log::debug!("tray click: showing window");
-                            
+
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            position_panel_at_tray_icon(app_handle, rect.position, rect.size);
+                        }
+                    }
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                log::debug!("tray click: hiding window");
+                                let _ = window.hide();
+                                return;
+                            }
+                            log::debug!("tray click: showing window");
+
                             let _ = window.show();
                             let _ = window.set_focus();
                             position_panel_at_tray_icon(app_handle, rect.position, rect.size);
