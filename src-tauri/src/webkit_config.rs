@@ -13,6 +13,7 @@ pub fn configure_webview(app_handle: &tauri::AppHandle) {
     };
 
     if let Err(e) = window.with_webview(|webview| unsafe {
+
         use objc2::sel;
         use objc2_app_kit::NSColor;
         use objc2_foundation::{NSNumber, NSObjectNSKeyValueCoding, NSObjectProtocol, ns_string};

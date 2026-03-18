@@ -1,3 +1,9 @@
+use aes_gcm::{
+    AesGcm, Nonce,
+    aead::{Aead, KeyInit, OsRng, generic_array::typenum::U16, rand_core::RngCore},
+    aes::Aes256,
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rquickjs::{Ctx, Exception, Function, Object};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Map, Value as JsonValue};
@@ -276,6 +282,97 @@ fn redact_log_message(msg: &str) -> String {
     result
 }
 
+fn decrypt_aes_256_gcm_envelope(envelope: &str, key_b64: &str) -> Result<String, String> {
+    let trimmed_envelope = envelope.trim();
+    let trimmed_key = key_b64.trim();
+    let parts: Vec<&str> = trimmed_envelope.split(':').collect();
+    if parts.len() != 3 {
+        return Err("invalid AES-GCM envelope".to_string());
+    }
+
+    let key = BASE64_STANDARD
+        .decode(trimmed_key)
+        .map_err(|e| format!("invalid base64 key: {}", e))?;
+    if key.len() != 32 {
+        return Err(format!(
+            "invalid AES-256 key length: expected 32 bytes, got {}",
+            key.len()
+        ));
+    }
+
+    let iv = BASE64_STANDARD
+        .decode(parts[0])
+        .map_err(|e| format!("invalid base64 iv: {}", e))?;
+    if iv.len() != 16 {
+        return Err(format!(
+            "invalid AES-GCM iv length: expected 16 bytes, got {}",
+            iv.len()
+        ));
+    }
+
+    let tag = BASE64_STANDARD
+        .decode(parts[1])
+        .map_err(|e| format!("invalid base64 auth tag: {}", e))?;
+    if tag.len() != 16 {
+        return Err(format!(
+            "invalid AES-GCM auth tag length: expected 16 bytes, got {}",
+            tag.len()
+        ));
+    }
+
+    let ciphertext = BASE64_STANDARD
+        .decode(parts[2])
+        .map_err(|e| format!("invalid base64 ciphertext: {}", e))?;
+
+    type Aes256Gcm16 = AesGcm<Aes256, U16>;
+    let cipher =
+        Aes256Gcm16::new_from_slice(&key).map_err(|e| format!("decrypt init failed: {}", e))?;
+    let nonce = Nonce::<U16>::from_slice(&iv);
+
+    let mut ciphertext_and_tag = ciphertext;
+    ciphertext_and_tag.extend_from_slice(&tag);
+    let plaintext = cipher
+        .decrypt(nonce, ciphertext_and_tag.as_ref())
+        .map_err(|_| "decrypt finalize failed".to_string())?;
+
+    String::from_utf8(plaintext).map_err(|e| format!("decrypted payload is not UTF-8: {}", e))
+}
+
+fn encrypt_aes_256_gcm_envelope(plaintext: &str, key_b64: &str) -> Result<String, String> {
+    let trimmed_key = key_b64.trim();
+    let key = BASE64_STANDARD
+        .decode(trimmed_key)
+        .map_err(|e| format!("invalid base64 key: {}", e))?;
+    if key.len() != 32 {
+        return Err(format!(
+            "invalid AES-256 key length: expected 32 bytes, got {}",
+            key.len()
+        ));
+    }
+
+    type Aes256Gcm16 = AesGcm<Aes256, U16>;
+    let cipher =
+        Aes256Gcm16::new_from_slice(&key).map_err(|e| format!("encrypt init failed: {}", e))?;
+    let mut iv = [0_u8; 16];
+    OsRng.fill_bytes(&mut iv);
+    let nonce = Nonce::<U16>::from_slice(&iv);
+    let ciphertext_and_tag = cipher
+        .encrypt(nonce, plaintext.as_bytes())
+        .map_err(|_| "encrypt finalize failed".to_string())?;
+    if ciphertext_and_tag.len() < 16 {
+        return Err("encrypted payload missing auth tag".to_string());
+    }
+    let split_at = ciphertext_and_tag.len() - 16;
+    let (ciphertext, tag) = ciphertext_and_tag.split_at(split_at);
+
+    Ok(format!(
+        "{}:{}:{}",
+        BASE64_STANDARD.encode(iv),
+        BASE64_STANDARD.encode(tag),
+        BASE64_STANDARD.encode(ciphertext)
+    ))
+}
+
 pub fn inject_host_api<'js>(
     ctx: &Ctx<'js>,
     plugin_id: &str,
@@ -308,6 +405,7 @@ pub fn inject_host_api<'js>(
     let host = Object::new(ctx.clone())?;
     inject_log(ctx, &host, plugin_id)?;
     inject_fs(ctx, &host)?;
+    inject_crypto(ctx, &host)?;
     inject_env(ctx, &host, plugin_id)?;
     inject_http(ctx, &host, plugin_id)?;
     inject_keychain(ctx, &host)?;
@@ -439,6 +537,41 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
     )?;
 
     host.set("fs", fs_obj)?;
+    Ok(())
+}
+
+fn inject_crypto<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
+    let crypto_obj = Object::new(ctx.clone())?;
+
+    crypto_obj.set(
+        "decryptAes256Gcm",
+        Function::new(
+            ctx.clone(),
+            move |ctx_inner: Ctx<'_>,
+                  envelope: String,
+                  key_b64: String|
+                  -> rquickjs::Result<String> {
+                decrypt_aes_256_gcm_envelope(&envelope, &key_b64)
+                    .map_err(|e| Exception::throw_message(&ctx_inner, &e))
+            },
+        )?,
+    )?;
+
+    crypto_obj.set(
+        "encryptAes256Gcm",
+        Function::new(
+            ctx.clone(),
+            move |ctx_inner: Ctx<'_>,
+                  plaintext: String,
+                  key_b64: String|
+                  -> rquickjs::Result<String> {
+                encrypt_aes_256_gcm_envelope(&plaintext, &key_b64)
+                    .map_err(|e| Exception::throw_message(&ctx_inner, &e))
+            },
+        )?,
+    )?;
+
+    host.set("crypto", crypto_obj)?;
     Ok(())
 }
 
@@ -1519,16 +1652,12 @@ fn ccusage_runner_args(
     let package_spec = ccusage_package_spec(provider);
     let mut args: Vec<String> = match kind {
         CcusageRunnerKind::Bunx => vec!["--silent".to_string(), package_spec.clone()],
-        CcusageRunnerKind::PnpmDlx => vec![
-            "-s".to_string(),
-            "dlx".to_string(),
-            package_spec.clone(),
-        ],
-        CcusageRunnerKind::YarnDlx => vec![
-            "dlx".to_string(),
-            "-q".to_string(),
-            package_spec.clone(),
-        ],
+        CcusageRunnerKind::PnpmDlx => {
+            vec!["-s".to_string(), "dlx".to_string(), package_spec.clone()]
+        }
+        CcusageRunnerKind::YarnDlx => {
+            vec!["dlx".to_string(), "-q".to_string(), package_spec.clone()]
+        }
         CcusageRunnerKind::NpmExec => vec![
             "exec".to_string(),
             "--yes".to_string(),
@@ -2021,6 +2150,25 @@ mod tests {
     use super::*;
     use rquickjs::{Context, Function, Object, Runtime};
 
+    fn encrypt_aes_256_gcm_envelope_for_test(key: &[u8], plaintext: &str) -> String {
+        let iv = [7_u8; 16];
+        type Aes256Gcm16 = AesGcm<Aes256, U16>;
+        let cipher = Aes256Gcm16::new_from_slice(key).expect("encrypt init");
+        let nonce = Nonce::<U16>::from_slice(&iv);
+        let ciphertext_and_tag = cipher
+            .encrypt(nonce, plaintext.as_bytes())
+            .expect("encrypt finalize");
+        let split_at = ciphertext_and_tag.len() - 16;
+        let (ciphertext, tag) = ciphertext_and_tag.split_at(split_at);
+
+        format!(
+            "{}:{}:{}",
+            BASE64_STANDARD.encode(iv),
+            BASE64_STANDARD.encode(tag),
+            BASE64_STANDARD.encode(ciphertext)
+        )
+    }
+
     #[test]
     fn last_non_empty_trimmed_line_uses_final_value_when_stdout_is_noisy() {
         let stdout = "banner line\nanother message\n  sk-test-key-12345  \n";
@@ -2033,6 +2181,81 @@ mod tests {
         let stdout = "  \n\n\t\n";
         let value = last_non_empty_trimmed_line(stdout);
         assert!(value.is_none());
+    }
+
+    #[test]
+    fn decrypt_aes_256_gcm_envelope_round_trips_plaintext() {
+        let key = [11_u8; 32];
+        let key_b64 = BASE64_STANDARD.encode(key);
+        let plaintext = r#"{"access_token":"token","refresh_token":"refresh"}"#;
+        let envelope = encrypt_aes_256_gcm_envelope_for_test(&key, plaintext);
+
+        let decrypted =
+            decrypt_aes_256_gcm_envelope(&envelope, &key_b64).expect("decrypt envelope");
+
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn encrypt_aes_256_gcm_envelope_round_trips_plaintext() {
+        let key = [21_u8; 32];
+        let key_b64 = BASE64_STANDARD.encode(key);
+        let plaintext = r#"{"access_token":"token-2","refresh_token":"refresh-2"}"#;
+
+        let envelope = encrypt_aes_256_gcm_envelope(plaintext, &key_b64).expect("encrypt envelope");
+        let decrypted =
+            decrypt_aes_256_gcm_envelope(&envelope, &key_b64).expect("decrypt envelope");
+
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn decrypt_aes_256_gcm_envelope_rejects_invalid_component_lengths() {
+        let key_b64 = BASE64_STANDARD.encode([9_u8; 32]);
+        let short_key_b64 = BASE64_STANDARD.encode([7_u8; 31]);
+        let iv_b64 = BASE64_STANDARD.encode([1_u8; 15]);
+        let tag_b64 = BASE64_STANDARD.encode([2_u8; 16]);
+        let ciphertext_b64 = BASE64_STANDARD.encode([3_u8; 8]);
+
+        let key_err =
+            decrypt_aes_256_gcm_envelope("AQ==:AQ==:AQ==", &short_key_b64).expect_err("key length");
+        assert!(key_err.contains("expected 32 bytes"));
+
+        let iv_err = decrypt_aes_256_gcm_envelope(
+            &format!("{}:{}:{}", iv_b64, tag_b64, ciphertext_b64),
+            &key_b64,
+        )
+        .expect_err("iv length");
+        assert!(iv_err.contains("iv length"));
+
+        let short_tag_b64 = BASE64_STANDARD.encode([2_u8; 15]);
+        let tag_err = decrypt_aes_256_gcm_envelope(
+            &format!(
+                "{}:{}:{}",
+                BASE64_STANDARD.encode([1_u8; 16]),
+                short_tag_b64,
+                ciphertext_b64
+            ),
+            &key_b64,
+        )
+        .expect_err("tag length");
+        assert!(tag_err.contains("auth tag length"));
+    }
+
+    #[test]
+    fn crypto_api_exposes_decrypt() {
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            let globals = ctx.globals();
+            let probe_ctx: Object = globals.get("__openusage_ctx").expect("probe ctx");
+            let host: Object = probe_ctx.get("host").expect("host");
+            let crypto: Object = host.get("crypto").expect("crypto");
+            let _decrypt: Function = crypto.get("decryptAes256Gcm").expect("decryptAes256Gcm");
+            let _encrypt: Function = crypto.get("encryptAes256Gcm").expect("encryptAes256Gcm");
+        });
     }
 
     #[test]
