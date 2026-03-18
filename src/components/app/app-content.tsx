@@ -27,6 +27,7 @@ export type AppContentActionProps = {
   onRetryPlugin: (id: string) => void
   onReorder: (orderedIds: string[]) => void
   onToggle: (id: string) => void
+  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean, fallback?: string) => void
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void
   onThemeModeChange: (mode: ThemeMode) => void
   onDisplayModeChange: (mode: DisplayMode) => void
@@ -36,7 +37,11 @@ export type AppContentActionProps = {
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
   onStartOnLoginChange: (value: boolean) => void
+
   onUIScaleChange: (value: UIScale) => void
+
+  onShowTrayIconChange: (value: boolean) => void
+
 }
 
 export type AppContentProps = AppContentDerivedProps & AppContentActionProps
@@ -48,6 +53,7 @@ export function AppContent({
   onRetryPlugin,
   onReorder,
   onToggle,
+  onTrayLineToggle,
   onAutoUpdateIntervalChange,
   onThemeModeChange,
   onDisplayModeChange,
@@ -57,7 +63,11 @@ export function AppContent({
   traySettingsPreview,
   onGlobalShortcutChange,
   onStartOnLoginChange,
+
   onUIScaleChange,
+
+  onShowTrayIconChange,
+
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
     useShallow((state) => ({
@@ -73,7 +83,11 @@ export function AppContent({
     globalShortcut,
     themeMode,
     startOnLogin,
+
     uiScale,
+
+    showTrayIcon,
+
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -83,7 +97,11 @@ export function AppContent({
       globalShortcut: state.globalShortcut,
       themeMode: state.themeMode,
       startOnLogin: state.startOnLogin,
+
       uiScale: state.uiScale,
+
+      showTrayIcon: state.showTrayIcon,
+
     }))
   )
 
@@ -105,6 +123,7 @@ export function AppContent({
         plugins={settingsPlugins}
         onReorder={onReorder}
         onToggle={onToggle}
+        onTrayLineToggle={onTrayLineToggle}
         autoUpdateInterval={autoUpdateInterval}
         onAutoUpdateIntervalChange={onAutoUpdateIntervalChange}
         themeMode={themeMode}
@@ -120,8 +139,13 @@ export function AppContent({
         onGlobalShortcutChange={onGlobalShortcutChange}
         startOnLogin={startOnLogin}
         onStartOnLoginChange={onStartOnLoginChange}
+
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
+
+        showTrayIcon={showTrayIcon}
+        onShowTrayIconChange={onShowTrayIconChange}
+
       />
     )
   }

@@ -59,8 +59,13 @@ function App() {
     setResetTimerDisplayMode,
     setGlobalShortcut,
     setStartOnLogin,
+
     uiScale,
     setUIScale,
+
+    showTrayIcon,
+    setShowTrayIcon,
+
   } = useAppPreferencesStore(
     useShallow((state) => ({
       autoUpdateInterval: state.autoUpdateInterval,
@@ -75,12 +80,17 @@ function App() {
       setResetTimerDisplayMode: state.setResetTimerDisplayMode,
       setGlobalShortcut: state.setGlobalShortcut,
       setStartOnLogin: state.setStartOnLogin,
+
       uiScale: state.uiScale,
       setUIScale: state.setUIScale,
+
+      showTrayIcon: state.showTrayIcon,
+      setShowTrayIcon: state.setShowTrayIcon,
+
     }))
   )
 
-  const scheduleProbeTrayUpdateRef = useRef<() => void>(() => {})
+  const scheduleProbeTrayUpdateRef = useRef<() => void>(() => { })
   const handleProbeResult = useCallback(() => {
     scheduleProbeTrayUpdateRef.current()
   }, [])
@@ -107,6 +117,7 @@ function App() {
     displayMode,
     menubarIconStyle,
     activeView,
+    showTrayIcon,
   })
 
   useEffect(() => {
@@ -125,7 +136,11 @@ function App() {
     setResetTimerDisplayMode,
     setGlobalShortcut,
     setStartOnLogin,
+
     setUIScale,
+
+    setShowTrayIcon,
+
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,
@@ -155,18 +170,22 @@ function App() {
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
     handleStartOnLoginChange,
+    handleShowTrayIconChange,
   } = useSettingsSystemActions({
     pluginSettings,
     setAutoUpdateInterval,
     setAutoUpdateNextAt,
     setGlobalShortcut,
     setStartOnLogin,
+    setShowTrayIcon,
     applyStartOnLogin,
+    scheduleTrayIconUpdate,
   })
 
   const {
     handleReorder,
     handleToggle,
+    handleTrayLineToggle,
   } = useSettingsPluginActions({
     pluginSettings,
     setPluginSettings,
@@ -250,6 +269,7 @@ function App() {
         onRetryPlugin: handleRetryPlugin,
         onReorder: handleReorder,
         onToggle: handleToggle,
+        onTrayLineToggle: handleTrayLineToggle,
         onAutoUpdateIntervalChange: handleAutoUpdateIntervalChange,
         onThemeModeChange: handleThemeModeChange,
         onDisplayModeChange: handleDisplayModeChange,
@@ -259,7 +279,11 @@ function App() {
         traySettingsPreview,
         onGlobalShortcutChange: handleGlobalShortcutChange,
         onStartOnLoginChange: handleStartOnLoginChange,
+
         onUIScaleChange: handleUIScaleChange,
+
+        onShowTrayIconChange: handleShowTrayIconChange,
+
       }}
     />
   )

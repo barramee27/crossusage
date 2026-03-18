@@ -4,8 +4,13 @@ import { TrayIcon } from "@tauri-apps/api/tray"
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { DisplayMode, MenubarIconStyle, PluginSettings } from "@/lib/settings"
 import { getEnabledPluginIds } from "@/lib/settings"
+
 import { getTrayIconSizePx, renderTrayBarsIcon } from "@/lib/tray-bars-icon"
 import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
+
+import { getTrayIconSizePx, renderTrayBarsIcon, type TrayGridCell } from "@/lib/tray-bars-icon"
+import { getTrayPrimaryBars } from "@/lib/tray-primary-progress"
+
 import type { PluginState } from "@/hooks/app/types"
 
 type TrayUpdateReason = "probe" | "settings" | "init"
@@ -17,6 +22,7 @@ type UseTrayIconArgs = {
   displayMode: DisplayMode
   menubarIconStyle: MenubarIconStyle
   activeView: string
+  showTrayIcon: boolean
 }
 
 export type TraySettingsPreview = {
@@ -61,6 +67,7 @@ export function useTrayIcon({
   displayMode,
   menubarIconStyle,
   activeView,
+  showTrayIcon,
 }: UseTrayIconArgs) {
   const trayRef = useRef<TrayIcon | null>(null)
   const trayGaugeIconPathRef = useRef<string | null>(null)
@@ -78,6 +85,7 @@ export function useTrayIcon({
   const displayModeRef = useRef(displayMode)
   const menubarIconStyleRef = useRef(menubarIconStyle)
   const activeViewRef = useRef(activeView)
+  const showTrayIconRef = useRef(showTrayIcon)
   const lastTrayProviderIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -103,6 +111,10 @@ export function useTrayIcon({
   useEffect(() => {
     activeViewRef.current = activeView
   }, [activeView])
+
+  useEffect(() => {
+    showTrayIconRef.current = showTrayIcon
+  }, [showTrayIcon])
 
   const scheduleTrayIconUpdate = useCallback((
     _reason: TrayUpdateReason,
@@ -134,11 +146,13 @@ export function useTrayIcon({
         return
       }
 
-      const maybeSetTitle = (tray as TrayIcon & { setTitle?: (value: string) => Promise<void> }).setTitle
+      const maybeSetTitle =
+        (tray as TrayIcon & { setTitle?: (value: string | null) => Promise<void> }).setTitle
       const setTitleFn =
-        typeof maybeSetTitle === "function" ? (value: string) => maybeSetTitle.call(tray, value) : null
-      const supportsNativeTrayTitle = setTitleFn !== null
-      const setTrayTitle = (title: string) => {
+        typeof maybeSetTitle === "function"
+          ? (value: string | null) => maybeSetTitle.call(tray, value)
+          : null
+      const setTrayTitle = (title: string | null) => {
         if (setTitleFn) {
           return setTitleFn(title)
         }
@@ -256,6 +270,7 @@ export function useTrayIcon({
       }
       lastTrayProviderIdRef.current = trayProviderId
 
+
       if (style === "donut") {
         renderTrayBarsIcon({
           bars: providerBars,
@@ -277,17 +292,82 @@ export function useTrayIcon({
         return
       }
 
+      const bars = getTrayPrimaryBars({
+        pluginsMeta: pluginsMetaRef.current,
+        pluginSettings: currentSettings,
+        pluginStates: pluginStatesRef.current,
+        maxBars: 1,
+        displayMode: displayModeRef.current,
+        pluginId: trayProviderId,
+      })
+
+      const items = bars[0]?.items || []
+
+      let tooltipText: string | undefined
+      let gridCellsToRender: TrayGridCell[] = []
+      let providerIconUrlToRender = pluginsMetaRef.current.find((plugin) => plugin.id === trayProviderId)?.iconUrl
+
+      if (items.length > 0) {
+        tooltipText = items.map(item => {
+          const hasFraction = typeof item.fraction === "number" && Number.isFinite(item.fraction)
+          const clampedFraction = hasFraction ? Math.max(0, Math.min(1, item.fraction!)) : undefined
+          return `${item.label}: ${typeof clampedFraction === "number" ? Math.round(clampedFraction * 100) + '%' : '--%'}`
+        }).join("\n")
+
+        gridCellsToRender = items.map(item => {
+          const hasFraction = typeof item.fraction === "number" && Number.isFinite(item.fraction)
+          const clampedFraction = hasFraction ? Math.max(0, Math.min(1, item.fraction!)) : undefined
+          const valStr = typeof clampedFraction === "number" ? `${Math.round(clampedFraction * 100)}%` : "--%"
+
+          if (items.length === 1) {
+            return { text: valStr }
+          }
+
+          let shortLabel = item.label
+          const words = shortLabel.split(" ")
+          if (words.length > 1) {
+            shortLabel = words[words.length - 1] // e.g. "Gemini Flash" -> "Flash"
+          }
+          if (shortLabel.length > 5) {
+            shortLabel = shortLabel.substring(0, 3) // e.g. "Session" -> "Ses", "Weekly" -> "Wee"
+          }
+          // The user specifically requested a space here ("加一个空格以美化展示效果")
+          return { text: `${shortLabel} ${valStr}` }
+        })
+      }
+
+      const sizePx = getTrayIconSizePx(window.devicePixelRatio)
+
+
       renderTrayBarsIcon({
         bars: providerBars,
         sizePx,
+
         style: "provider",
         percentText: supportsNativeTrayTitle ? undefined : providerPercentText,
         providerIconUrl,
+
+        gridCells: gridCellsToRender,
+        providerIconUrl: showTrayIconRef.current ? providerIconUrlToRender : undefined,
+        hideIcon: !showTrayIconRef.current,
+
       })
         .then(async (img) => {
           await tray.setIcon(img)
           await tray.setIconAsTemplate(true)
+
           await setTrayTitle(providerPercentText)
+
+          await setTrayTitle(null) // Disabling native Title clipping entirely
+          const maybeSetTooltip =
+            (tray as TrayIcon & { setTooltip?: (value: string | null) => Promise<void> }).setTooltip
+          if (typeof maybeSetTooltip === "function") {
+            // If tooltip is null, clear current tooltip.
+            await maybeSetTooltip.call(tray, tooltipText ?? null).catch((error) => {
+              console.error("Failed to update tray tooltip:", error)
+            })
+          }
+
         })
         .catch((e) => {
           console.error("Failed to update tray icon:", e)
@@ -303,25 +383,25 @@ export function useTrayIcon({
     if (trayInitializedRef.current) return
     let cancelled = false
 
-    ;(async () => {
-      try {
-        const tray = await TrayIcon.getById("tray")
-        if (cancelled) return
-        trayRef.current = tray
-        trayInitializedRef.current = true
-
+      ; (async () => {
         try {
-          trayGaugeIconPathRef.current = await resolveResource("icons/tray-icon.png")
-        } catch (e) {
-          console.error("Failed to resolve tray gauge icon resource:", e)
-        }
+          const tray = await TrayIcon.getById("tray")
+          if (cancelled) return
+          trayRef.current = tray
+          trayInitializedRef.current = true
 
-        if (cancelled) return
-        setTrayReady(true)
-      } catch (e) {
-        console.error("Failed to load tray icon handle:", e)
-      }
-    })()
+          try {
+            trayGaugeIconPathRef.current = await resolveResource("icons/tray-icon.png")
+          } catch (e) {
+            console.error("Failed to resolve tray gauge icon resource:", e)
+          }
+
+          if (cancelled) return
+          setTrayReady(true)
+        } catch (e) {
+          console.error("Failed to load tray icon handle:", e)
+        }
+      })()
 
     return () => {
       cancelled = true

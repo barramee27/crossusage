@@ -8,6 +8,7 @@ export const REFRESH_COOLDOWN_MS = 300_000;
 export type PluginSettings = {
   order: string[];
   disabled: string[];
+  trayLines?: Record<string, string[]>;
 };
 
 export type AutoUpdateIntervalMinutes = 5 | 15 | 30 | 60;
@@ -33,7 +34,11 @@ const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
 const START_ON_LOGIN_KEY = "startOnLogin";
+
 const UI_SCALE_KEY = "uiScale";
+
+const SHOW_TRAY_ICON_KEY = "showTrayIcon";
+
 
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
@@ -42,6 +47,7 @@ export const DEFAULT_RESET_TIMER_DISPLAY_MODE: ResetTimerDisplayMode = "relative
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
+
 export type UIScale = "normal" | "small" | "compact";
 export const DEFAULT_UI_SCALE: UIScale = "normal";
 const UI_SCALE_VALUES: UIScale[] = ["normal", "small", "compact"];
@@ -50,6 +56,9 @@ export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
   { value: "small", label: "Small" },
   { value: "compact", label: "Compact" },
 ];
+
+export const DEFAULT_SHOW_TRAY_ICON = true;
+
 
 const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
@@ -92,6 +101,7 @@ const DEFAULT_ENABLED_PLUGINS = new Set(["claude", "codex", "cursor"]);
 export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   order: [],
   disabled: [],
+  trayLines: {},
 };
 
 export async function loadPluginSettings(): Promise<PluginSettings> {
@@ -100,6 +110,7 @@ export async function loadPluginSettings(): Promise<PluginSettings> {
   return {
     order: Array.isArray(stored.order) ? stored.order : [],
     disabled: Array.isArray(stored.disabled) ? stored.disabled : [],
+    trayLines: stored.trayLines && typeof stored.trayLines === "object" ? stored.trayLines : {},
   };
 }
 
@@ -157,7 +168,14 @@ export function normalizePluginSettings(
       disabled.push(id);
     }
   }
-  return { order, disabled };
+  const trayLines = { ...(settings.trayLines ?? {}) };
+  for (const key in trayLines) {
+    if (!knownSet.has(key)) {
+      delete trayLines[key];
+    }
+  }
+
+  return { order, disabled, trayLines };
 }
 
 export function arePluginSettingsEqual(
@@ -172,6 +190,23 @@ export function arePluginSettingsEqual(
   for (let i = 0; i < a.disabled.length; i += 1) {
     if (a.disabled[i] !== b.disabled[i]) return false;
   }
+
+  const aLines = a.trayLines || {};
+  const bLines = b.trayLines || {};
+  const aKeys = Object.keys(aLines);
+  const bKeys = Object.keys(bLines);
+  if (aKeys.length !== bKeys.length) return false;
+
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(bLines, key)) return false;
+    const aArr = aLines[key] || [];
+    const bArr = bLines[key] || [];
+    if (aArr.length !== bArr.length) return false;
+    for (let i = 0; i < aArr.length; i += 1) {
+      if (aArr[i] !== bArr[i]) return false;
+    }
+  }
+
   return true;
 }
 
@@ -313,6 +348,7 @@ export async function saveStartOnLogin(value: boolean): Promise<void> {
   await store.save();
 }
 
+
 export function isUIScale(value: unknown): value is UIScale {
   return typeof value === "string" && UI_SCALE_VALUES.includes(value as UIScale);
 }
@@ -325,5 +361,15 @@ export async function loadUIScale(): Promise<UIScale> {
 
 export async function saveUIScale(value: UIScale): Promise<void> {
   await store.set(UI_SCALE_KEY, value);
+
+export async function loadShowTrayIcon(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_TRAY_ICON_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_TRAY_ICON;
+}
+
+export async function saveShowTrayIcon(value: boolean): Promise<void> {
+  await store.set(SHOW_TRAY_ICON_KEY, value);
+
   await store.save();
 }
