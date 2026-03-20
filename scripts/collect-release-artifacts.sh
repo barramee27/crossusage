@@ -49,7 +49,7 @@ Typical filenames (Tauri uses productName "crossusage" + version ${VERSION}):
   - AppImage:  crossusage_${VERSION}_amd64.AppImage
   - Windows:   crossusage_${VERSION}_x64-setup.exe (NSIS) and crossusage.exe
   - CLI:       crossusage-cli (same .deb / installer as GUI when built with prepare-cli-sidecar.sh)
-  - CLI tarball: crossusage-cli_${VERSION}_linux_amd64.tar.gz (standalone: build/build-cli-tarball.sh) for INSTALL_MODE=cli
+  - CLI tarball: crossusage-cli_${VERSION}_linux_amd64.tar.gz or _darwin_arm64.tar.gz (scripts/build-cli-tarball.sh) for INSTALL_MODE=cli
 EOF
 
 echo "Done. See $OUT/README.txt"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CrossUsage — install latest release from GitHub (Linux / macOS guidance / Windows redirect).
+# CrossUsage — install latest release from GitHub (Linux desktop / macOS+Linux CLI / Windows redirect).
 # Repo: https://github.com/barramee27/crossusage
 #
 # Usage:
@@ -7,7 +7,7 @@
 #
 # Environment:
 #   GITHUB_REPO     default: barramee27/crossusage
-#   INSTALL_MODE     full (default) | cli — full = .deb/.rpm/AppImage; cli = portable tarball from the repo (releases/) or Release assets
+#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS) from releases/ or Release assets
 #   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
 #   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: main)
 #   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional)
@@ -155,47 +155,39 @@ map_rpm_arch_suffix() {
 
 # --- OS branches ---
 
-KERNEL="$(uname -s)"
-
-case "$KERNEL" in
-  Darwin)
-    echo "CrossUsage (this fork) does not publish macOS installers on GitHub."
-    echo "For macOS, use upstream OpenUsage:"
-    echo "  https://github.com/robinebers/openusage/releases/latest"
-    exit 0
-    ;;
-  MINGW*|MSYS*|CYGWIN*)
-    echo "This script is for Unix shells. On Windows, use PowerShell:"
-    echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.ps1 | iex"
-    echo "Or download the latest .exe from:"
-    echo "  https://github.com/${GITHUB_REPO}/releases/latest"
-    exit 0
-    ;;
-esac
-
-if [[ "$KERNEL" != Linux ]]; then
-  die "unsupported OS: $KERNEL (try manual download from https://github.com/${GITHUB_REPO}/releases/latest)"
-fi
-
-DEB_ARCH="$(map_deb_arch)"
-AI_ARCH="$(map_appimage_arch)"
-RPM_ARCH="$(map_rpm_arch_suffix)"
-
 TMP="${TMPDIR:-/tmp}"
-
 INSTALL_MODE="${INSTALL_MODE:-full}"
 INSTALL_GIT_REF="${INSTALL_GIT_REF:-main}"
+KERNEL="$(uname -s)"
 
-# --- CLI-only: one tarball = binary + resources/bundled_plugins (no desktop app / no WebKit) ---
+# --- CLI-only: one tarball = binary + resources/bundled_plugins (Linux + macOS; no desktop app / no WebKit) ---
 if [[ "$INSTALL_MODE" == cli ]]; then
+  case "$KERNEL" in
+    Linux)
+      CLI_OS="linux"
+      CLI_ARCH_TAG="$(map_deb_arch)"
+      ;;
+    Darwin)
+      CLI_OS="darwin"
+      case "$(uname -m)" in
+        x86_64) CLI_ARCH_TAG="amd64" ;;
+        arm64) CLI_ARCH_TAG="arm64" ;;
+        *) die "unsupported macOS machine $(uname -m) (need x86_64 or arm64)" ;;
+      esac
+      ;;
+    *)
+      die "INSTALL_MODE=cli is only supported on Linux and macOS (got: $KERNEL)"
+      ;;
+  esac
+
   TMP_CLI="$TMP/crossusage-cli-$$.tar.gz"
   REPO_URL_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/releases"
   REPO_VER="$(fetch_repo_package_version || true)"
   VERSIONED_CLI_URL=""
   if [[ -n "$REPO_VER" ]]; then
-    VERSIONED_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${REPO_VER}_linux_${DEB_ARCH}.tar.gz"
+    VERSIONED_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz"
   fi
-  LEGACY_CLI_URL="${REPO_URL_BASE}/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
+  LEGACY_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz"
   # Prefer INSTALL_CLI_URL override, then versioned name (matches scripts/build-cli-tarball.sh), then legacy unversioned path.
   if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
     DEFAULT_CLI_URL="$INSTALL_CLI_URL"
@@ -205,21 +197,36 @@ if [[ "$INSTALL_MODE" == cli ]]; then
     DEFAULT_CLI_URL="$LEGACY_CLI_URL"
   fi
 
-  echo "Downloading portable CLI bundle …"
+  echo "Downloading portable CLI bundle (${CLI_OS} ${CLI_ARCH_TAG}) …"
   rm -f "$TMP_CLI"
+  GOT_FROM=""
   if ! download_try "$DEFAULT_CLI_URL" "$TMP_CLI"; then
     if [[ -z "${INSTALL_CLI_URL:-}" && -n "$VERSIONED_CLI_URL" && "$DEFAULT_CLI_URL" != "$LEGACY_CLI_URL" ]]; then
-      echo "Trying legacy repo path: releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz …"
+      echo "Trying legacy repo path: releases/crossusage-cli_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz …"
       rm -f "$TMP_CLI"
-      download_try "$LEGACY_CLI_URL" "$TMP_CLI" || true
+      if download_try "$LEGACY_CLI_URL" "$TMP_CLI"; then
+        GOT_FROM="legacy"
+      fi
+    fi
+  else
+    if [[ "$DEFAULT_CLI_URL" == "$VERSIONED_CLI_URL" ]]; then
+      GOT_FROM="versioned"
+    elif [[ "$DEFAULT_CLI_URL" == "$LEGACY_CLI_URL" ]]; then
+      GOT_FROM="legacy"
+    else
+      GOT_FROM="override"
     fi
   fi
   if [[ ! -s "$TMP_CLI" ]]; then
     echo "Trying GitHub Release assets instead …"
     JSON="$(fetch_json)" || die "failed to fetch release metadata"
-    FALLBACK_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_linux_${DEB_ARCH}\\.tar\\.gz\$" || true)"
-    [[ -n "$FALLBACK_URL" ]] || die "No CLI tarball found. Expected releases/crossusage-cli_<version>_linux_${DEB_ARCH}.tar.gz (from package.json on ${INSTALL_GIT_REF}) or releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz, or attach crossusage-cli_*_linux_${DEB_ARCH}.tar.gz to the latest GitHub Release."
+    FALLBACK_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_${CLI_OS}_${CLI_ARCH_TAG}\\.tar\\.gz\$" || true)"
+    [[ -n "$FALLBACK_URL" ]] || die "No CLI tarball found. Add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh), or attach that asset to the latest GitHub Release."
     download_to "$FALLBACK_URL" "$TMP_CLI"
+    GOT_FROM="release"
+  fi
+  if [[ "$GOT_FROM" == "legacy" && -n "$REPO_VER" ]]; then
+    echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is committed on ${INSTALL_GIT_REF} so installs get the matching build." >&2
   fi
   ROOT_CLI="${HOME}/.local/lib/crossusage"
   mkdir -p "$ROOT_CLI"
@@ -242,6 +249,32 @@ if [[ "$INSTALL_MODE" == cli ]]; then
   echo "Done."
   exit 0
 fi
+
+case "$KERNEL" in
+  Darwin)
+    echo "CrossUsage (this fork) does not publish a macOS desktop installer (.dmg) on this repo."
+    echo "For the terminal CLI from this fork, use:"
+    echo "  curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.sh | INSTALL_MODE=cli bash"
+    echo "Upstream OpenUsage may publish macOS GUI builds separately:"
+    echo "  https://github.com/robinebers/openusage/releases/latest"
+    exit 0
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    echo "This script is for Unix shells. On Windows, use PowerShell:"
+    echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.ps1 | iex"
+    echo "Or download the latest .exe from:"
+    echo "  https://github.com/${GITHUB_REPO}/releases/latest"
+    exit 0
+    ;;
+esac
+
+if [[ "$KERNEL" != Linux ]]; then
+  die "unsupported OS: $KERNEL (try manual download from https://github.com/${GITHUB_REPO}/releases/latest)"
+fi
+
+DEB_ARCH="$(map_deb_arch)"
+AI_ARCH="$(map_appimage_arch)"
+RPM_ARCH="$(map_rpm_arch_suffix)"
 
 JSON="$(fetch_json)" || die "failed to fetch release metadata"
 

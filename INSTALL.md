@@ -16,17 +16,17 @@ Scripts live under [`scripts/`](scripts/): they query the [latest GitHub release
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | bash
 ```
 
-- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`, no apt packages for the GUI):** requires a release asset `crossusage-cli_*_linux_amd64.tar.gz` (produce it with `bun run release:cli-tarball` and upload to the GitHub release).
+- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script looks for `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (or the latest GitHub Release). Build with `bun run release:cli-tarball` on Linux, copy into `releases/`, commit, and push — or upload the tarball as a release asset.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | INSTALL_MODE=cli bash
 ```
 
-If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older build), the script will **automatically** add the portable CLI under `~/.local/lib/crossusage` when that tarball exists on the release.
+If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older build), the script will **automatically** add the portable CLI under `~/.local/lib/crossusage` when that tarball exists on the branch or release.
 
-- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only.
+- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` to pick a branch/tag for `releases/` URLs.
 
-**macOS:** this fork does not ship macOS artifacts. Running `install.sh` on macOS prints a pointer to [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
+**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. You need `releases/crossusage-cli_<version>_darwin_amd64.tar.gz` or `_darwin_arm64.tar.gz` (build with `bun run release:cli-tarball` on an Intel or Apple Silicon Mac, commit under `releases/`). This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
 **Git Bash / MSYS on Windows:** `install.sh` tells you to use PowerShell and [`install.ps1`](scripts/install.ps1) instead.
 

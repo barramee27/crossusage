@@ -37,13 +37,13 @@ curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/
 irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.ps1 | iex
 ```
 
-**macOS:** CrossUsage does not publish macOS installers; use [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest). If you run the Linux script on macOS, it exits with that link.
+**macOS:** this fork does not ship a macOS **desktop** `.dmg` here. For the **terminal CLI** from this repo, use `INSTALL_MODE=cli` (downloads `releases/crossusage-cli_*_darwin_*.tar.gz` when published — build on a Mac with `bun run release:cli-tarball`). For a macOS **GUI** app, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
 **Security:** Inspect [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) before piping to `bash` or `iex`. They only talk to GitHub’s API and release asset URLs over HTTPS. You can always install manually from [releases](https://github.com/barramee27/crossusage/releases/latest).
 
 **Optional environment:** `GITHUB_REPO` (default `barramee27/crossusage`); Linux `INSTALL_KIND=deb|rpm|appimage`; Windows `INSTALL_SILENT=0` for a non-silent NSIS install.
 
-**CLI-only (no desktop app / no WebKit):** downloads a portable tarball (`crossusage-cli_*_linux_amd64.tar.gz` from the release — build it with `bun run release:cli-tarball` and upload the asset):
+**CLI-only (no desktop app / no WebKit):** downloads a portable tarball from `releases/` on the branch (`crossusage-cli_<version>_linux_<arch>.tar.gz` or `_darwin_<arch>.tar.gz` — build with `bun run release:cli-tarball` on Linux or macOS, then commit under `releases/` or attach to a GitHub Release):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | INSTALL_MODE=cli bash

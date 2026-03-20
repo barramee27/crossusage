@@ -12,6 +12,7 @@ dist
 /target/
 release-artifacts
 /crossusage-cli_*_linux_*.tar.gz
+/crossusage-cli_*_darwin_*.tar.gz
 src-tauri/binaries/crossusage-cli-*
 dist-ssr
 *.local
