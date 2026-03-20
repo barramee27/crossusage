@@ -55,14 +55,14 @@ pub fn toggle_panel(app_handle: &AppHandle) {
 
 // Define our panel class and event handler together
 tauri_panel! {
-    panel!(OpenUsagePanel {
+    panel!(CrossUsagePanel {
         config: {
             can_become_key_window: true,
             is_floating_panel: true
         }
     })
 
-    panel_event!(OpenUsagePanelEventHandler {
+    panel_event!(CrossUsagePanelEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 }
@@ -74,7 +74,7 @@ pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
 
     let window = app_handle.get_webview_window("main").unwrap();
 
-    let panel = window.to_panel::<OpenUsagePanel>()?;
+    let panel = window.to_panel::<CrossUsagePanel>()?;
 
     // Disable native shadow - it causes gray border on transparent windows
     // Let CSS handle shadow via shadow-xl class
@@ -94,7 +94,7 @@ pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
     panel.set_style_mask(StyleMask::empty().nonactivating_panel().value());
 
     // Set up event handler to hide panel when it loses focus
-    let event_handler = OpenUsagePanelEventHandler::new();
+    let event_handler = CrossUsagePanelEventHandler::new();
 
     let handle = app_handle.clone();
     event_handler.window_did_resign_key(move |_notification| {

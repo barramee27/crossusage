@@ -78,7 +78,7 @@ function VersionDisplay({
           onClick={onVersionClick}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
-          OpenUsage {version}
+          CrossUsage {version}
         </button>
       );
   }

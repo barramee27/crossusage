@@ -610,7 +610,7 @@ pub fn run() {
             use tauri::Manager;
 
             let version = app.package_info().version.to_string();
-            log::info!("OpenUsage v{} starting", version);
+            log::info!("CrossUsage v{} starting", version);
 
             track_daily_active_if_needed(app.handle());
             #[cfg(desktop)]

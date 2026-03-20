@@ -20,7 +20,7 @@ describe("useChangelog", () => {
       name: "v1.2.3",
       body: "notes",
       published_at: "2024-01-02T00:00:00Z",
-      html_url: "https://github.com/barramee27/openusage/releases/tag/v1.2.3",
+      html_url: "https://github.com/barramee27/crossusage/releases/tag/v1.2.3",
     }
 
     const response = {
@@ -43,7 +43,7 @@ describe("useChangelog", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.github.com/repos/barramee27/openusage/releases/tags/v1.2.3",
+      "https://api.github.com/repos/barramee27/crossusage/releases/tags/v1.2.3",
     )
   })
 
@@ -60,7 +60,7 @@ describe("useChangelog", () => {
       name: "v1.0.0",
       body: "older",
       published_at: "2023-01-01T00:00:00Z",
-      html_url: "https://github.com/barramee27/openusage/releases/tag/v1.0.0",
+      html_url: "https://github.com/barramee27/crossusage/releases/tag/v1.0.0",
     }
 
     const okResponse = {
@@ -90,11 +90,11 @@ describe("useChangelog", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://api.github.com/repos/barramee27/openusage/releases/tags/v1.0.0",
+      "https://api.github.com/repos/barramee27/crossusage/releases/tags/v1.0.0",
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://api.github.com/repos/barramee27/openusage/releases/tags/1.0.0",
+      "https://api.github.com/repos/barramee27/crossusage/releases/tags/1.0.0",
     )
   })
 

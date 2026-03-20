@@ -1,24 +1,31 @@
-# Track all your AI coding subscriptions in one place
+# CrossUsage
+
+**CrossUsage** is a **community fork** of **[OpenUsage](https://github.com/robinebers/openusage)**. **All credit for the original app, product direction, and plugin architecture goes to [Robin Ebers](https://github.com/robinebers)** ([@robinebers](https://github.com/robinebers)) — please star and support **[upstream OpenUsage](https://github.com/robinebers/openusage)**.
+
+- **Upstream (authoritative for the core app):** [github.com/robinebers/openusage](https://github.com/robinebers/openusage) · [releases](https://github.com/robinebers/openusage/releases/latest) · site [openusage.ai](https://www.openusage.ai)
+- **This fork (Linux & Windows builds, cross-platform polish):** [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage) · [releases](https://github.com/barramee27/crossusage/releases/latest)
+
+If you cite or redistribute builds from this repo, **name OpenUsage and Robin Ebers** as the original authors. This fork exists to ship **native Linux and Windows** installers; for the **macOS-first** experience, use **[upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest)**.
 
 See your usage at a glance from your menu bar. No digging through dashboards.
 
-![OpenUsage Screenshot](screenshot.png)
-
-> **Community fork with Windows & Linux support.** This fork adds native builds for Windows and Linux. Original [robinebers/openusage](https://github.com/robinebers/openusage) focuses on macOS.
+![CrossUsage screenshot](screenshot.png)
 
 ## Download
 
-[**Download the latest release**](https://github.com/barramee27/openusage/releases/latest)
+[**Latest CrossUsage release**](https://github.com/barramee27/crossusage/releases/latest)
 
-- **Windows** — `OpenUsage_x64-setup.exe` (installer) or `openusage.exe` (portable)
-- **Linux** — `.deb`, `.rpm`, or `.AppImage`
-- **macOS** — use the [original OpenUsage](https://github.com/robinebers/openusage/releases/latest)
+Artifacts use the **`crossusage_1.0.0_…`** style (see [GitHub Releases](https://github.com/barramee27/crossusage/releases)):
 
-Pre-built binaries mean no compiling. Install and run.
+- **Windows** — `crossusage_1.0.0_x64-setup.exe` (NSIS installer) and/or `crossusage.exe` (beside the installer output)
+- **Linux** — `crossusage_1.0.0_amd64.deb`, RPM `crossusage-1.0.0-…`, `crossusage_1.0.0_amd64.AppImage`
+- **macOS** — use [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest) (this fork targets Linux/Windows first)
 
-## What It Does
+Pre-built binaries — install and run.
 
-OpenUsage lives in your menu bar and shows you how much of your AI coding subscriptions you've used. Progress bars, badges, and clear labels. No mental math required.
+## What it does
+
+CrossUsage lives in your menu bar and shows how much of your AI coding subscriptions you’ve used. Progress bars, badges, and clear labels. No mental math required.
 
 - **One glance.** All your AI tools, one panel.
 - **Always up-to-date.** Refreshes automatically on a schedule you pick.
@@ -48,21 +55,19 @@ OpenUsage lives in your menu bar and shows you how much of your AI coding subscr
 - [Vercel AI Gateway](https://github.com/robinebers/openusage/issues/18)
 
 Community contributions welcome.
-Want a provider that's not listed? [Open an issue.](https://github.com/robinebers/openusage/issues/new)
+Want a provider that's not listed? Open an issue on **[this fork](https://github.com/barramee27/crossusage/issues)** or **[upstream](https://github.com/robinebers/openusage/issues/new)** depending on whether the change is fork-specific or general.
 
-## Open Source, Community Driven
+## Open source
 
-OpenUsage is built by its users. Hundreds of people use it daily, and the project grows through community contributions: new providers, bug fixes, and ideas.
+Upstream **OpenUsage** is built by its users and contributors. This **CrossUsage** fork tracks that codebase and adds cross-platform improvements; issues and PRs for the fork go to **[barramee27/crossusage](https://github.com/barramee27/crossusage)**. Upstream development lives at **[robinebers/openusage](https://github.com/robinebers/openusage)**.
 
-I maintain the project as a guide and quality gatekeeper, but this is your app as much as mine. If something is missing or broken, the best way to get it fixed is to contribute by opening an issue, or submitting a PR.
-
-Plugins are currently bundled as we build our the API, but soon will be made flexible so you can build and load their own.
+Plugins are bundled with the app today; the plugin API continues to evolve upstream.
 
 ### How to Contribute
 
 - **Add a provider.** Each one is just a plugin. See the [Plugin API](docs/plugins/api.md).
-- **Fix a bug.** PRs welcome. Provide before/after screenshots.
-- **Request a feature.** [Open an issue](https://github.com/robinebers/openusage/issues/new) and make your case.
+- **Fix a bug.** PRs welcome against **[barramee27/crossusage](https://github.com/barramee27/crossusage)**. Provide before/after screenshots.
+- **Request a feature.** Prefer **[fork issues](https://github.com/barramee27/crossusage/issues)** for Linux/Windows packaging; use **[upstream](https://github.com/robinebers/openusage/issues)** for core product/plugin API work.
 
 Keep it simple. No feature creep, no AI-generated commit messages, test your changes.
 
@@ -70,13 +75,11 @@ Keep it simple. No feature creep, no AI-generated commit messages, test your cha
 
 Not a single line of code in this project was read or written by hand. 100% AI-generated, AI-reviewed, AI-shipped — using [Cursor](https://cursor.com), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and [Codex CLI](https://github.com/openai/codex).
 
-OpenUsage is a real-world example of what I teach in the [AI Builder's Blueprint](https://itsbyrob.in/EBDqgJ6) — a proven process for building and shipping software with AI, no coding background required.
+The original OpenUsage project is a real-world example of what Robin teaches in the [AI Builder's Blueprint](https://itsbyrob.in/EBDqgJ6).
 
-## Sponsors
+## Sponsors (upstream)
 
-OpenUsage is supported by our sponsors. Become a sponsor to get your logo here and on [openusage.ai](https://openusage.ai).
-
-[Become a Sponsor](https://github.com/sponsors/robinebers)
+OpenUsage is supported by sponsors. [Become a sponsor](https://github.com/sponsors/robinebers) to support upstream development.
 
 <!-- Add sponsor logos here -->
 

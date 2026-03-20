@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { CircleHelp, Settings } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
+import { FORK_REPO_URL } from "@/lib/fork-meta"
 import { invoke } from "@tauri-apps/api/core"
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import {
@@ -255,7 +256,7 @@ export function SideNav({
       <NavButton
         isActive={false}
         onClick={() => {
-          openUrl("https://github.com/barramee27/openusage/issues").catch(console.error)
+          openUrl(`${FORK_REPO_URL}/issues`).catch(console.error)
           invoke("hide_panel").catch(console.error)
         }}
         aria-label="Help"

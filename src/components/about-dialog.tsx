@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ChangelogDialog } from "./changelog-dialog";
 import { Button } from "@/components/ui/button";
+import { APP_DISPLAY_NAME, FORK_REPO_URL, UPSTREAM_REPO_URL } from "@/lib/fork-meta";
 
 interface AboutDialogProps {
   version: string;
@@ -87,11 +88,11 @@ export function AboutDialog({ version, onClose }: AboutDialogProps) {
       <div className="bg-card rounded-lg border shadow-xl p-6 max-w-xs w-full mx-4 text-center animate-in fade-in zoom-in-95 duration-200">
         <img
           src="/icon.png"
-          alt="OpenUsage"
+          alt={APP_DISPLAY_NAME}
           className="w-16 h-16 mx-auto mb-3 rounded-xl"
         />
 
-        <h2 className="text-xl font-semibold mb-1">OpenUsage</h2>
+        <h2 className="text-xl font-semibold mb-1">{APP_DISPLAY_NAME}</h2>
 
         <div className="flex flex-col items-center gap-2 mb-4">
           <span className="inline-block text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
@@ -109,13 +110,15 @@ export function AboutDialog({ version, onClose }: AboutDialogProps) {
 
         <div className="text-sm text-muted-foreground space-y-1">
           <p>
-            Built by{" "}
-            <ExternalLink href="https://itsbyrob.in/x">Robin Ebers</ExternalLink>
+            Fork of{" "}
+            <ExternalLink href={UPSTREAM_REPO_URL}>OpenUsage</ExternalLink> — original by{" "}
+            <ExternalLink href="https://itsbyrob.in/x">Robin Ebers</ExternalLink>.
+            Cross-platform focus (Linux &amp; Windows) in this repo.
           </p>
           <p>
-            Open source on{" "}
-            <ExternalLink href="https://github.com/barramee27/openusage">
-              GitHub
+            Source:{" "}
+            <ExternalLink href={FORK_REPO_URL}>
+              GitHub ({APP_DISPLAY_NAME})
             </ExternalLink>
           </p>
           <p className="text-xs pt-1">

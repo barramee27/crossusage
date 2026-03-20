@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
@@ -182,11 +182,13 @@ describe("PanelFooter", () => {
     }
 
     render(<Harness />)
-    await userEvent.click(screen.getByRole("button", { name: /OpenUsage/ }))
-    expect(screen.getByText("Open source on")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /^CrossUsage / }))
+    await screen.findByRole("heading", { name: "CrossUsage" })
 
     // Close via Escape to exercise AboutDialog onClose path.
     await userEvent.keyboard("{Escape}")
-    expect(screen.queryByText("Open source on")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "CrossUsage" })).not.toBeInTheDocument()
+    })
   })
 })

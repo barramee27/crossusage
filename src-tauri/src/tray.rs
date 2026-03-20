@@ -124,7 +124,7 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
 
     let separator = PredefinedMenuItem::separator(app_handle)?;
     let restart = MenuItem::with_id(app_handle, "restart", "Restart", true, None::<&str>)?;
-    let about = MenuItem::with_id(app_handle, "about", "About OpenUsage", true, None::<&str>)?;
+    let about = MenuItem::with_id(app_handle, "about", "About CrossUsage", true, None::<&str>)?;
     let quit = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -143,7 +143,7 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id("tray")
         .icon(icon)
         .icon_as_template(true)
-        .tooltip("OpenUsage");
+        .tooltip("CrossUsage");
 
     #[cfg(target_os = "macos")]
     {

@@ -704,14 +704,14 @@ describe("App", () => {
   it("covers about open/close callbacks", async () => {
     render(<App />)
 
-    // Open about via version button in footer
-    await userEvent.click(await screen.findByRole("button", { name: /OpenUsage/i }))
-    await screen.findByText("Built by")
+    // Open about via version button in footer (avoid matching About's "GitHub (CrossUsage)" link button)
+    await userEvent.click(await screen.findByRole("button", { name: /^CrossUsage / }))
+    await screen.findByRole("heading", { name: "CrossUsage" })
 
     // Close about via ESC key
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
     await waitFor(() => {
-      expect(screen.queryByText("Built by")).not.toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "CrossUsage" })).not.toBeInTheDocument()
     })
   })
 

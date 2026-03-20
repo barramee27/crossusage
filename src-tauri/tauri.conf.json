@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenUsage",
-  "version": "0.6.11",
-  "identifier": "com.sunstory.openusage",
+  "productName": "crossusage",
+  "mainBinaryName": "crossusage",
+  "version": "1.0.0",
+  "identifier": "com.sunstory.crossusage",
   "build": {
     "beforeDevCommand": "bun run bundle:plugins && bun run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenUsage",
+        "title": "CrossUsage",
         "width": 400,
         "height": 500,
         "resizable": false,
@@ -31,6 +32,11 @@
     "active": true,
     "targets": "all",
     "publisher": "barramee kottanawadee <barramee25038@gmail.com>",
+    "homepage": "https://github.com/barramee27/crossusage",
+    "shortDescription": "Fork of OpenUsage — tray app to track AI coding subscriptions (credit: Robin Ebers / robinebers/openusage).",
+    "longDescription": "CrossUsage is a community fork of OpenUsage (https://github.com/robinebers/openusage), the open-source AI subscription usage tracker created by Robin Ebers (https://github.com/robinebers, https://itsbyrob.in/x). This repository (https://github.com/barramee27/crossusage) focuses on Linux and Windows native builds; upstream remains the macOS-first home of OpenUsage. Please credit Robin Ebers and the OpenUsage project when discussing or redistributing derivative work.",
+    "copyright": "CrossUsage fork contributors; original OpenUsage © Robin Ebers and contributors",
+    "license": "MIT",
     "linux": {
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1 | libappindicator3-1"]
@@ -63,13 +69,18 @@
       "resources/bundled_plugins/**/*",
       "icons/tray-icon.png"
     ],
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "windows": {
+      "nsis": {
+        "startMenuFolder": "CrossUsage"
+      }
+    }
   },
   "plugins": {
     "updater": {
       "pubkey": "",
       "endpoints": [
-        "https://github.com/barramee27/openusage/releases/latest/download/latest.json"
+        "https://github.com/barramee27/crossusage/releases/latest/download/latest.json"
       ]
     }
   }
