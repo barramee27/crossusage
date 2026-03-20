@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Build a portable CLI bundle: binary + resources/bundled_plugins (for INSTALL_MODE=cli).
+#
+# Every run: fresh `cargo build --release` and overwrites OUT for the current package.json
+# version (same filename each time until you bump "version" in package.json).
 # Output: crossusage-cli_<version>_<os>_<arch>.tar.gz (matches scripts/install.sh)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,6 +45,7 @@ cp "$ROOT/target/release/crossusage-cli" "$STAGE/root/"
 cp -a "$ROOT/src-tauri/resources/bundled_plugins" "$STAGE/root/resources/"
 
 OUT="$ROOT/crossusage-cli_${VERSION}_${OS}_${TAG}.tar.gz"
+rm -f "$OUT"
 tar -czf "$OUT" -C "$STAGE/root" .
 echo "==> Wrote $OUT"
 ls -lh "$OUT"

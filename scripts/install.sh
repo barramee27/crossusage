@@ -7,7 +7,7 @@
 #
 # Environment:
 #   GITHUB_REPO     default: barramee27/crossusage
-#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS) from releases/ or Release assets
+#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS) from releases/ or Release assets (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
 #   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
 #   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: main)
 #   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional)
@@ -229,6 +229,11 @@ if [[ "$INSTALL_MODE" == cli ]]; then
     echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is committed on ${INSTALL_GIT_REF} so installs get the matching build." >&2
   fi
   ROOT_CLI="${HOME}/.local/lib/crossusage"
+  if [[ -x "${ROOT_CLI}/crossusage-cli" ]]; then
+    echo "Existing portable CLI found — replacing binary and resources under ${ROOT_CLI} (reinstall / update)."
+  else
+    echo "Installing portable CLI under ${ROOT_CLI} …"
+  fi
   mkdir -p "$ROOT_CLI"
   tar xzf "$TMP_CLI" -C "$ROOT_CLI"
   rm -f "$TMP_CLI"

@@ -192,9 +192,14 @@ pub fn run(outputs: Vec<PluginOutput>) -> Result<()> {
     let panels: Vec<PanelModel> = outputs.iter().map(panel_from_output).collect();
 
     // Avoid job-control suspend (Ctrl+Z) while the alternate-screen TUI is active.
+    // Prefer sigaction(2) over signal(3): well-defined with libc::sigaction + sa_sigaction = SIG_IGN.
     #[cfg(unix)]
     unsafe {
-        libc::signal(libc::SIGTSTP, libc::SIG_IGN);
+        let mut sa: libc::sigaction = std::mem::zeroed();
+        sa.sa_sigaction = libc::SIG_IGN;
+        libc::sigemptyset(&mut sa.sa_mask);
+        sa.sa_flags = 0;
+        let _ = libc::sigaction(libc::SIGTSTP, &sa, std::ptr::null_mut());
     }
 
     if std::io::stderr().is_terminal() {

@@ -31,3 +31,5 @@ cp releases/crossusage-cli_1.0.0_linux_amd64.tar.gz releases/crossusage-cli_linu
 ```
 
 Commit and push — **no GitHub Release attachment required** for `INSTALL_MODE=cli` when these files exist on the branch.
+
+**Re-running `install.sh` with `INSTALL_MODE=cli`** always downloads again and **overwrites** `~/.local/lib/crossusage/` (binary + `resources/`). There is no separate updater — it **is** the update path. Same `package.json` version ⇒ same tarball filename ⇒ each run still replaces files with whatever is on the branch now.
