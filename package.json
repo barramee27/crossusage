@@ -14,8 +14,8 @@
     "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:coverage": "vitest run --coverage.enabled",
     "tauri": "tauri"
   },

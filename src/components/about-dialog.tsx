@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ChangelogDialog } from "./changelog-dialog";
 import { Button } from "@/components/ui/button";
-import { APP_DISPLAY_NAME, FORK_REPO_URL, UPSTREAM_REPO_URL } from "@/lib/fork-meta";
+import {
+  APP_DISPLAY_NAME,
+  FORK_MAINTAINER_HANDLE,
+  FORK_MAINTAINER_URL,
+  FORK_REPO_URL,
+  UPSTREAM_REPO_URL,
+} from "@/lib/fork-meta";
 
 interface AboutDialogProps {
   version: string;
@@ -122,14 +128,8 @@ export function AboutDialog({ version, onClose }: AboutDialogProps) {
             </ExternalLink>
           </p>
           <p className="text-xs pt-1">
-            Maintainers:{" "}
-            <ExternalLink href="https://github.com/validatedev">
-              validatedev
-            </ExternalLink>
-            ,{" "}
-            <ExternalLink href="https://github.com/davidarny">
-              davidarny
-            </ExternalLink>
+            Fork maintainer:{" "}
+            <ExternalLink href={FORK_MAINTAINER_URL}>{FORK_MAINTAINER_HANDLE}</ExternalLink>
           </p>
         </div>
       </div>

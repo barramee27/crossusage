@@ -90,6 +90,26 @@ download_try() {
   return 1
 }
 
+# Matches scripts/build-cli-tarball.sh output: crossusage-cli_${VERSION}_linux_${arch}.tar.gz
+fetch_repo_package_version() {
+  local url="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/package.json"
+  local json=""
+  if have_cmd curl; then
+    json="$(curl -fsSL --proto '=https' --tlsv1.2 "$url" 2>/dev/null)" || return 1
+  elif have_cmd wget; then
+    json="$(wget -qO- --https-only "$url" 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+  if have_cmd python3; then
+    printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("version","").strip())' 2>/dev/null
+  elif have_cmd jq; then
+    printf '%s' "$json" | jq -r '.version // empty' 2>/dev/null
+  else
+    return 1
+  fi
+}
+
 ensure_sudo() {
   if [[ "$(id -u)" -eq 0 ]]; then
     return 0
@@ -170,15 +190,35 @@ INSTALL_GIT_REF="${INSTALL_GIT_REF:-main}"
 if [[ "$INSTALL_MODE" == cli ]]; then
   TMP_CLI="$TMP/crossusage-cli-$$.tar.gz"
   REPO_URL_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/releases"
-  DEFAULT_CLI_URL="${REPO_URL_BASE}/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
-  INSTALL_CLI_SRC="${INSTALL_CLI_URL:-$DEFAULT_CLI_URL}"
+  REPO_VER="$(fetch_repo_package_version || true)"
+  VERSIONED_CLI_URL=""
+  if [[ -n "$REPO_VER" ]]; then
+    VERSIONED_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${REPO_VER}_linux_${DEB_ARCH}.tar.gz"
+  fi
+  LEGACY_CLI_URL="${REPO_URL_BASE}/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
+  # Prefer INSTALL_CLI_URL override, then versioned name (matches scripts/build-cli-tarball.sh), then legacy unversioned path.
+  if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
+    DEFAULT_CLI_URL="$INSTALL_CLI_URL"
+  elif [[ -n "$VERSIONED_CLI_URL" ]]; then
+    DEFAULT_CLI_URL="$VERSIONED_CLI_URL"
+  else
+    DEFAULT_CLI_URL="$LEGACY_CLI_URL"
+  fi
 
   echo "Downloading portable CLI bundle …"
-  if ! download_try "$INSTALL_CLI_SRC" "$TMP_CLI"; then
+  rm -f "$TMP_CLI"
+  if ! download_try "$DEFAULT_CLI_URL" "$TMP_CLI"; then
+    if [[ -z "${INSTALL_CLI_URL:-}" && -n "$VERSIONED_CLI_URL" && "$DEFAULT_CLI_URL" != "$LEGACY_CLI_URL" ]]; then
+      echo "Trying legacy repo path: releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz …"
+      rm -f "$TMP_CLI"
+      download_try "$LEGACY_CLI_URL" "$TMP_CLI" || true
+    fi
+  fi
+  if [[ ! -s "$TMP_CLI" ]]; then
     echo "Trying GitHub Release assets instead …"
     JSON="$(fetch_json)" || die "failed to fetch release metadata"
     FALLBACK_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_linux_${DEB_ARCH}\\.tar\\.gz\$" || true)"
-    [[ -n "$FALLBACK_URL" ]] || die "No CLI tarball at ${DEFAULT_CLI_URL} and none on the latest GitHub Release. Push releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz on branch ${INSTALL_GIT_REF}, or attach the tarball to a Release."
+    [[ -n "$FALLBACK_URL" ]] || die "No CLI tarball found. Expected releases/crossusage-cli_<version>_linux_${DEB_ARCH}.tar.gz (from package.json on ${INSTALL_GIT_REF}) or releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz, or attach crossusage-cli_*_linux_${DEB_ARCH}.tar.gz to the latest GitHub Release."
     download_to "$FALLBACK_URL" "$TMP_CLI"
   fi
   ROOT_CLI="${HOME}/.local/lib/crossusage"
@@ -249,11 +289,26 @@ case "$KIND" in
       run_sudo apt-get install -f -y -q || true
     fi
     rm -f "$DEB_FILE"
-    # Older .deb builds may omit crossusage-cli; try repo-hosted tarball, then Release asset.
+    # Older .deb builds may omit crossusage-cli; try repo-hosted tarball (versioned = build-cli-tarball.sh), legacy path, then Release asset from JSON.
     if [[ -x /usr/bin/crossusage ]] && [[ ! -x /usr/bin/crossusage-cli ]]; then
-      REPO_CLI="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/releases/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
+      REPO_VER_DEB="$(fetch_repo_package_version || true)"
+      REPO_URL_BASE_DEB="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/releases"
+      VERSIONED_CLI_DEB=""
+      if [[ -n "$REPO_VER_DEB" ]]; then
+        VERSIONED_CLI_DEB="${REPO_URL_BASE_DEB}/crossusage-cli_${REPO_VER_DEB}_linux_${DEB_ARCH}.tar.gz"
+      fi
+      LEGACY_CLI_DEB="${REPO_URL_BASE_DEB}/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
       TMP_CLI="$TMP/crossusage-cli-repair-$$.tar.gz"
-      if download_try "$REPO_CLI" "$TMP_CLI" || { [[ -n "${INSTALL_CLI_URL:-}" ]] && download_try "$INSTALL_CLI_URL" "$TMP_CLI"; }; then
+      rm -f "$TMP_CLI"
+      GOT_CLI=0
+      if [[ -n "$VERSIONED_CLI_DEB" ]] && download_try "$VERSIONED_CLI_DEB" "$TMP_CLI"; then
+        GOT_CLI=1
+      elif download_try "$LEGACY_CLI_DEB" "$TMP_CLI"; then
+        GOT_CLI=1
+      elif [[ -n "${INSTALL_CLI_URL:-}" ]] && download_try "$INSTALL_CLI_URL" "$TMP_CLI"; then
+        GOT_CLI=1
+      fi
+      if [[ "$GOT_CLI" -eq 1 ]]; then
         echo "This .deb has no /usr/bin/crossusage-cli. Adding portable CLI from tarball …"
         ROOT_CLI="${HOME}/.local/lib/crossusage"
         mkdir -p "$ROOT_CLI"

@@ -7,3 +7,7 @@ export const FORK_REPO_URL = `https://github.com/${FORK_GITHUB_REPO}` as const
 
 /** Upstream original project (Robin Ebers). */
 export const UPSTREAM_REPO_URL = "https://github.com/robinebers/openusage" as const
+
+/** This fork’s maintainer (CrossUsage / Linux & Windows packaging). */
+export const FORK_MAINTAINER_HANDLE = "barramee27" as const
+export const FORK_MAINTAINER_URL = `https://github.com/${FORK_MAINTAINER_HANDLE}` as const

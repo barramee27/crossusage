@@ -1,6 +1,6 @@
-# Contributing to OpenUsage
+# Contributing to CrossUsage
 
-OpenUsage accepts contributions, but has a high quality bar. Read this entire document before opening a PR.
+This **CrossUsage** fork accepts contributions with a high quality bar. Read this entire document before opening a PR. Core product direction for **OpenUsage** still lives with [upstream](https://github.com/robinebers/openusage).
 
 ## Philosophy
 
@@ -77,15 +77,12 @@ Don't open a PR for large features without discussing first. [Open an issue](htt
 - Follow existing patterns in the codebase
 - No new dependencies without justification
 
-## Maintainers
+## Maintainers (this fork)
 
-- [@robinebers](https://github.com/robinebers) (lead)
-- [@validatedev](https://github.com/validatedev)
-- [@davidarny](https://github.com/davidarny)
+- [@barramee27](https://github.com/barramee27) — CrossUsage fork (Linux & Windows packaging, fork-specific issues)
 
-All PRs require approval from at least 2 maintainers before merging.
-Release tags (`v*`) are owner-managed and can only be created by [@robinebers](https://github.com/robinebers).
+**Upstream OpenUsage** is led by [@robinebers](https://github.com/robinebers). Use [upstream issues](https://github.com/robinebers/openusage/issues) for core app / plugin API work when it isn’t fork-specific.
 
 ## Questions?
 
-Open a [bug report](https://github.com/robinebers/openusage/issues/new?template=bug_report.yml) or [feature request](https://github.com/robinebers/openusage/issues/new?template=feature_request.yml) using the issue templates.
+Fork-specific bugs and features: [CrossUsage issues](https://github.com/barramee27/crossusage/issues). Upstream: [OpenUsage issues](https://github.com/robinebers/openusage/issues) with the [templates](https://github.com/robinebers/openusage/issues/new/choose) there.

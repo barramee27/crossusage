@@ -27,6 +27,10 @@ struct Cli {
     /// No ANSI colors
     #[arg(long, global = true)]
     plain: bool,
+
+    /// Show plugin host WARN/ERROR logs on stderr (default: hidden for `dashboard`)
+    #[arg(long, global = true)]
+    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -46,9 +50,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-
     let cli = Cli::parse();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let plain = cli.plain;
 
     let (app_data, resource_dir) = resolve_install_paths()
@@ -116,6 +119,11 @@ fn main() -> Result<()> {
             }
         }
         Commands::Dashboard { plugin_ids } => {
+            // Full-screen TUI: hide log::warn!/error! from plugin host while probing (unless --verbose).
+            if !cli.verbose {
+                log::set_max_level(log::LevelFilter::Off);
+            }
+
             let selected: Vec<&LoadedPlugin> = if plugin_ids.is_empty() {
                 plugins.iter().collect()
             } else {
@@ -135,7 +143,6 @@ fn main() -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Probing {} provider(s)…", selected.len());
             let mut outputs: Vec<plugin_engine::runtime::PluginOutput> = Vec::new();
             for plugin in selected {
                 let out = plugin_engine::runtime::run_probe(plugin, &app_data, &version);

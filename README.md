@@ -60,7 +60,7 @@ crossusage-cli list              # providers
 crossusage-cli probe             # all providers
 crossusage-cli probe cursor      # one provider
 crossusage-cli probe --json      # machine-readable
-crossusage-cli dashboard       # full-screen TUI (htop-style panels; q to quit)
+crossusage-cli dashboard       # full-screen TUI (q or Esc to quit; avoid Ctrl+Z; use --verbose for probe logs)
 ```
 
 Set `CROSSUSAGE_RESOURCES` if bundled plugins are not found (see `crates/crossusage-core/src/paths.rs`).
@@ -112,6 +112,11 @@ Plugins are bundled with the app today; the plugin API continues to evolve upstr
 - **Request a feature.** Prefer **[fork issues](https://github.com/barramee27/crossusage/issues)** for Linux/Windows packaging; use **[upstream](https://github.com/robinebers/openusage/issues)** for core product/plugin API work.
 
 Keep it simple. No feature creep, no AI-generated commit messages, test your changes.
+
+## Testing
+
+- **Frontend:** `bun run test` runs Vitest once and exits. Use `bun run test:watch` for watch mode.
+- **CLI dashboard:** Press **`q`** or **Esc** to quit. **Ctrl+Z** sends **SIGTSTP** (job-control suspend); on Unix the dashboard ignores **SIGTSTP** while the TUI runs so the shell usually won’t show `Stopped`. If a terminal UI does get suspended, run `fg` and then quit with **`q`**.
 
 ## Built Entirely with AI
 
