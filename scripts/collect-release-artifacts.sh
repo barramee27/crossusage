@@ -26,14 +26,17 @@ copy_glob () {
   done
 }
 
-# Linux (native host build)
-copy_glob "$ROOT/src-tauri/target/release/bundle/deb/"*.deb
-copy_glob "$ROOT/src-tauri/target/release/bundle/rpm/"*.rpm
-copy_glob "$ROOT/src-tauri/target/release/bundle/appimage/"*.AppImage
+# Linux (native host build) — workspace uses repo-root target/
+copy_glob "$ROOT/target/release/bundle/deb/"*.deb
+copy_glob "$ROOT/target/release/bundle/rpm/"*.rpm
+copy_glob "$ROOT/target/release/bundle/appimage/"*.AppImage
 
 # Windows (GNU cross-target)
-copy_glob "$ROOT/src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/"*.exe
-copy_glob "$ROOT/src-tauri/target/x86_64-pc-windows-gnu/release/"crossusage.exe
+copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/bundle/nsis/"*.exe
+copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/"crossusage.exe
+
+# Portable Linux CLI (optional — run scripts/build-cli-tarball.sh on Linux amd64/arm64 first)
+copy_glob "$ROOT/crossusage-cli_${VERSION}_linux_"*.tar.gz
 
 cat > "$OUT/README.txt" << EOF
 CrossUsage ${VERSION} — release artifacts
@@ -45,6 +48,8 @@ Typical filenames (Tauri uses productName "crossusage" + version ${VERSION}):
   - RPM:       crossusage-${VERSION}-1.x86_64.rpm (release may vary)
   - AppImage:  crossusage_${VERSION}_amd64.AppImage
   - Windows:   crossusage_${VERSION}_x64-setup.exe (NSIS) and crossusage.exe
+  - CLI:       crossusage-cli (same .deb / installer as GUI when built with prepare-cli-sidecar.sh)
+  - CLI tarball: crossusage-cli_${VERSION}_linux_amd64.tar.gz (standalone: build/build-cli-tarball.sh) for INSTALL_MODE=cli
 EOF
 
 echo "Done. See $OUT/README.txt"

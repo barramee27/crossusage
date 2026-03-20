@@ -9,6 +9,8 @@
     "build:release": "./scripts/build-release.sh",
     "build:all-artifacts": "./scripts/build-all-artifacts.sh",
     "release:collect": "./scripts/collect-release-artifacts.sh",
+    "release:cli-tarball": "./scripts/build-cli-tarball.sh",
+    "cli": "cargo run -p crossusage-cli --",
     "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",
     "preview": "vite preview",

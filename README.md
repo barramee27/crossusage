@@ -23,6 +23,48 @@ Artifacts use the **`crossusage_1.0.0_…`** style (see [GitHub Releases](https:
 
 Pre-built binaries — install and run.
 
+### One-line install from GitHub
+
+**Linux** (auto-detects package manager: `.deb` on Debian/Ubuntu, `.rpm` on Fedora/RHEL-like, or AppImage fallback). Requires `curl` *or* `wget`, and `jq` *or* `python3`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | bash
+```
+
+**Windows** (PowerShell; downloads the latest NSIS `*x64-setup.exe` and runs it, silent by default):
+
+```powershell
+irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.ps1 | iex
+```
+
+**macOS:** CrossUsage does not publish macOS installers; use [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest). If you run the Linux script on macOS, it exits with that link.
+
+**Security:** Inspect [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) before piping to `bash` or `iex`. They only talk to GitHub’s API and release asset URLs over HTTPS. You can always install manually from [releases](https://github.com/barramee27/crossusage/releases/latest).
+
+**Optional environment:** `GITHUB_REPO` (default `barramee27/crossusage`); Linux `INSTALL_KIND=deb|rpm|appimage`; Windows `INSTALL_SILENT=0` for a non-silent NSIS install.
+
+**CLI-only (no desktop app / no WebKit):** downloads a portable tarball (`crossusage-cli_*_linux_amd64.tar.gz` from the release — build it with `bun run release:cli-tarball` and upload the asset):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | INSTALL_MODE=cli bash
+```
+
+**ShellCheck** is an optional static analyzer for shell scripts (`shellcheck scripts/install.sh`); it catches quoting bugs and portability issues before you ship.
+
+More detail: [INSTALL.md](INSTALL.md).
+
+**Same install includes a terminal CLI** (`crossusage-cli`): one package installs both the tray app and the CLI (e.g. on Linux `.deb`, both live under `/usr/bin/`). From the repo dev tree: `cargo run -p crossusage-cli -- list`.
+
+```bash
+crossusage-cli list              # providers
+crossusage-cli probe             # all providers
+crossusage-cli probe cursor      # one provider
+crossusage-cli probe --json      # machine-readable
+crossusage-cli dashboard       # full-screen TUI (htop-style panels; q to quit)
+```
+
+Set `CROSSUSAGE_RESOURCES` if bundled plugins are not found (see `crates/crossusage-core/src/paths.rs`).
+
 ## What it does
 
 CrossUsage lives in your menu bar and shows how much of your AI coding subscriptions you’ve used. Progress bars, badges, and clear labels. No mental math required.

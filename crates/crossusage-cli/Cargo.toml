@@ -1,0 +1,21 @@
+[package]
+name = "crossusage-cli"
+version = "1.0.0"
+description = "CrossUsage CLI — terminal interface for the same plugin engine as the GUI"
+edition = "2024"
+
+[[bin]]
+name = "crossusage-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "cargo"] }
+crossterm = "0.28"
+crossusage-core = { path = "../crossusage-core" }
+env_logger = "0.11"
+log = "0.4"
+owo-colors = "4"
+ratatui = "0.28"
+serde_json = "1"
+tabled = { version = "0.17", features = ["std"] }

@@ -7,7 +7,7 @@
   "build": {
     "beforeDevCommand": "bun run bundle:plugins && bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run bundle:plugins && bun run build",
+    "beforeBuildCommand": "bun run bundle:plugins && bun run build && bash scripts/prepare-cli-sidecar.sh",
     "frontendDist": "../dist"
   },
   "app": {
@@ -68,6 +68,9 @@
     "resources": [
       "resources/bundled_plugins/**/*",
       "icons/tray-icon.png"
+    ],
+    "externalBin": [
+      "binaries/crossusage-cli"
     ],
     "createUpdaterArtifacts": false,
     "windows": {

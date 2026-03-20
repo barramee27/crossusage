@@ -9,6 +9,13 @@
 - **App identifier** is now `com.barramee27.crossusage`. Settings and data may live under a new path on disk (fresh install or migrate manually from the old OpenUsage fork paths if needed).
 - User-facing strings, About dialog, tray, and GitHub links point to this fork; release notes and changelog APIs use `barramee27/crossusage`.
 
+### Developer / CLI
+
+- **Cargo workspace** with `crossusage-core` (shared `plugin_engine` + path helpers) and **`crossusage-cli`** (`list`, `probe`, `--json` / `--plain`). The CLI ships in the **same** app bundle as the GUI (Tauri `externalBin`), e.g. `crossusage-cli` next to the main binary on Linux `.deb`.
+- **Install scripts:** [`scripts/install.sh`](scripts/install.sh) (Linux: GitHub latest `.deb` / `.rpm` / AppImage; **`INSTALL_MODE=cli`** portable tarball; auto-repair when `.deb` lacks `crossusage-cli`; macOS message; Windows redirect), [`scripts/install.ps1`](scripts/install.ps1) (Windows NSIS), and [`scripts/build-cli-tarball.sh`](scripts/build-cli-tarball.sh) for release assets. Documented in [README](README.md) and [INSTALL.md](INSTALL.md).
+- **CLI:** `crossusage-cli dashboard` — full-screen TUI (ratatui) with a multi-panel usage view (`q` to quit).
+- **Vitest**: global `testTimeout` raised to reduce flaky timeouts under parallel runs; `main.test.tsx` mocks entry deps and Tauri log to stabilize the bootstrap test.
+
 ### Included from prior fork work (summary)
 
 - Cursor **All usage** (renamed from Total usage) + tray line migration; provider card spacing; effective tray-line selection in Settings for all providers; `aes-gcm` on all platforms for Windows/cross-builds; build helper scripts.

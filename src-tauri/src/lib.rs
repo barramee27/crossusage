@@ -10,7 +10,7 @@ use panel_linux as panel;
 mod panel_windows;
 #[cfg(target_os = "windows")]
 use panel_windows as panel;
-mod plugin_engine;
+use crossusage_core::plugin_engine;
 mod tray;
 #[cfg(target_os = "macos")]
 mod webkit_config;
@@ -228,6 +228,7 @@ fn hide_panel(app_handle: tauri::AppHandle) {
 }
 
 #[tauri::command]
+#[allow(unused_variables)] // `enabled` / `window` only used on macOS and Windows
 fn set_liquid_glass_enabled(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     use tauri::Manager;
 

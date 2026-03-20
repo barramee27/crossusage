@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/crossusage-core",
+    "crates/crossusage-cli",
+    "src-tauri",
+]

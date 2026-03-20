@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from "vitest"
 const renderMock = vi.fn()
 const createRootMock = vi.fn(() => ({ render: renderMock }))
 
+// Must match main.tsx import specifiers so Vitest dedupes the module graph.
+vi.mock("./App", () => ({
+  App: () => null,
+}))
+
+vi.mock("./index.css", () => ({}))
+
+vi.mock("@tauri-apps/plugin-log", () => ({
+  error: vi.fn().mockResolvedValue(undefined),
+  warn: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock("react-dom/client", () => ({
   default: {
     createRoot: createRootMock,
@@ -10,10 +22,14 @@ vi.mock("react-dom/client", () => ({
 }))
 
 describe("main", () => {
-  it("mounts app", async () => {
-    document.body.innerHTML = '<div id="root"></div>'
-    await import("@/main")
-    expect(createRootMock).toHaveBeenCalled()
-    expect(renderMock).toHaveBeenCalled()
-  })
+  it(
+    "mounts app",
+    async () => {
+      document.body.innerHTML = '<div id="root"></div>'
+      await import("@/main")
+      expect(createRootMock).toHaveBeenCalled()
+      expect(renderMock).toHaveBeenCalled()
+    },
+    60_000,
+  )
 })

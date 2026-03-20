@@ -66,7 +66,6 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_UI_SCALE: "normal",
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: vi.fn(),
-  loadUIScale: vi.fn(),
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
   loadDisplayMode: loadDisplayModeMock,
   loadGlobalShortcut: loadGlobalShortcutMock,
