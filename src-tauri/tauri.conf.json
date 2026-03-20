@@ -3,7 +3,7 @@
   "productName": "crossusage",
   "mainBinaryName": "crossusage",
   "version": "1.0.0",
-  "identifier": "com.sunstory.crossusage",
+  "identifier": "com.barramee27.crossusage",
   "build": {
     "beforeDevCommand": "bun run bundle:plugins && bun run dev",
     "devUrl": "http://localhost:1420",

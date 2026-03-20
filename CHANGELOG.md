@@ -6,7 +6,7 @@
 
 - **Renamed the app to CrossUsage** to avoid confusion with upstream [OpenUsage](https://github.com/robinebers/openusage) (still on the 0.6.x line). This repository is **barramee27/crossusage** — a cross-platform–focused fork.
 - **Version 1.0.0** starts the fork’s own semver; it is not the same sequence as upstream releases.
-- **App identifier** is now `com.sunstory.crossusage`. Settings and data may live under a new path on disk (fresh install or migrate manually from the old OpenUsage fork paths if needed).
+- **App identifier** is now `com.barramee27.crossusage`. Settings and data may live under a new path on disk (fresh install or migrate manually from the old OpenUsage fork paths if needed).
 - User-facing strings, About dialog, tray, and GitHub links point to this fork; release notes and changelog APIs use `barramee27/crossusage`.
 
 ### Included from prior fork work (summary)
