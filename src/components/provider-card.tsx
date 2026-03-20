@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react"
+import { useMemo } from "react"
 import { ExternalLink, Hourglass, RefreshCw } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +29,7 @@ interface ProviderCardProps {
   lastManualRefreshAt?: number | null
   onRetry?: () => void
   scopeFilter?: "overview" | "all"
+  allowedLabels?: string[] | null
   displayMode: DisplayMode
   resetTimerDisplayMode?: ResetTimerDisplayMode
   onResetTimerDisplayModeToggle?: () => void
@@ -91,6 +92,7 @@ export function ProviderCard({
   lastManualRefreshAt,
   onRetry,
   scopeFilter = "all",
+  allowedLabels = null,
   displayMode,
   resetTimerDisplayMode = "relative",
   onResetTimerDisplayModeToggle,
@@ -102,17 +104,48 @@ export function ProviderCard({
   }, [lastManualRefreshAt])
 
   // Filter lines based on scope - match by label since runtime lines can differ from manifest
-  const overviewLabels = new Set(
-    skeletonLines
-      .filter(line => line.scope === "overview")
-      .map(line => line.label)
+  const overviewLabels = useMemo(
+    () =>
+      new Set(
+        skeletonLines
+          .filter(line => line.scope === "overview")
+          .map(line => line.label)
+      ),
+    [skeletonLines]
+  )
+  const detailScopeLabels = useMemo(
+    () =>
+      new Set(
+        skeletonLines
+          .filter(line => line.scope === "detail")
+          .map(line => line.label)
+      ),
+    [skeletonLines]
   )
   const filteredSkeletonLines = scopeFilter === "all"
     ? skeletonLines
     : skeletonLines.filter(line => line.scope === "overview")
-  const filteredLines = scopeFilter === "all"
-    ? lines
-    : lines.filter(line => overviewLabels.has(line.label))
+  const scopeFilteredLines = useMemo(() => {
+    return scopeFilter === "all"
+      ? lines
+      : lines.filter(line => overviewLabels.has(line.label))
+  }, [lines, scopeFilter, overviewLabels])
+
+  // Further filter by user-selected labels (from Settings → tray line checkboxes)
+  // null = never configured → show all
+  // [] = sentinel __NONE__ → show none
+  // non-empty: overview = only those labels; detail = those labels + manifest detail-scope lines
+  const filteredLines = useMemo(() => {
+    if (allowedLabels == null) return scopeFilteredLines
+    if (allowedLabels.length === 0) return []
+    if (scopeFilter === "overview") {
+      return scopeFilteredLines.filter(line => allowedLabels.includes(line.label))
+    }
+    return scopeFilteredLines.filter(
+      line =>
+        allowedLabels.includes(line.label) || detailScopeLabels.has(line.label)
+    )
+  }, [allowedLabels, scopeFilter, scopeFilteredLines, detailScopeLabels])
 
   const hasResetCountdown = filteredLines.some(
     (line) => line.type === "progress" && Boolean(line.resetsAt)
@@ -160,7 +193,7 @@ export function ProviderCard({
 
   return (
     <div>
-      <div className="py-3">
+      <div className="py-3 liquid-glass-card">
         <div className="flex items-center justify-between mb-2">
           <div className="relative flex items-center">
             <h2 className="text-lg font-semibold" style={{ transform: "translateZ(0)" }}>{name}</h2>
@@ -248,7 +281,13 @@ export function ProviderCard({
           <SkeletonLines lines={filteredSkeletonLines} />
         )}
 
-        {!loading && !error && (
+        {!loading && !error && filteredLines.length === 0 && (
+          <p className="text-sm text-muted-foreground py-2">
+            No metrics selected in Settings. Open Settings and choose which lines to show for this provider.
+          </p>
+        )}
+
+        {!loading && !error && filteredLines.length > 0 && (
           <div className="space-y-4">
             {groupLinesByType(filteredLines).map((group, gi) =>
               group.kind === "text" ? (
@@ -265,7 +304,7 @@ export function ProviderCard({
                   ))}
                 </div>
               ) : (
-                <Fragment key={gi}>
+                <div key={gi} className="space-y-5">
                   {group.lines.map((line, li) => (
                     <MetricLineRenderer
                       key={`${line.label}-${gi}-${li}`}
@@ -276,7 +315,7 @@ export function ProviderCard({
                       now={now}
                     />
                   ))}
-                </Fragment>
+                </div>
               )
             )}
           </div>

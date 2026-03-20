@@ -61,10 +61,19 @@ export function getTrayPrimaryBars(args: {
 
     let items: { label: string; fraction?: number }[] = []
     if (data) {
-      const configuredLabels = pluginSettings.trayLines?.[id] || []
-      const targetLabels = configuredLabels.length > 0
-        ? configuredLabels
-        : (meta.primaryCandidates.length > 0 ? [meta.primaryCandidates[0]] : [])
+      const configuredLabels = pluginSettings.trayLines?.[id]
+      
+      // ['__NONE__'] = user explicitly wants nothing shown (sentinel value)
+      // undefined = never configured, show first primary as default
+      // [...] = user selection
+      let targetLabels: string[]
+      if (configuredLabels?.[0] === '__NONE__') {
+        targetLabels = [] // User wants nothing
+      } else if (configuredLabels === undefined) {
+        targetLabels = meta.primaryCandidates.length > 0 ? [meta.primaryCandidates[0]] : []
+      } else {
+        targetLabels = configuredLabels
+      }
 
       for (const targetLabel of targetLabels) {
         const line = data.lines.find(
@@ -84,8 +93,10 @@ export function getTrayPrimaryBars(args: {
       }
     }
 
-    // fallback to old logic if no matching lines found but we expected some
-    if (items.length === 0 && data) {
+    // fallback to first primary ONLY if user never configured trayLines (undefined)
+    // NOT if they explicitly unchecked everything (empty array)
+    const wasEverConfigured = pluginSettings.trayLines?.[id] !== undefined
+    if (items.length === 0 && data && !wasEverConfigured) {
       const primaryLabel = meta.primaryCandidates.find((label) =>
         data.lines.some((line) => isProgressLine(line) && line.label === label)
       )

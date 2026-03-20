@@ -302,5 +302,50 @@ describe("getTrayPrimaryBars", () => {
     })
     expect(bars).toEqual([])
   })
+
+  it("respects empty trayLines array (user unchecked everything) and shows nothing", () => {
+    const bars = getTrayPrimaryBars({
+      pluginsMeta: [
+        {
+          id: "a",
+          name: "A",
+          iconUrl: "",
+          primaryCandidates: ["Credits", "All usage", "Requests"],
+          lines: [],
+        },
+      ],
+      // User explicitly unchecked everything - empty array
+      pluginSettings: { order: ["a"], disabled: [], trayLines: { a: [] } },
+      pluginStates: {
+        a: {
+          data: {
+            providerId: "a",
+            displayName: "A",
+            iconUrl: "",
+            lines: [
+              {
+                type: "progress",
+                label: "Credits",
+                used: 50,
+                limit: 100,
+                format: { kind: "dollars" },
+              },
+              {
+                type: "progress",
+                label: "All usage",
+                used: 25,
+                limit: 100,
+                format: { kind: "percent" },
+              },
+            ],
+          },
+          loading: false,
+          error: null,
+        },
+      },
+    })
+    // Empty trayLines = user wants nothing shown
+    expect(bars).toEqual([{ id: "a", items: [] }])
+  })
 })
 

@@ -172,6 +172,32 @@ export function normalizePluginSettings(
   for (const key in trayLines) {
     if (!knownSet.has(key)) {
       delete trayLines[key];
+      continue;
+    }
+    const lines = trayLines[key];
+    if (!Array.isArray(lines)) {
+      delete trayLines[key];
+      continue;
+    }
+    // Fix corrupted state: ['__NONE__', 'Credits'] kept trayLines[0] === '__NONE__' and broke Settings UI
+    const real = lines.filter((l) => l !== "__NONE__");
+    if (real.length > 0) {
+      trayLines[key] = real;
+    } else if (lines.includes("__NONE__")) {
+      trayLines[key] = ["__NONE__"];
+    }
+    const normalizedLines = trayLines[key];
+    if (
+      Array.isArray(normalizedLines) &&
+      normalizedLines[0] !== "__NONE__"
+    ) {
+      trayLines[key] = [
+        ...new Set(
+          normalizedLines.map((l) =>
+            l === "Total usage" ? "All usage" : l
+          )
+        ),
+      ];
     }
   }
 
@@ -361,6 +387,8 @@ export async function loadUIScale(): Promise<UIScale> {
 
 export async function saveUIScale(value: UIScale): Promise<void> {
   await store.set(UI_SCALE_KEY, value);
+  await store.save();
+}
 
 export async function loadShowTrayIcon(): Promise<boolean> {
   const stored = await store.get<unknown>(SHOW_TRAY_ICON_KEY);

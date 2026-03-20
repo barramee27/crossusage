@@ -68,6 +68,11 @@ const defaultProps = {
   onGlobalShortcutChange: vi.fn(),
   startOnLogin: false,
   onStartOnLoginChange: vi.fn(),
+  uiScale: "normal" as const,
+  onUIScaleChange: vi.fn(),
+  showTrayIcon: true,
+  onShowTrayIconChange: vi.fn(),
+  cursorRequestsLineAvailable: null as boolean | null,
 }
 
 afterEach(() => {

@@ -4,14 +4,18 @@ import { useSettingsPluginList } from "@/hooks/app/use-settings-plugin-list"
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { PluginSettings } from "@/lib/settings"
 
-function createPluginMeta(id: string, name: string): PluginMeta {
+function createPluginMeta(
+  id: string,
+  name: string,
+  primaryCandidates: string[] = []
+): PluginMeta {
   return {
     id,
     name,
     iconUrl: `/${id}.svg`,
     brandColor: "#000000",
     lines: [],
-    primaryCandidates: [],
+    primaryCandidates,
   }
 }
 
@@ -35,6 +39,31 @@ describe("useSettingsPluginList", () => {
     expect(result.current).toEqual([
       { id: "codex", name: "Codex", enabled: true, primaryCandidates: [], trayLines: [] },
       { id: "cursor", name: "Cursor", enabled: false, primaryCandidates: [], trayLines: [] },
+    ])
+  })
+
+  it("shows first primary as selected when trayLines never configured", () => {
+    const pluginSettings: PluginSettings = {
+      order: ["codex"],
+      disabled: [],
+      trayLines: {},
+    }
+
+    const { result } = renderHook(() =>
+      useSettingsPluginList({
+        pluginSettings,
+        pluginsMeta: [createPluginMeta("codex", "Codex", ["Session", "Weekly"])],
+      })
+    )
+
+    expect(result.current).toEqual([
+      {
+        id: "codex",
+        name: "Codex",
+        enabled: true,
+        primaryCandidates: ["Session", "Weekly"],
+        trayLines: ["Session"],
+      },
     ])
   })
 

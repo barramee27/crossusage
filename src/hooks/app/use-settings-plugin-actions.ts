@@ -1,5 +1,7 @@
 import { useCallback } from "react"
 import { track } from "@/lib/analytics"
+import type { PluginMeta } from "@/lib/plugin-types"
+import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
 import { savePluginSettings, type PluginSettings } from "@/lib/settings"
 
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
@@ -8,6 +10,7 @@ type ScheduleTrayIconUpdate = (reason: "probe" | "settings" | "init", delayMs?: 
 
 type UseSettingsPluginActionsArgs = {
   pluginSettings: PluginSettings | null
+  pluginsMeta: PluginMeta[]
   setPluginSettings: (value: PluginSettings | null) => void
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
@@ -17,6 +20,7 @@ type UseSettingsPluginActionsArgs = {
 
 export function useSettingsPluginActions({
   pluginSettings,
+  pluginsMeta,
   setPluginSettings,
   setLoadingForPlugins,
   setErrorForPlugins,
@@ -91,14 +95,17 @@ export function useSettingsPluginActions({
     startBatch,
   ])
 
-  const handleTrayLineToggle = useCallback((id: string, lineLabel: string, checked: boolean, fallback?: string) => {
+  const handleTrayLineToggle = useCallback((id: string, lineLabel: string, checked: boolean) => {
     if (!pluginSettings) return
     const prevTrayLines = pluginSettings.trayLines || {}
-    let currentLinesForPlugin = prevTrayLines[id] || []
-
-    if (currentLinesForPlugin.length === 0 && fallback) {
-      currentLinesForPlugin = [fallback]
-    }
+    const primaryCandidates =
+      pluginsMeta.find((p) => p.id === id)?.primaryCandidates ?? []
+    // Baseline matches Settings UI + tray default when trayLines[id] is undefined.
+    const currentLinesForPlugin = getEffectiveTrayLines(
+      id,
+      pluginSettings,
+      primaryCandidates
+    )
 
     let nextLinesForPlugin: string[]
     if (checked) {
@@ -111,20 +118,17 @@ export function useSettingsPluginActions({
       nextLinesForPlugin = currentLinesForPlugin.filter(l => l !== lineLabel)
     }
 
+    // Use sentinel ['__NONE__'] when empty to prevent store from stripping empty arrays
     const nextTrayLines = {
       ...prevTrayLines,
-      [id]: nextLinesForPlugin,
-    }
-
-    // Clean up empty arrays to keep state minimal
-    if (nextLinesForPlugin.length === 0) {
-      delete nextTrayLines[id]
+      [id]: nextLinesForPlugin.length === 0 ? ['__NONE__'] : nextLinesForPlugin,
     }
 
     const nextSettings: PluginSettings = {
       ...pluginSettings,
       trayLines: nextTrayLines,
     }
+    
     setPluginSettings(nextSettings)
     scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
     void savePluginSettings(nextSettings).catch((error) => {
@@ -132,6 +136,7 @@ export function useSettingsPluginActions({
     })
   }, [
     pluginSettings,
+    pluginsMeta,
     scheduleTrayIconUpdate,
     setPluginSettings,
   ])

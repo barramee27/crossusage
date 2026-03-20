@@ -16,8 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { GlobalShortcutSection } from "@/components/global-shortcut-section";
 import { getBarFillLayout, getTrayIconSizePx } from "@/lib/tray-bars-icon";
@@ -128,7 +129,7 @@ function MenubarIconStylePreview({
     const remainderClass = isActive ? "bg-primary-foreground/20" : "bg-foreground/15";
     const fillClass = isActive ? "bg-primary-foreground" : "bg-foreground";
     const fractions = traySettingsPreview.bars.length > 0
-      ? traySettingsPreview.bars.map((b) => b.fraction ?? 0)
+      ? traySettingsPreview.bars.map((b) => b.items?.[0]?.fraction ?? 0)
       : [0.83, 0.7, 0.56];
 
     return (
@@ -165,7 +166,7 @@ function MenubarIconStylePreview({
   }
 
   if (style === "donut") {
-    const fraction = traySettingsPreview.providerBars[0]?.fraction ?? 0;
+    const fraction = traySettingsPreview.providerBars[0]?.items?.[0]?.fraction ?? 0;
     const clamped = Math.max(0, Math.min(1, fraction));
     return (
       <div className="inline-flex items-center gap-1">
@@ -264,7 +265,7 @@ interface SettingsPageProps {
   plugins: PluginConfig[];
   onReorder: (orderedIds: string[]) => void;
   onToggle: (id: string) => void;
-  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean, fallback?: string) => void;
+  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void;
   autoUpdateInterval: AutoUpdateIntervalMinutes;
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void;
   themeMode: ThemeMode;
@@ -287,6 +288,8 @@ interface SettingsPageProps {
   showTrayIcon: boolean;
   onShowTrayIconChange: (value: boolean) => void;
 
+  /** From Cursor probe: false = no Requests line in API (e.g. Pro); null = loading/unknown; true = Enterprise/Team-style */
+  cursorRequestsLineAvailable: boolean | null;
 }
 
 export function SettingsPage({
@@ -316,9 +319,13 @@ export function SettingsPage({
   showTrayIcon,
   onShowTrayIconChange,
 
+  cursorRequestsLineAvailable,
+
 }: SettingsPageProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -572,22 +579,57 @@ export function SettingsPage({
                   onToggle={onToggle}
                   trayLinesContent={
                     plugin.enabled && plugin.primaryCandidates.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-y-2 gap-x-4 px-3 py-2 bg-card/50 rounded-b-md border-t border-transparent text-sm">
-                        {plugin.primaryCandidates.map((candidateLabel, i) => {
-                          const isSelected = plugin.trayLines.length === 0
-                            ? i === 0
-                            : plugin.trayLines.includes(candidateLabel);
-                          return (
-                            <label key={candidateLabel} className="flex items-center gap-1.5 cursor-pointer select-none truncate">
-                              <Checkbox
-                                className="h-3.5 w-3.5 shrink-0"
-                                checked={isSelected}
-                                onCheckedChange={(checked) => onTrayLineToggle(plugin.id, candidateLabel, checked === true, plugin.primaryCandidates[0])}
-                              />
-                              <span className="truncate">{candidateLabel}</span>
-                            </label>
-                          );
-                        })}
+                      <div className="bg-card/50 rounded-b-md border-t border-transparent text-sm">
+                        <div className="grid grid-cols-2 gap-y-2 gap-x-4 px-3 py-2">
+                          {plugin.primaryCandidates.map((candidateLabel) => {
+                            const isSelected = plugin.trayLines.includes(candidateLabel);
+                            const requestsLocked =
+                              plugin.id === "cursor" &&
+                              candidateLabel === "Requests" &&
+                              cursorRequestsLineAvailable === false;
+                            const checked = requestsLocked ? false : isSelected;
+                            const row = (
+                              <label
+                                className={`flex items-center gap-1.5 select-none truncate ${requestsLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                              >
+                                <Checkbox
+                                  className="h-3.5 w-3.5 shrink-0"
+                                  disabled={requestsLocked}
+                                  checked={checked}
+                                  onCheckedChange={(next) => {
+                                    if (requestsLocked) return;
+                                    onTrayLineToggle(plugin.id, candidateLabel, next === true);
+                                  }}
+                                />
+                                <span className="truncate">{candidateLabel}</span>
+                              </label>
+                            );
+                            if (requestsLocked) {
+                              return (
+                                <Tooltip key={candidateLabel}>
+                                  <TooltipTrigger
+                                    render={(props) => (
+                                      <span {...props} className={`block min-w-0 ${props.className ?? ""}`}>
+                                        {row}
+                                      </span>
+                                    )}
+                                  />
+                                  <TooltipContent side="top" className="text-xs max-w-[260px]">
+                                    Requests only applies to Enterprise/Team request-based accounts when the API returns usage. Pro and similar plans don&apos;t expose this line.
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            }
+                            return <Fragment key={candidateLabel}>{row}</Fragment>;
+                          })}
+                        </div>
+                        {plugin.id === "cursor" && (
+                          <p className="px-3 pb-2 text-[11px] text-muted-foreground leading-snug border-t border-transparent">
+                            {cursorRequestsLineAvailable === false
+                              ? "Requests is unavailable for your current plan — it stays off until the API returns request-based usage (Enterprise/Team)."
+                              : "\"Requests\" appears only when your account returns request-based usage (Enterprise/Team)."}
+                          </p>
+                        )}
                       </div>
                     ) : undefined
                   }

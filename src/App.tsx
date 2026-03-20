@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useShallow } from "zustand/react/shallow"
 import { AppShell } from "@/components/app/app-shell"
 import { useAppPluginViews } from "@/hooks/app/use-app-plugin-views"
@@ -188,6 +188,7 @@ function App() {
     handleTrayLineToggle,
   } = useSettingsPluginActions({
     pluginSettings,
+    pluginsMeta,
     setPluginSettings,
     setLoadingForPlugins,
     setErrorForPlugins,
@@ -199,6 +200,40 @@ function App() {
     pluginSettings,
     pluginsMeta,
   })
+
+  /** null = still loading or no probe yet; true = API returned a Requests line; false = Pro-style response without Requests */
+  const cursorRequestsLineAvailable = useMemo(() => {
+    const st = pluginStates.cursor
+    if (!st) return null
+    if (st.loading) return null
+    if (st.error) return null
+    const lines = st.data?.lines ?? []
+    return lines.some((l) => l.label === "Requests")
+  }, [pluginStates])
+
+  useEffect(() => {
+    if (cursorRequestsLineAvailable !== false) return
+    if (!pluginSettings?.trayLines?.cursor) return
+    const cur = pluginSettings.trayLines.cursor
+    if (cur[0] === "__NONE__") return
+    if (!cur.includes("Requests")) return
+    const next = cur.filter((l) => l !== "Requests")
+    const nextTrayLines = {
+      ...pluginSettings.trayLines,
+      cursor: next.length === 0 ? ["__NONE__"] : next,
+    }
+    const nextSettings = { ...pluginSettings, trayLines: nextTrayLines }
+    setPluginSettings(nextSettings)
+    void savePluginSettings(nextSettings).catch((e) => {
+      console.error("Failed to prune Requests from tray lines:", e)
+    })
+    scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+  }, [
+    cursorRequestsLineAvailable,
+    pluginSettings,
+    setPluginSettings,
+    scheduleTrayIconUpdate,
+  ])
 
   const { displayPlugins, navPlugins, selectedPlugin } = useAppPluginViews({
     activeView,
@@ -283,6 +318,8 @@ function App() {
         onUIScaleChange: handleUIScaleChange,
 
         onShowTrayIconChange: handleShowTrayIconChange,
+
+        cursorRequestsLineAvailable,
 
       }}
     />

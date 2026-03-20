@@ -27,7 +27,7 @@ export type AppContentActionProps = {
   onRetryPlugin: (id: string) => void
   onReorder: (orderedIds: string[]) => void
   onToggle: (id: string) => void
-  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean, fallback?: string) => void
+  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void
   onThemeModeChange: (mode: ThemeMode) => void
   onDisplayModeChange: (mode: DisplayMode) => void
@@ -42,6 +42,8 @@ export type AppContentActionProps = {
 
   onShowTrayIconChange: (value: boolean) => void
 
+  /** null = loading / unknown; true = Cursor probe has Requests line; false = not available (e.g. Pro) */
+  cursorRequestsLineAvailable: boolean | null
 }
 
 export type AppContentProps = AppContentDerivedProps & AppContentActionProps
@@ -67,6 +69,8 @@ export function AppContent({
   onUIScaleChange,
 
   onShowTrayIconChange,
+
+  cursorRequestsLineAvailable,
 
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
@@ -145,6 +149,8 @@ export function AppContent({
 
         showTrayIcon={showTrayIcon}
         onShowTrayIconChange={onShowTrayIconChange}
+
+        cursorRequestsLineAvailable={cursorRequestsLineAvailable}
 
       />
     )

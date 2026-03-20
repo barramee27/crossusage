@@ -1,6 +1,7 @@
 import { ProviderCard } from "@/components/provider-card"
 import type { PluginDisplayState } from "@/lib/plugin-types"
 import type { DisplayMode, ResetTimerDisplayMode } from "@/lib/settings"
+import { useAppPluginStore } from "@/stores/app-plugin-store"
 
 interface ProviderDetailPageProps {
   plugin: PluginDisplayState | null
@@ -17,6 +18,8 @@ export function ProviderDetailPage({
   resetTimerDisplayMode,
   onResetTimerDisplayModeToggle,
 }: ProviderDetailPageProps) {
+  const pluginSettings = useAppPluginStore(state => state.pluginSettings)
+
   if (!plugin) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -24,6 +27,11 @@ export function ProviderDetailPage({
       </div>
     )
   }
+
+  const rawLines = pluginSettings?.trayLines?.[plugin.meta.id]
+  const allowedLabels = (rawLines == null || rawLines.length === 0) ? null
+    : rawLines[0] === '__NONE__' ? []
+    : rawLines
 
   return (
     <ProviderCard
@@ -38,6 +46,7 @@ export function ProviderDetailPage({
       lastManualRefreshAt={plugin.lastManualRefreshAt}
       onRetry={onRetry}
       scopeFilter="all"
+      allowedLabels={allowedLabels}
       displayMode={displayMode}
       resetTimerDisplayMode={resetTimerDisplayMode}
       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}

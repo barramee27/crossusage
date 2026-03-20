@@ -200,26 +200,210 @@ body,
   background: linear-gradient(to top, var(--muted), transparent);
 }
 
+/* ─── Liquid Glass – Clean iOS Glassmorphism ─────────────────────────────────
+   Strategy: Strong backdrop blur + specular edge highlight + single slow shimmer.
+   This is the same approach used by iOS, macOS, and visionOS — no SVG filters
+   needed, no fake caustics. The glass look comes from:
+     1. backdrop-filter blur — frosted glass effect on content behind
+     2. Low-opacity white background — translucent fill
+     3. Bright top-edge inset shadow — simulates light catching the rim
+     4. Static diagonal ::before gradient — specular highlight on glass face
+     5. Slow-moving ::after sweep — single beam of reflected light
+   ─────────────────────────────────────────────────────────────────────────── */
+
 :root.glass .app-panel-surface {
-  background: transparent;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.60),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  position: relative;
+  overflow: hidden;
 }
+
+/* Static specular sheen — diagonal gradient from top-left, like light on tilted glass */
+:root.glass .app-panel-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.20) 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Slow-moving light sweep — single soft beam drifting across the surface */
+:root.glass .app-panel-surface::after {
+  content: "";
+  position: absolute;
+  inset: -150%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.10) 50%,
+    transparent 60%
+  );
+  animation: glass-shimmer 10s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ─── Liquid Glass – dark mode ───────────────────────────────────────────── */
 
 :root.dark.glass .app-panel-surface {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: rgba(22, 22, 28, 0.50);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.36),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.10);
 }
 
-:root.glass .app-side-nav,
-:root.glass .app-main-pane {
-  background: transparent;
+:root.dark.glass .app-panel-surface::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.09) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    transparent 100%
+  );
 }
+
+:root.dark.glass .app-panel-surface::after {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 60%
+  );
+}
+
+/* ─── Side nav ───────────────────────────────────────────────────────────── */
+
+:root.glass .app-side-nav {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(44px) saturate(190%) contrast(1.14);
+  -webkit-backdrop-filter: blur(44px) saturate(190%) contrast(1.14);
+  border-right: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  position: relative;
+  overflow: hidden;
+}
+
+:root.dark.glass .app-side-nav {
+  background: rgba(32, 32, 38, 0.48);
+  backdrop-filter: blur(44px) saturate(170%) contrast(1.08);
+  -webkit-backdrop-filter: blur(44px) saturate(170%) contrast(1.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* ─── Main pane ──────────────────────────────────────────────────────────── */
+
+:root.glass .app-main-pane {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(36px) saturate(165%) contrast(1.08);
+  -webkit-backdrop-filter: blur(36px) saturate(165%) contrast(1.08);
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:root.dark.glass .app-main-pane {
+  background: rgba(28, 28, 34, 0.36);
+  backdrop-filter: blur(36px) saturate(145%) contrast(1.04);
+  -webkit-backdrop-filter: blur(36px) saturate(145%) contrast(1.04);
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Scroll fade ────────────────────────────────────────────────────────── */
 
 :root.glass .app-scroll-fade {
-  background: linear-gradient(to top, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.08), transparent);
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.16), transparent);
 }
 
 :root.dark.glass .app-scroll-fade {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.08), transparent);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.40), rgba(0, 0, 0, 0.12), transparent);
+}
+
+/* ─── Liquid glass provider cards ────────────────────────────────────────────
+   Each card gets its own glass layer with a top-edge highlight and a static
+   corner sheen — same approach as the panel surface, scaled down.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root.glass .liquid-glass-card {
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.50),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+:root.glass .liquid-glass-card:hover {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 16px rgba(0, 0, 0, 0.10);
+}
+
+/* Static corner sheen on cards */
+:root.glass .liquid-glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+:root.dark.glass .liquid-glass-card {
+  background: rgba(38, 38, 46, 0.54);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+:root.dark.glass .liquid-glass-card:hover {
+  background: rgba(50, 50, 60, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.32);
+}
+
+:root.dark.glass .liquid-glass-card::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 55%
+  );
 }
 
 /* Hide scrollbar track globally */
@@ -271,4 +455,14 @@ body,
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
   border-color: transparent !important;
+}
+
+/* ─── Liquid Glass shimmer animation ─────────────────────────────────────────
+   glass-shimmer: A single soft beam of reflected light sweeping slowly across
+   the glass surface. The oversized inset (-150%) ensures the gradient edge is
+   never visible — only the feathered center passes over the element.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes glass-shimmer {
+  0%   { transform: translate(-30%, -30%); }
+  100% { transform: translate(30%, 30%); }
 }

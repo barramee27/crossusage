@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.11
+
+### Changes
+
+- Cursor: rename the **Total usage** metric to **All usage**; migrate saved tray line settings from the old label.
+- UI: add vertical spacing between consecutive metric rows in provider cards.
+- Build: depend on `aes-gcm` on all platforms (not Unix-only) so Windows / cross-compiles resolve the plugin host API.
+
 ## 0.6.10
 
 ### New Features

@@ -92,6 +92,32 @@ describe("settings", () => {
     expect(normalized).toEqual({ order: ["b", "a"], disabled: ["a"], trayLines: { "a": ["x"] } })
   })
 
+  it("normalizes trayLines: strips __NONE__ when mixed with real labels", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const normalized = normalizePluginSettings(
+      { order: ["cursor"], disabled: [], trayLines: { cursor: ["__NONE__", "Credits"] } },
+      plugins
+    )
+    expect(normalized.trayLines).toEqual({ cursor: ["Credits"] })
+  })
+
+  it("migrates trayLines: Total usage label to All usage (deduped)", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const normalized = normalizePluginSettings(
+      {
+        order: ["cursor"],
+        disabled: [],
+        trayLines: { cursor: ["Total usage", "All usage"] },
+      },
+      plugins
+    )
+    expect(normalized.trayLines).toEqual({ cursor: ["All usage"] })
+  })
+
   it("auto-disables new non-default plugins", () => {
     const plugins: PluginMeta[] = [
       { id: "claude", name: "Claude", iconUrl: "", lines: [], primaryCandidates: [] },

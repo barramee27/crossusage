@@ -1,5 +1,6 @@
 import { useShallow } from "zustand/react/shallow"
 import { AppContent, type AppContentActionProps } from "@/components/app/app-content"
+import { LiquidGlassFilter } from "@/components/liquid-glass-filter"
 import { PanelFooter } from "@/components/panel-footer"
 import { SideNav, type NavPlugin, type PluginContextAction } from "@/components/side-nav"
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
@@ -7,6 +8,7 @@ import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
 import { useAppVersion } from "@/hooks/app/use-app-version"
 import { usePanel } from "@/hooks/app/use-panel"
 import { useAppUpdate } from "@/hooks/use-app-update"
+import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
 
 type AppShellProps = {
@@ -34,6 +36,10 @@ export function AppShell({
   onNavReorder,
   appContentProps,
 }: AppShellProps) {
+  const { themeMode } = useAppPreferencesStore(
+    useShallow((state) => ({ themeMode: state.themeMode }))
+  )
+
   const {
     activeView,
     setActiveView,
@@ -66,6 +72,8 @@ export function AppShell({
 
   return (
     <div ref={containerRef} className="w-full bg-transparent">
+      {/* SVG filter definitions for the liquid-distort effect; rendered off-screen */}
+      <LiquidGlassFilter active={themeMode === "glass"} />
       <div
         className="app-panel-surface relative rounded-[22px] overflow-hidden select-none w-full flex flex-col"
         style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx}px` } : undefined}

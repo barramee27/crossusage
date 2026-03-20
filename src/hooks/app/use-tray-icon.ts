@@ -5,11 +5,8 @@ import type { PluginMeta } from "@/lib/plugin-types"
 import type { DisplayMode, MenubarIconStyle, PluginSettings } from "@/lib/settings"
 import { getEnabledPluginIds } from "@/lib/settings"
 
-import { getTrayIconSizePx, renderTrayBarsIcon } from "@/lib/tray-bars-icon"
-import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
-
 import { getTrayIconSizePx, renderTrayBarsIcon, type TrayGridCell } from "@/lib/tray-bars-icon"
-import { getTrayPrimaryBars } from "@/lib/tray-primary-progress"
+import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
 
 import type { PluginState } from "@/hooks/app/types"
 
@@ -51,11 +48,11 @@ function isSameTraySettingsPreview(a: TraySettingsPreview, b: TraySettingsPrevie
   if (a.providerBars.length !== b.providerBars.length) return false
   for (let i = 0; i < a.bars.length; i += 1) {
     if (a.bars[i]?.id !== b.bars[i]?.id) return false
-    if (a.bars[i]?.fraction !== b.bars[i]?.fraction) return false
+    if (a.bars[i]?.items?.[0]?.fraction !== b.bars[i]?.items?.[0]?.fraction) return false
   }
   for (let i = 0; i < a.providerBars.length; i += 1) {
     if (a.providerBars[i]?.id !== b.providerBars[i]?.id) return false
-    if (a.providerBars[i]?.fraction !== b.providerBars[i]?.fraction) return false
+    if (a.providerBars[i]?.items?.[0]?.fraction !== b.providerBars[i]?.items?.[0]?.fraction) return false
   }
   return true
 }
@@ -232,7 +229,7 @@ export function useTrayIcon({
       const providerIconUrl = trayProviderId
         ? pluginsMetaRef.current.find((plugin) => plugin.id === trayProviderId)?.iconUrl
         : undefined
-      const providerPercentText = formatTrayPercentText(providerBars[0]?.fraction)
+      const providerPercentText = formatTrayPercentText(providerBars[0]?.items?.[0]?.fraction)
 
       const nextPreview: TraySettingsPreview = {
         bars: barsForPreview,
@@ -336,16 +333,12 @@ export function useTrayIcon({
         })
       }
 
-      const sizePx = getTrayIconSizePx(window.devicePixelRatio)
-
-
       renderTrayBarsIcon({
         bars: providerBars,
         sizePx,
 
         style: "provider",
-        percentText: supportsNativeTrayTitle ? undefined : providerPercentText,
-        providerIconUrl,
+        percentText: providerPercentText,
 
         gridCells: gridCellsToRender,
         providerIconUrl: showTrayIconRef.current ? providerIconUrlToRender : undefined,

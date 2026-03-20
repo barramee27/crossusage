@@ -18,6 +18,10 @@ const state = vi.hoisted(() => ({
   saveThemeModeMock: vi.fn(),
   loadDisplayModeMock: vi.fn(),
   saveDisplayModeMock: vi.fn(),
+  loadUIScaleMock: vi.fn(() => "normal"),
+  saveUIScaleMock: vi.fn(),
+  loadShowTrayIconMock: vi.fn(() => true),
+  saveShowTrayIconMock: vi.fn(),
   loadResetTimerDisplayModeMock: vi.fn(),
   saveResetTimerDisplayModeMock: vi.fn(),
   loadMenubarIconStyleMock: vi.fn(),
@@ -221,6 +225,10 @@ vi.mock("@/lib/settings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/settings")>("@/lib/settings")
   return {
     ...actual,
+    loadShowTrayIcon: state.loadShowTrayIconMock,
+    saveShowTrayIcon: state.saveShowTrayIconMock,
+    loadUIScale: state.loadUIScaleMock,
+    saveUIScale: state.saveUIScaleMock,
     loadPluginSettings: state.loadPluginSettingsMock,
     savePluginSettings: state.savePluginSettingsMock,
     loadAutoUpdateInterval: state.loadAutoUpdateIntervalMock,
@@ -1744,12 +1752,12 @@ describe("App", () => {
       await vi.waitFor(() => expect(state.startBatchMock).toHaveBeenCalled())
       await vi.waitFor(() => expect(state.trayGetByIdMock).toHaveBeenCalled())
       await vi.waitFor(() =>
-        expect(state.renderTrayBarsIconMock).toHaveBeenCalledWith({
+        expect(state.renderTrayBarsIconMock).toHaveBeenCalledWith(expect.objectContaining({
           sizePx: expect.any(Number),
           gridCells: [],
           providerIconUrl: "icon-a",
           hideIcon: false,
-        })
+        }))
       )
 
       state.probeHandlers?.onResult({

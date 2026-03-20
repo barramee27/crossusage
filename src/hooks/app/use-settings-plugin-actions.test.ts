@@ -14,7 +14,17 @@ vi.mock("@/lib/settings", () => ({
   savePluginSettings: savePluginSettingsMock,
 }))
 
+import type { PluginMeta } from "@/lib/plugin-types"
 import { useSettingsPluginActions } from "@/hooks/app/use-settings-plugin-actions"
+
+const codexMeta: PluginMeta = {
+  id: "codex",
+  name: "Codex",
+  iconUrl: "/codex.svg",
+  brandColor: "#000",
+  lines: [],
+  primaryCandidates: ["Session", "Weekly"],
+}
 
 describe("useSettingsPluginActions", () => {
   beforeEach(() => {
@@ -30,6 +40,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: { order: ["a", "b"], disabled: [] },
+        pluginsMeta: [],
         setPluginSettings,
         setLoadingForPlugins: vi.fn(),
         setErrorForPlugins: vi.fn(),
@@ -55,6 +66,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: { order: ["a", "b", "c"], disabled: ["b"] },
+        pluginsMeta: [],
         setPluginSettings,
         setLoadingForPlugins: vi.fn(),
         setErrorForPlugins: vi.fn(),
@@ -81,6 +93,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: { order: ["b", "a", "c"], disabled: ["b"] },
+        pluginsMeta: [],
         setPluginSettings,
         setLoadingForPlugins: vi.fn(),
         setErrorForPlugins: vi.fn(),
@@ -107,6 +120,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: { order: ["a", "b"], disabled: ["b"] },
+        pluginsMeta: [],
         setPluginSettings,
         setLoadingForPlugins,
         setErrorForPlugins: vi.fn(),
@@ -136,6 +150,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: null,
+        pluginsMeta: [],
         setPluginSettings,
         setLoadingForPlugins: vi.fn(),
         setErrorForPlugins: vi.fn(),
@@ -163,6 +178,7 @@ describe("useSettingsPluginActions", () => {
     const { result } = renderHook(() =>
       useSettingsPluginActions({
         pluginSettings: { order: ["a"], disabled: ["a"] },
+        pluginsMeta: [],
         setPluginSettings: vi.fn(),
         setLoadingForPlugins: vi.fn(),
         setErrorForPlugins,
@@ -184,5 +200,103 @@ describe("useSettingsPluginActions", () => {
     })
 
     errorSpy.mockRestore()
+  })
+
+  it("tray line toggle from __NONE__ replaces sentinel instead of appending", () => {
+    const setPluginSettings = vi.fn()
+    const scheduleTrayIconUpdate = vi.fn()
+
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["cursor"],
+          disabled: [],
+          trayLines: { cursor: ["__NONE__"] },
+        },
+        pluginsMeta: [],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate,
+      })
+    )
+
+    act(() => {
+      result.current.handleTrayLineToggle("cursor", "Credits", true)
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["cursor"],
+      disabled: [],
+      trayLines: { cursor: ["Credits"] },
+    })
+    expect(savePluginSettingsMock).toHaveBeenCalledWith({
+      order: ["cursor"],
+      disabled: [],
+      trayLines: { cursor: ["Credits"] },
+    })
+  })
+
+  it("tray line uncheck uses effective default when trayLines key absent", () => {
+    const setPluginSettings = vi.fn()
+    const scheduleTrayIconUpdate = vi.fn()
+
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["codex"],
+          disabled: [],
+          trayLines: {},
+        },
+        pluginsMeta: [codexMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate,
+      })
+    )
+
+    act(() => {
+      result.current.handleTrayLineToggle("codex", "Session", false)
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["codex"],
+      disabled: [],
+      trayLines: { codex: ["__NONE__"] },
+    })
+  })
+
+  it("tray line check adds to effective default when trayLines key absent", () => {
+    const setPluginSettings = vi.fn()
+    const scheduleTrayIconUpdate = vi.fn()
+
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["codex"],
+          disabled: [],
+          trayLines: {},
+        },
+        pluginsMeta: [codexMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate,
+      })
+    )
+
+    act(() => {
+      result.current.handleTrayLineToggle("codex", "Weekly", true)
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["codex"],
+      disabled: [],
+      trayLines: { codex: ["Session", "Weekly"] },
+    })
   })
 })

@@ -1,6 +1,6 @@
 [package]
 name = "openusage"
-version = "0.6.10"
+version = "0.6.11"
 description = "OpenUsage is an open source AI subscription limit tracker"
 authors = ["barramee kottanawadee <barramee25038@gmail.com>"]
 edition = "2024"
@@ -41,12 +41,13 @@ regex-lite = "0.1.9"
 
 rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-liquid-glass = "0.1.6"
+aes-gcm = "0.10.3"
 
 [target.'cfg(unix)'.dependencies]
 users = "0.11"
 
-aes-gcm = "0.10.3"
-
+[target.'cfg(target_os = "windows")'.dependencies]
+window-vibrancy = "0.5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }

@@ -601,34 +601,21 @@
       }))
     }
 
-    const su = usage.spendLimitUsage
-    const isTeamAccount = (
-      normalizedPlanName === "team" ||
-      (su && su.limitType === "team") ||
-      (su && typeof su.pooledLimit === "number")
-    )
-    const hasFiniteLimit = typeof pu.limit === "number" && Number.isFinite(pu.limit)
-    const hasFinitePercent = Number.isFinite(pu.totalPercentUsed)
-
-    if (!hasFiniteLimit && !hasFinitePercent) {
-      // Missing limits could mean enterprise or missing fallback limits. Try the usage endpoint instead.
-      ctx.host.log.info("Total usage limit missing from token API response; falling back to usage API")
-      return probeUsageFallback(ctx, tokens.accessToken, true)
+    // All usage (always present) - fallback primary metric
+    if (!hasPlanUsageLimit && !hasTotalUsagePercent) {
+      throw "All usage limit missing from API response."
     }
-
-    const planUsed = hasFiniteLimit
-      ? (typeof pu.totalSpend === "number" ? pu.totalSpend : pu.limit - (pu.remaining ?? 0))
-      : null
-    const computedPercentUsed = hasFiniteLimit
-      ? (pu.limit > 0 ? (planUsed / pu.limit) * 100 : 0)
-      : null
-    const totalUsagePercent = hasFinitePercent
+    const planUsed = hasPlanUsageLimit
+      ? (typeof pu.totalSpend === "number"
+        ? pu.totalSpend
+        : pu.limit - (pu.remaining ?? 0))
+      : 0
+    const computedPercentUsed = hasPlanUsageLimit && pu.limit > 0
+      ? (planUsed / pu.limit) * 100
+      : 0
+    const totalUsagePercent = hasTotalUsagePercent
       ? pu.totalPercentUsed
       : computedPercentUsed
-
-    if (!isTeamAccount && !hasFiniteLimit && hasFinitePercent) {
-      ctx.host.log.info("total usage limit missing; using totalPercentUsed for individual account")
-    }
 
     // Calculate billing cycle period duration
     var billingPeriodMs = 30 * 24 * 60 * 60 * 1000 // 30 days default
@@ -638,13 +625,20 @@
       billingPeriodMs = cycleEnd - cycleStart // already in ms
     }
 
+    const su = usage.spendLimitUsage
+    const isTeamAccount = (
+      normalizedPlanName === "team" ||
+      (su && su.limitType === "team") ||
+      (su && typeof su.pooledLimit === "number")
+    )
+
     if (isTeamAccount) {
       if (!hasPlanUsageLimit) {
         ctx.host.log.warn("team-inferred account missing planUsage.limit, attempting REST usage API fallback")
         return buildUnknownRequestBasedResult(ctx, accessToken, planName)
       }
       lines.push(ctx.line.progress({
-        label: "Total usage",
+        label: "All usage",
         used: ctx.fmt.dollars(planUsed),
         limit: ctx.fmt.dollars(pu.limit),
         format: { kind: "dollars" },
@@ -657,7 +651,7 @@
       }
     } else {
       lines.push(ctx.line.progress({
-        label: "Total usage",
+        label: "All usage",
         used: totalUsagePercent,
         limit: 100,
         format: { kind: "percent" },

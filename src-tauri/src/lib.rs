@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use serde::Serialize;
 use tauri::Emitter;
 use tauri_plugin_aptabase::EventTracker;
+#[cfg(target_os = "macos")]
 use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
 use tauri_plugin_log::{Target, TargetKind};
 use uuid::Uuid;
@@ -234,23 +235,51 @@ fn set_liquid_glass_enabled(app_handle: tauri::AppHandle, enabled: bool) -> Resu
         return Ok(());
     };
 
-    let config = if enabled {
-        LiquidGlassConfig {
-            corner_radius: 22.0,
-            variant: GlassMaterialVariant::Sidebar,
-            ..Default::default()
-        }
-    } else {
-        LiquidGlassConfig {
-            enabled: false,
-            ..Default::default()
-        }
-    };
+    // macOS: native Liquid Glass material via tauri-plugin-liquid-glass
+    #[cfg(target_os = "macos")]
+    {
+        let config = if enabled {
+            LiquidGlassConfig {
+                corner_radius: 22.0,
+                variant: GlassMaterialVariant::Sidebar,
+                ..Default::default()
+            }
+        } else {
+            LiquidGlassConfig {
+                enabled: false,
+                ..Default::default()
+            }
+        };
+        app_handle
+            .liquid_glass()
+            .set_effect(&window, config)
+            .map_err(|error| error.to_string())?;
+    }
 
-    app_handle
-        .liquid_glass()
-        .set_effect(&window, config)
-        .map_err(|error| error.to_string())
+    // Windows: Acrylic blur (Windows 10/11) with a subtle dark tint, falling back
+    // gracefully on older builds where the compositor doesn't support it.
+    #[cfg(target_os = "windows")]
+    {
+        if enabled {
+            if let Err(e) = window_vibrancy::apply_acrylic(&window, Some((18, 18, 20, 160))) {
+                log::warn!("Acrylic not supported on this Windows build: {}", e);
+                // Fall back to Mica (Windows 11 only) if Acrylic fails
+                if let Err(e2) = window_vibrancy::apply_mica(&window, Some(true)) {
+                    log::warn!("Mica also unavailable: {}", e2);
+                }
+            }
+        } else {
+            // clear_acrylic returns error if acrylic wasn't applied; ignore it
+            let _ = window_vibrancy::clear_acrylic(&window);
+            let _ = window_vibrancy::clear_mica(&window);
+        }
+    }
+
+    // Linux: transparency is compositor-dependent (KWin/Mutter compositing must be
+    // active). No native API needed – the transparent Tauri window + CSS
+    // backdrop-filter handles it when a compositor is running.
+
+    Ok(())
 }
 
 #[tauri::command]

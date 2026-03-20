@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { PluginSettings } from "@/lib/settings"
+import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
 
 export type SettingsPluginState = {
   id: string
@@ -24,12 +25,18 @@ export function useSettingsPluginList({ pluginSettings, pluginsMeta }: UseSettin
       .map((id) => {
         const meta = pluginMap.get(id)
         if (!meta) return null
+        const primaryCandidates = meta.primaryCandidates || []
+        const trayLines = getEffectiveTrayLines(
+          id,
+          pluginSettings,
+          primaryCandidates
+        )
         return {
           id,
           name: meta.name,
           enabled: !pluginSettings.disabled.includes(id),
-          primaryCandidates: meta.primaryCandidates || [],
-          trayLines: pluginSettings.trayLines?.[id] || [],
+          primaryCandidates,
+          trayLines,
         }
       })
       .filter((plugin): plugin is SettingsPluginState => Boolean(plugin))
