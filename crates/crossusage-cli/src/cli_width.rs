@@ -109,11 +109,6 @@ pub fn list_layout_for_width(w: u16) -> CliTableLayout {
     }
 }
 
-/// `usage-stats` summary tables: same rule as [list_layout_for_width] (wrapped grids are unreadable when narrow).
-pub fn usage_stats_layout_for_width(w: u16) -> CliTableLayout {
-    list_layout_for_width(w)
-}
-
 /// Max width for probe `--human` value column when using single-line truncation.
 pub fn probe_value_column_wrap_chars(term_w: u16) -> usize {
     let w = term_w as usize;
@@ -145,7 +140,6 @@ mod tests {
     fn list_and_usage_stats_stack_until_wide_enough_for_table() {
         assert_eq!(list_layout_for_width(139), CliTableLayout::Stacked);
         assert_eq!(list_layout_for_width(140), CliTableLayout::Full);
-        assert_eq!(usage_stats_layout_for_width(139), CliTableLayout::Stacked);
     }
 
     #[test]

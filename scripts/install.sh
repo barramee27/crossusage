@@ -259,14 +259,14 @@ case "$KERNEL" in
   Darwin)
     echo "CrossUsage (this fork) does not publish a macOS desktop installer (.dmg) on this repo."
     echo "For the terminal CLI from this fork, use:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.sh | INSTALL_MODE=cli bash"
+    echo "  curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.sh | INSTALL_MODE=cli bash"
     echo "Upstream OpenUsage may publish macOS GUI builds separately:"
     echo "  https://github.com/robinebers/openusage/releases/latest"
     exit 0
     ;;
   MINGW*|MSYS*|CYGWIN*)
     echo "This script is for Unix shells. On Windows, use PowerShell:"
-    echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.ps1 | iex"
+    echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.ps1 | iex"
     echo "Or download the latest .exe from:"
     echo "  https://github.com/${GITHUB_REPO}/releases/latest"
     exit 0

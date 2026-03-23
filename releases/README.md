@@ -20,14 +20,14 @@ Build and publish:
 
 ```bash
 bun run release:cli-tarball
-# Writes e.g. crossusage-cli_1.0.0_linux_amd64.tar.gz (or _darwin_arm64 on Apple Silicon)
+# Writes e.g. crossusage-cli_1.0.1_linux_amd64.tar.gz (or _darwin_arm64 on Apple Silicon)
 cp crossusage-cli_*_linux_amd64.tar.gz releases/   # example: Linux x86_64
 ```
 
 Optionally keep a **legacy** copy in sync (install.sh uses it if the versioned file is missing):
 
 ```bash
-cp releases/crossusage-cli_1.0.0_linux_amd64.tar.gz releases/crossusage-cli_linux_amd64.tar.gz
+cp releases/crossusage-cli_1.0.1_linux_amd64.tar.gz releases/crossusage-cli_linux_amd64.tar.gz
 ```
 
 Commit and push — **no GitHub Release attachment required** for `INSTALL_MODE=cli` when these files exist on the branch.

@@ -35,6 +35,14 @@ cargo install --path crates/crossusage-cli --locked
 cd .. && rm -rf crossusage-tmp   # optional: removes sources; binary stays in ~/.cargo/bin
 ```
 
+**`cargo install --git`:** after the duplicate `crates/crossusage` crate was removed, this should work once your branch is pushed:
+
+```bash
+cargo install --git https://github.com/barramee27/crossusage.git \
+  --branch feat/linux-windows-native-support \
+  crossusage-cli
+```
+
 **Plugins:** `src-tauri/resources/bundled_plugins/*` is **not** fully committed to git (only a `.gitkeep`). A bare `cargo install` puts **`crossusage-cli` in `~/.cargo/bin` without bundled JS plugins** next to it.
 
 To get plugins:
