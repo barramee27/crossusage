@@ -13,6 +13,8 @@
     "cli": "cargo run -p crossusage-cli --",
     "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

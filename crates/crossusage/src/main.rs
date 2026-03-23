@@ -2,13 +2,10 @@
 //! Fork: https://github.com/barramee27/crossusage · Upstream OpenUsage: https://github.com/robinebers/openusage
 
 mod batch_probe;
-mod cli_width;
 mod config;
-mod cursor_token_usage;
 mod daemon;
 mod history;
 mod panic_hook;
-mod reset_display;
 mod tui;
 
 use anyhow::{bail, Context, Result};
@@ -20,21 +17,18 @@ use owo_colors::OwoColorize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tabled::settings::object::Columns;
-use tabled::settings::{Modify, Style, Width};
+use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use crate::cli_width::CliTableLayout;
 use crate::config::CliConfig;
-use crate::reset_display::format_resets_at_for_display;
 use crate::tui::view_model::NormalizedMetricsMapper;
 
 #[derive(Parser)]
-#[command(name = "crossusage-cli")]
+#[command(name = "crossusage")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
-#[command(about = "CrossUsage — AI subscription usage from the terminal")]
+#[command(about = "CrossUsage — AI subscription usage from the terminal (Rust; same plugin engine as the GUI)")]
 #[command(
-    after_long_help = "NOTE: --daemon runs background polling only and cannot be combined with a subcommand. For advanced daemon options use: crossusage-cli daemon --help"
+    after_long_help = "NOTE: --daemon runs background polling only and cannot be combined with a subcommand. For advanced daemon options use: crossusage daemon --help. Legacy binary name: crossusage-cli."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -71,14 +65,6 @@ struct Cli {
     /// Show plugin host WARN/ERROR logs on stderr (default: hidden for dashboard)
     #[arg(long, global = true)]
     verbose: bool,
-
-    /// Skip real plugin probes; use demo data (TUI input / layout test). Also: `dashboard --no-probe`.
-    #[arg(long, global = true)]
-    no_probe: bool,
-
-    /// Skip the interactive provider checkbox screen; load all discovered providers (or those from CLI args) immediately.
-    #[arg(long, global = true)]
-    no_picker: bool,
 }
 
 #[derive(Subcommand)]
@@ -109,21 +95,6 @@ enum Commands {
         #[arg(long)]
         from_file: Option<std::path::PathBuf>,
         plugin_ids: Vec<String>,
-    },
-    /// Cursor per-model token usage (CSV export). Same data source as [cstats](https://github.com/robinebers/cstats); other providers are not supported.
-    #[command(name = "usage-stats", visible_alias = "cstats")]
-    UsageStats {
-        /// Only `cursor` is implemented (token CSV export).
-        #[arg(long, default_value = "cursor")]
-        provider: String,
-        #[arg(short = 's', long)]
-        since: Option<String>,
-        #[arg(short = 'u', long)]
-        until: Option<String>,
-        #[arg(short = 'g', long, default_value = "model")]
-        group: String,
-        #[arg(short = 'o', long, default_value = "summary")]
-        output: String,
     },
     /// Poll in background and notify when usage is high (advanced; see also global --daemon)
     Daemon {
@@ -157,138 +128,113 @@ fn apply_cli_log_policy(verbose: bool) {
     }
 }
 
-/// Alphabetical by provider `id` (stable, matches probe order when listing all).
 fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 }
 
-    /// SIGINT/SIGTERM flag for batch commands (`list` / `probe` / live `export`) — checked between probes.
-    fn register_batch_interrupt_flag() -> Result<Arc<AtomicBool>> {
-        use signal_hook::consts::signal::SIGINT;
-        use signal_hook::flag as signal_flag;
+fn register_batch_interrupt_flag() -> Result<Arc<AtomicBool>> {
+    use signal_hook::consts::signal::SIGINT;
+    use signal_hook::flag as signal_flag;
 
-        let flag = Arc::new(AtomicBool::new(false));
-        signal_flag::register(SIGINT, Arc::clone(&flag)).context("register SIGINT for batch command")?;
-        #[cfg(unix)]
-        {
-            use signal_hook::consts::signal::SIGTERM;
-            signal_flag::register(SIGTERM, Arc::clone(&flag)).context("register SIGTERM for batch command")?;
-        }
-        Ok(flag)
+    let flag = Arc::new(AtomicBool::new(false));
+    signal_flag::register(SIGINT, Arc::clone(&flag)).context("register SIGINT for batch command")?;
+    #[cfg(unix)]
+    {
+        use signal_hook::consts::signal::SIGTERM;
+        signal_flag::register(SIGTERM, Arc::clone(&flag)).context("register SIGTERM for batch command")?;
+    }
+    Ok(flag)
+}
+
+fn exit_if_batch_interrupted(flag: &Arc<AtomicBool>) {
+    if flag.load(Ordering::SeqCst) {
+        eprintln!("\ncrossusage: interrupted");
+        std::process::exit(130);
+    }
+}
+
+fn main() -> Result<()> {
+    panic_hook::install();
+    let cli = Cli::parse();
+    // Ignore SIGTSTP / SIGTTIN / SIGTTOU for every command (long probes, IDE terminals, bash
+    // `[1]+ Stopped`, etc.) — same idea as the interactive dashboard.
+    tui::ignore_sigtstp();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    let plain = cli.plain;
+
+    if cli.daemon && cli.command.is_some() {
+        bail!(
+            "--daemon cannot be used with a subcommand. \
+             Run `crossusage-cli --daemon` alone, or use `crossusage-cli daemon` for advanced options."
+        );
     }
 
-    fn exit_if_batch_interrupted(flag: &Arc<AtomicBool>) {
-        if flag.load(Ordering::SeqCst) {
-            eprintln!("\ncrossusage-cli: interrupted");
-            std::process::exit(130);
+    let (app_data, resource_dir) = resolve_install_paths().context(
+        "Could not resolve app data / resource paths. Set CROSSUSAGE_RESOURCES if needed.",
+    )?;
+
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let (_plugin_dir, plugins) = plugin_engine::initialize_plugins(&app_data, &resource_dir);
+    let plugins = Arc::new(plugins);
+
+    let config_path = CliConfig::resolve_path(cli.config.clone());
+    let mut cfg = CliConfig::load_from_path(&config_path);
+    cfg = cfg.merge_cli_overrides(cli.theme.as_deref(), cli.refresh_sec, cli.no_mouse);
+
+    if cli.daemon {
+        if plugins.is_empty() {
+            bail!("No plugins discovered; nothing to watch.");
         }
+        return run_global_daemon(app_data, version, Arc::clone(&plugins), cli.verbose);
     }
 
-    fn main() -> Result<()> {
-        panic_hook::install();
-        let cli = Cli::parse();
-        // Ignore SIGTSTP / SIGTTIN / SIGTTOU for every command (long probes, IDE terminals, bash
-        // `[1]+ Stopped`, etc.) — same idea as the interactive dashboard.
-        tui::ignore_sigtstp();
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-        let plain = cli.plain;
-
-        if cli.daemon && cli.command.is_some() {
-            bail!(
-                "--daemon cannot be used with a subcommand. \
-                Run `crossusage-cli --daemon` alone, or use `crossusage-cli daemon` for advanced options."
-            );
+    match cli.command {
+        None => {
+            run_dashboard_cmd(&cli, &cfg, &config_path, &[], &app_data, &version, &plugins)?;
         }
-
-        if let Some(Commands::UsageStats {
-            ref provider,
-            ref since,
-            ref until,
-            ref group,
-            ref output,
-        }) = &cli.command
-        {
-            apply_cli_log_policy(cli.verbose);
-            cursor_token_usage::run_usage_stats(cursor_token_usage::UsageStatsArgs {
-                provider: provider.clone(),
-                since: since.clone(),
-                until: until.clone(),
-                group: group.clone(),
-                output: output.clone(),
-                json: cli.json,
-            })?;
-            return Ok(());
+        Some(Commands::Dashboard { ref plugin_ids }) => {
+            run_dashboard_cmd(
+                &cli,
+                &cfg,
+                &config_path,
+                plugin_ids,
+                &app_data,
+                &version,
+                &plugins,
+            )?;
         }
-
-        let (app_data, resource_dir) = resolve_install_paths().context(
-            "Could not resolve app data / resource paths. Set CROSSUSAGE_RESOURCES if needed.",
-        )?;
-
-        let version = env!("CARGO_PKG_VERSION").to_string();
-        let (_plugin_dir, plugins) = plugin_engine::initialize_plugins(&app_data, &resource_dir);
-        let plugins = Arc::new(plugins);
-
-        let config_path = CliConfig::resolve_path(cli.config.clone());
-        let mut cfg = CliConfig::load_from_path(&config_path);
-        cfg = cfg.merge_cli_overrides(cli.theme.as_deref(), cli.refresh_sec, cli.no_mouse);
-
-        if cli.daemon {
-            if plugins.is_empty() {
-                bail!("No plugins discovered; nothing to watch.");
-            }
-            return run_global_daemon(app_data, version, Arc::clone(&plugins), cli.verbose);
+        Some(Commands::List { ref plugin_ids }) => {
+            run_list_cmd(&cli, &cfg, plugin_ids, &app_data, &version, &plugins, plain)?;
         }
-
-        match cli.command {
-            None => {
-                run_dashboard_cmd(&cli, &cfg, &config_path, &[], &app_data, &version, &plugins)?;
-            }
-            Some(Commands::UsageStats { .. }) => {
-                unreachable!("usage-stats is handled before plugin load")
-            }
-            Some(Commands::Dashboard { ref plugin_ids }) => {
-                run_dashboard_cmd(
-                    &cli,
-                    &cfg,
-                    &config_path,
-                    plugin_ids,
-                    &app_data,
-                    &version,
-                    &plugins,
-                )?;
-            }
-            Some(Commands::List { ref plugin_ids }) => {
-                run_list_cmd(&cli, &cfg, plugin_ids, &app_data, &version, &plugins, plain)?;
-            }
-            Some(Commands::Probe {
-                ref plugin_ids,
+        Some(Commands::Probe {
+            ref plugin_ids,
+            human,
+        }) => {
+            run_probe_cmd(
+                plugin_ids,
                 human,
-            }) => {
-                run_probe_cmd(
-                    plugin_ids,
-                    human,
-                    &app_data,
-                    &version,
-                    &plugins,
-                    plain,
-                    cli.verbose,
-                )?;
-            }
-            Some(Commands::Export {
-                format: export_fmt,
-                ref from_file,
-                ref plugin_ids,
-            }) => {
-                run_export_cmd(
-                    export_fmt,
-                    from_file.clone(),
-                    plugin_ids.clone(),
-                    &app_data,
-                    &version,
-                    &plugins,
-                    cli.verbose,
-                )?;
-            }
+                &app_data,
+                &version,
+                &plugins,
+                plain,
+                cli.verbose,
+            )?;
+        }
+        Some(Commands::Export {
+            format: export_fmt,
+            ref from_file,
+            ref plugin_ids,
+        }) => {
+            run_export_cmd(
+                export_fmt,
+                from_file.clone(),
+                plugin_ids.clone(),
+                &app_data,
+                &version,
+                &plugins,
+                cli.verbose,
+            )?;
+        }
         Some(Commands::Daemon {
             detach,
             child,
@@ -387,9 +333,6 @@ fn run_dashboard_cmd(
         }
         println!("{}", serde_json::to_string_pretty(&outputs)?);
     } else {
-        let tui_debug = cli.verbose || std::env::var_os("CROSSUSAGE_TUI_DEBUG").is_some();
-        let show_picker =
-            !cli.no_picker && !cli.no_probe && plugin_ids.is_empty();
         tui::run(
             cfg.clone(),
             config_path.clone(),
@@ -397,9 +340,6 @@ fn run_dashboard_cmd(
             version.to_string(),
             Arc::clone(plugins),
             selected_indices,
-            show_picker,
-            cli.no_probe,
-            tui_debug,
         )?;
     }
     Ok(())
@@ -450,44 +390,16 @@ fn run_list_cmd(
 
     let interrupt = register_batch_interrupt_flag()?;
     let n = selected.len();
-    let tmax = batch_probe::probe_timeout_secs();
     eprintln!(
-        "crossusage-cli: probing {n} provider(s)…  (up to {tmax}s each — CROSSUSAGE_PROBE_TIMEOUT_SEC; Ctrl+C between probes; not the TUI — `q` does nothing.)"
+        "crossusage: probing {n} provider(s)…  (Ctrl+C to cancel; not the TUI — `q` does nothing here.)"
     );
 
     let mut rows: Vec<ListUsageRow> = Vec::new();
     for (i, p) in selected.into_iter().enumerate() {
         exit_if_batch_interrupted(&interrupt);
-        eprintln!(
-            "crossusage-cli:   [{}/{}] {}…",
-            i + 1,
-            n,
-            p.manifest.id
-        );
+        eprintln!("crossusage:   [{}/{}] {}…", i + 1, n, p.manifest.id);
         let out = batch_probe::run_probe_with_timeout(p, app_data, version, Some(&interrupt));
         let m = NormalizedMetricsMapper::from_output(&out);
-
-        let mut input_s = m
-            .input_tokens
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| "—".into());
-        let mut output_s = m
-            .output_tokens
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| "—".into());
-        let mut cost_s = m
-            .cost
-            .map(|c| format!("{:.2}", c))
-            .unwrap_or_else(|| "—".into());
-
-        if p.manifest.id == "cursor" {
-            if let Some(mtd) = cursor_token_usage::fetch_cursor_month_to_date_totals() {
-                input_s = cursor_token_usage::format_token_count(mtd.input_tokens);
-                output_s = cursor_token_usage::format_token_count(mtd.output_tokens);
-                cost_s = format!("{:.2}", mtd.cost_usd);
-            }
-        }
-
         rows.push(ListUsageRow {
             id: p.manifest.id.clone(),
             name: p.manifest.name.clone(),
@@ -496,9 +408,18 @@ fn run_list_cmd(
                 .list_quota_summary
                 .clone()
                 .unwrap_or_else(|| "—".into()),
-            input: input_s,
-            output: output_s,
-            cost: cost_s,
+            input: m
+                .input_tokens
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "—".into()),
+            output: m
+                .output_tokens
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "—".into()),
+            cost: m
+                .cost
+                .map(|c| format!("{:.2}", c))
+                .unwrap_or_else(|| "—".into()),
         });
     }
 
@@ -507,47 +428,10 @@ fn run_list_cmd(
     if !plain {
         print_banner(plain);
     }
-    print_list_table_responsive(&rows);
+    let mut table = Table::new(&rows);
+    table.with(Style::rounded());
+    println!("{table}");
     Ok(())
-}
-
-fn print_list_table_responsive(rows: &[ListUsageRow]) {
-    let w = cli_width::terminal_width();
-    match cli_width::list_layout_for_width(w) {
-        CliTableLayout::Stacked => print_list_stacked(rows, w as usize),
-        CliTableLayout::Full => {
-            let mut table = Table::new(rows);
-            table.with(Style::rounded());
-            println!("{table}");
-        }
-        // Kept for exhaustive match; list_layout_for_width only returns Stacked | Full.
-        CliTableLayout::Compact => print_list_stacked(rows, w as usize),
-    }
-}
-
-fn print_list_stacked(rows: &[ListUsageRow], term_width: usize) {
-    let text_w = term_width.saturating_sub(4).max(20);
-    let rule_len = (term_width.saturating_sub(2)).clamp(12, 72);
-    let rule: String = std::iter::repeat('-').take(rule_len).collect();
-    for (i, r) in rows.iter().enumerate() {
-        if i > 0 {
-            println!("{rule}");
-        }
-        println!("{}  ·  {}  ·  primary {}", r.id, r.name, r.primary);
-        if r.quota != "—" {
-            let block = format!("Quota: {}", r.quota);
-            for line in cli_width::wrap_plain(&block, text_w).lines() {
-                println!("  {line}");
-            }
-        } else {
-            println!("  Quota: —");
-        }
-        println!(
-            "  input: {}  output: {}  cost: {}",
-            r.input, r.output, r.cost
-        );
-        println!();
-    }
 }
 
 fn run_probe_cmd(
@@ -582,16 +466,15 @@ fn run_probe_cmd(
 
     let interrupt = register_batch_interrupt_flag()?;
     let n = selected.len();
-    let tmax = batch_probe::probe_timeout_secs();
     eprintln!(
-        "crossusage-cli: probing {n} provider(s)…  (up to {tmax}s each — CROSSUSAGE_PROBE_TIMEOUT_SEC; Ctrl+C between probes; not the TUI — `q` does nothing.)"
+        "crossusage: probing {n} provider(s)…  (Ctrl+C to cancel; not the TUI — `q` does nothing here.)"
     );
 
     let mut outputs: Vec<PluginOutput> = Vec::new();
     for (i, plugin) in selected.into_iter().enumerate() {
         exit_if_batch_interrupted(&interrupt);
         eprintln!(
-            "crossusage-cli:   [{}/{}] {}…",
+            "crossusage:   [{}/{}] {}…",
             i + 1,
             n,
             plugin.manifest.id
@@ -645,15 +528,14 @@ fn run_export_cmd(
         }
         let interrupt = register_batch_interrupt_flag()?;
         let n = selected.len();
-        let tmax = batch_probe::probe_timeout_secs();
         eprintln!(
-            "crossusage-cli: exporting live probe for {n} provider(s)…  (up to {tmax}s each — CROSSUSAGE_PROBE_TIMEOUT_SEC; Ctrl+C between probes.)"
+            "crossusage: exporting live probe for {n} provider(s)…  (Ctrl+C to cancel.)"
         );
         let mut recs = Vec::new();
         for (i, plugin) in selected.into_iter().enumerate() {
             exit_if_batch_interrupted(&interrupt);
             eprintln!(
-                "crossusage-cli:   [{}/{}] {}…",
+                "crossusage:   [{}/{}] {}…",
                 i + 1,
                 n,
                 plugin.manifest.id
@@ -687,12 +569,6 @@ struct ListUsageRow {
     input: String,
     output: String,
     cost: String,
-}
-
-#[derive(Tabled, Clone)]
-struct LineRowProbe {
-    label: String,
-    value: String,
 }
 
 fn print_banner(plain: bool) {
@@ -729,7 +605,13 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
         }
     }
 
-    let mut rows: Vec<LineRowProbe> = Vec::new();
+    #[derive(Tabled)]
+    struct LineRow {
+        label: String,
+        value: String,
+    }
+
+    let mut rows: Vec<LineRow> = Vec::new();
     for line in &out.lines {
         match line {
             MetricLine::Text {
@@ -742,7 +624,7 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
                 if let Some(s) = subtitle {
                     v.push_str(&format!(" ({s})"));
                 }
-                rows.push(LineRowProbe {
+                rows.push(LineRow {
                     label: label.clone(),
                     value: v,
                 });
@@ -768,12 +650,9 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
                     }
                 };
                 if let Some(r) = resets_at {
-                    let rel = format_resets_at_for_display(r);
-                    if !rel.is_empty() {
-                        v.push_str(&format!(" · {rel}"));
-                    }
+                    v.push_str(&format!(" · resets {r}"));
                 }
-                rows.push(LineRowProbe {
+                rows.push(LineRow {
                     label: label.clone(),
                     value: v,
                 });
@@ -788,7 +667,7 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
                 if let Some(s) = subtitle {
                     v.push_str(&format!(" ({s})"));
                 }
-                rows.push(LineRowProbe {
+                rows.push(LineRow {
                     label: label.clone(),
                     value: v,
                 });
@@ -797,46 +676,12 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
     }
 
     if !rows.is_empty() {
-        print_probe_human_table(&rows);
+        let mut table = Table::new(&rows);
+        table.with(Style::rounded());
+        println!("{table}");
     }
     println!();
     Ok(())
-}
-
-fn print_probe_human_table(rows: &[LineRowProbe]) {
-    let w = cli_width::terminal_width();
-    let layout = cli_width::layout_for_width(w);
-    let wrap = cli_width::probe_value_column_wrap_chars(w);
-    match layout {
-        CliTableLayout::Stacked => {
-            let tw = (w as usize).saturating_sub(2).max(12);
-            for row in rows {
-                println!("{}:", row.label);
-                for line in cli_width::wrap_plain(&row.value, tw).lines() {
-                    println!("  {line}");
-                }
-            }
-        }
-        CliTableLayout::Compact => {
-            let mut table = Table::new(rows);
-            table
-                .with(Style::modern())
-                .with(
-                    Modify::new(Columns::single(1)).with(Width::truncate(wrap).suffix("…")),
-                );
-            println!("{table}");
-        }
-        CliTableLayout::Full => {
-            let mut table = Table::new(rows);
-            table
-                .with(Style::rounded())
-                .with(
-                    Modify::new(Columns::single(1))
-                        .with(Width::truncate(wrap.max(40).min(120)).suffix("…")),
-                );
-            println!("{table}");
-        }
-    }
 }
 
 fn resolve_install_paths() -> Option<(PathBuf, PathBuf)> {

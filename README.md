@@ -25,16 +25,18 @@ Pre-built binaries — install and run.
 
 ### One-line install from GitHub
 
+**Branch:** this fork’s active work lives on **`feat/linux-windows-native-support`**. Raw install URLs and the default **`INSTALL_GIT_REF`** in [`scripts/install.sh`](scripts/install.sh) use that branch so one-liners match what you test locally (not only `main`).
+
 **Linux** (auto-detects package manager: `.deb` on Debian/Ubuntu, `.rpm` on Fedora/RHEL-like, or AppImage fallback). Requires `curl` *or* `wget`, and `jq` *or* `python3`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 ```
 
 **Windows** (PowerShell; downloads the latest NSIS `*x64-setup.exe` and runs it, silent by default):
 
 ```powershell
-irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 ```
 
 **macOS:** this fork does not ship a macOS **desktop** `.dmg` here. For the **terminal CLI** from this repo, use `INSTALL_MODE=cli` (downloads `releases/crossusage-cli_*_darwin_*.tar.gz` when published — build on a Mac with `bun run release:cli-tarball`). For a macOS **GUI** app, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
@@ -46,24 +48,99 @@ irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install
 **CLI-only (no desktop app / no WebKit):** downloads a portable tarball from `releases/` on the branch (`crossusage-cli_<version>_linux_<arch>.tar.gz` or `_darwin_<arch>.tar.gz` — build with `bun run release:cli-tarball` on Linux or macOS, then commit under `releases/` or attach to a GitHub Release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | INSTALL_MODE=cli bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
 ```
 
 **ShellCheck** is an optional static analyzer for shell scripts (`shellcheck scripts/install.sh`); it catches quoting bugs and portability issues before you ship.
 
 More detail: [INSTALL.md](INSTALL.md).
 
-**Same install includes a terminal CLI** (`crossusage-cli`): one package installs both the tray app and the CLI (e.g. on Linux `.deb`, both live under `/usr/bin/`). From the repo dev tree: `cargo run -p crossusage-cli -- list`.
+**Same install includes a terminal CLI** (`crossusage-cli`): one package installs both the tray app and the CLI (e.g. on Linux `.deb`, both live under `/usr/bin/`).
+
+Build from source:
 
 ```bash
-crossusage-cli list              # providers
-crossusage-cli probe             # all providers
-crossusage-cli probe cursor      # one provider
-crossusage-cli probe --json      # machine-readable
-crossusage-cli dashboard       # full-screen TUI (q or Esc to quit; avoid Ctrl+Z; use --verbose for probe logs)
+cargo build -p crossusage-cli --bin crossusage-cli
+cargo run -p crossusage-cli -- --help
 ```
 
+**Default:** running `crossusage-cli` with **no subcommand** opens the **btop-style dashboard** (same as `dashboard` / `tui`).
+
+**Easiest way to test providers (no TUI, no full-screen):** probes everything and prints JSON — good when an IDE terminal misbehaves with the dashboard.
+
+```bash
+./target/debug/crossusage-cli --json
+crossusage-cli list               # or: probe + table, still no full-screen TUI
+```
+
+```bash
+crossusage-cli                    # dashboard (default)
+crossusage-cli dashboard          # full-screen TUI
+crossusage-cli tui                # alias
+crossusage-cli list               # probe + table (A–Z); Cursor **input/output/cost** = MTD from dashboard CSV when signed in; no cache columns in this table
+crossusage-cli probe              # JSON to stdout (default)
+crossusage-cli probe --human      # legacy human-readable tables
+crossusage-cli export             # JSON snapshot (live probe)
+crossusage-cli export --format csv
+crossusage-cli export --from-file ~/.local/share/crossusage/cli-history.jsonl --format csv
+```
+
+**Cursor token / cost table (like [cstats](https://github.com/robinebers/cstats)):** downloads Cursor’s **usage-events CSV** (same export as the dashboard), then prints **Input, Output, Cache Write, Cache Hit, Total Tokens, Cost (USD)** — summarized by model or by a **heuristic** provider bucket. Only **`--provider cursor`** is supported; other IDEs don’t expose this file. Alias: `crossusage-cli cstats …`.
+
+```bash
+crossusage-cli usage-stats                          # last 30 days, by model
+crossusage-cli usage-stats -s 20260301 -u 20260307   # YYYYMMDD range
+crossusage-cli usage-stats --group provider         # rough provider grouping
+crossusage-cli usage-stats --json                   # machine-readable
+```
+
+**Narrow terminals:** Width is detected automatically (Unix `TIOCGWINSZ`, crossterm, and **`$COLUMNS`** when set — the **smallest** value wins so layout stays readable). **`list`** and **`usage-stats`** use **plain stacked blocks** below **140 columns**; at **140+** they use rounded tables. **`probe --human`** uses stacked lines below **100** columns, **truncated** tables between **100–139**, and full tables at **140+**. You should not need flags or manual **`COLUMNS=`** in normal terminals; if something still looks wide-only, your shell usually sets **`$COLUMNS`** after resize.
+
+**Global flags:** `--config <path>`, `--theme <dark|light|btop-rainbow|auto>`, `--refresh-sec <n>`, `--no-mouse`, **`--verbose`** (show plugin-host `WARN`/`ERROR` logs on stderr — **off by default** for the dashboard and for **`list` / `probe` / live `export` / `daemon`**, same as the TUI), **`--no-probe`** (dashboard only: skip real probes, demo data — test keyboard/layout), **`--no-picker`** (skip the **checkbox** screen and load all providers immediately), `--daemon` (background polling **only** — no TUI; do not combine with a subcommand). Use a **separate terminal** or script for long-running daemons.
+
+**Before the dashboard:** by default you get an **interactive provider list** — `[x]` checkboxes, **↑↓** to move, **Enter** / Space to toggle, move to **Continue** and Enter to start (only checked providers are probed). Naming specific plugins on the CLI (e.g. `crossusage-cli dashboard cursor`) skips this screen.
+
+**TUI debug:** set `CROSSUSAGE_TUI_DEBUG=1` or pass **`--verbose`** to log event polls / draws / probes on stderr.
+
+```bash
+crossusage-cli --daemon           # same idea as `daemon` subcommand defaults
+crossusage-cli daemon --detach --log-file ~/.local/share/crossusage/daemon.log
+crossusage-cli daemon --interval-sec 60 --threshold-percent 90 cursor
+```
+
+**Config** (`~/.config/crossusage/config.toml` or `--config`): `refresh_sec`, `low_power_mode`, `theme`, `mouse`, `pane_ratios`, `history_capacity`, `persist_history`.
+
+**TUI keybindings:** `q` / **Ctrl+C** → quit (SIGINT also handled via `signal-hook`); `?` help; `p` low-power (saved); `r` refresh; `←`/`→` chart scroll; **mouse** resize (unless `--no-mouse`). On Unix, the binary **ignores SIGTSTP / SIGTTIN / SIGTTOU** for all commands (dashboard **and** long `list` / `probe` runs) so bash is less likely to print **`[1]+ Stopped`**; **`cargo run` still wraps a parent `cargo` process** — prefer **`./target/debug/crossusage-cli`** directly. Probes run in the **background** in the TUI; the main loop never blocks on `run_probe` so input stays responsive.
+
+**Daemon:** normalized “primary %” threshold alerts via `notify-rust`. Notifications need a desktop session; use `--log-file` when headless.
+
 Set `CROSSUSAGE_RESOURCES` if bundled plugins are not found (see `crates/crossusage-core/src/paths.rs`).
+
+**Troubleshooting (dev / terminal):**
+
+- **Where to run:** open a terminal in the **repository root** — the folder that contains the workspace `Cargo.toml` (the CrossUsage / OpenUsage fork you cloned), then `cargo build -p crossusage-cli` / `cargo run -p crossusage-cli`. There is no magic path name; it’s “where you cloned this repo.”
+- **`[1]+ Stopped` / it “closes” with no error:** bash **suspended the job** — usually **Ctrl+Z**, but **integrated terminals** (e.g. Cursor) can also trip **job-control signals** (**SIGTTIN** / **SIGTTOU**) during long runs. The CLI **ignores SIGTSTP + SIGTTIN + SIGTTOU** for every subcommand (not only the dashboard). If it still happens, run **`./target/debug/crossusage-cli`** instead of **`cargo run`** (the shell job is often **`cargo`**, not the CLI). Run **`fg`** to resume a stopped job, or **`kill %1`**. Quit the TUI with **`q`**, not Ctrl+Z.
+- **`list` columns `input` / `output` / `cost` are `—`:** plugins must expose those numbers — usually via **`text`** lines, or **`progress`** with **`format: count`** (tokens / requests) or **`dollars`**. **Antigravity** (and similar) still sends **real per-model quota from the API** (model names like Claude Opus/Sonnet 4.6, GPT-OSS 120B, etc. come from **`GetUserStatus` / `clientModelConfigs[].label`** or Cloud Code **`displayName`** — not invented by CrossUsage). Those APIs simply **don’t expose token or dollar totals** for the `list` table, so those three columns stay empty. Use **`probe antigravity`** to see the full JSON.
+- **`list` / `probe` looked “broken” vs the dashboard:** they used to print **plugin-host WARN/ERROR** (e.g. “not logged in”) on stderr for every provider you don’t use. That now matches the dashboard — **quiet by default**; use **`--verbose`** to see those logs. Probe fewer providers: **`crossusage-cli list cursor`**, **`crossusage-cli probe cursor`**.
+- **`list` / `probe` show no TUI:** there is **no full-screen UI** and **`q` does nothing** — output appears **after** all probes finish (or use **`--json`**). While it runs you should see **`crossusage-cli: probing N provider(s)…`** and **`[i/N] id…`** on **stderr**. Each provider uses the **same wall-clock cap as the dashboard** (default **120s**, override **`CROSSUSAGE_PROBE_TIMEOUT_SEC`**); after a timeout the CLI **continues** (error row for that provider). **`Ctrl+C`** is polled during waits (~200ms), so it can stop mid-probe (exit **130**), not only between providers — or use **`crossusage-cli list cursor`** to probe only Cursor.
+- **First launch feels slow:** the CLI **probes each provider** before the TUI draws; stderr may show `probing 1/N…` — wait, or use `crossusage-cli list` / `crossusage-cli probe` for non-interactive output.
+- **Stuck on one provider (e.g. “11/16”):** one plugin’s `run_probe` can block on the network. The dashboard uses a **per-provider wall-clock timeout** (default **120s**). Override with **`CROSSUSAGE_PROBE_TIMEOUT_SEC`** (e.g. `30` for faster fail). After a timeout, that provider shows an error row and probing **continues**. Logs showed **`minimax`** and **`zai`** as examples that needed the timeout path.
+- **Cleaner TTY:** after `cargo build`, run **`./target/debug/crossusage-cli`** directly instead of `cargo run` so the terminal isn’t wrapping Cargo’s process (same binary).
+
+### CLI screenshots (placeholders)
+
+```
++------------------------------------------------------------------+
+|  CrossUsage CLI — dashboard (ratatui)     Screenshot coming soon |
+|  [ Providers ] [ Detail pane ] [ Sparkline / metrics ]           |
++------------------------------------------------------------------+
+|  Tip: run `cargo run -p crossusage-cli` (default dashboard) from dev. |
++------------------------------------------------------------------+
+
++------------------------------------------------------------------+
+|  crossusage-cli export --format csv    Screenshot coming soon    |
++------------------------------------------------------------------+
+```
 
 ## What it does
 
@@ -116,7 +193,8 @@ Keep it simple. No feature creep, no AI-generated commit messages, test your cha
 ## Testing
 
 - **Frontend:** `bun run test` runs Vitest once and exits. Use `bun run test:watch` for watch mode.
-- **CLI dashboard:** Press **`q`** or **Esc** to quit. **Ctrl+Z** sends **SIGTSTP** (job-control suspend); on Unix the dashboard ignores **SIGTSTP** while the TUI runs so the shell usually won’t show `Stopped`. If a terminal UI does get suspended, run `fg` and then quit with **`q`**.
+- **CLI dashboard:** **`q`** or **Ctrl+C** opens a **quit confirmation** (`y`/`n`). **`?`** shows help. **Ctrl+Z** (**SIGTSTP**): on Unix the dashboard ignores **SIGTSTP** while the TUI runs; if suspended, run `fg` then quit.
+- **Plugin / CLI HTTP endpoints:** curated table in [`docs/api-urls.md`](docs/api-urls.md); refresh a sorted unique list with `./scripts/list-api-urls.sh` (no network). Cursor full paths: `./scripts/print-cursor-endpoints.sh`. See [`docs/research/deep-crawl-and-vpn.md`](docs/research/deep-crawl-and-vpn.md) for why `wget -r` is not used to discover `api2.*` routes.
 
 ## Built Entirely with AI
 
@@ -147,4 +225,24 @@ Inspired by [CodexBar](https://github.com/steipete/CodexBar) by [@steipete](http
 
 ### Stack
 
-...
+- **Desktop:** Tauri **v2**, React, Bun — see repo `package.json`.
+- **CLI:** Rust `crossusage-cli` — `cargo build -p crossusage-cli`, `cargo test -p crossusage-cli`.
+- **Core:** `crates/crossusage-core` (plugin engine shared with the GUI).
+
+**Desktop build / dev (important):** This repo uses **Tauri v2** (`src-tauri/tauri.conf.json` + `$schema` …`/config/2`). Use the **npm-installed CLI** (matches v2):
+
+```bash
+bun install   # or npm install
+bun run bundle:plugins
+bun run tauri:dev    # development
+bun run tauri:build  # release bundle
+```
+
+Do **not** use `cargo tauri build` unless your **global** `cargo-tauri` is **v2** (`cargo install tauri-cli --version "^2"`). If you see errors like *Additional properties are not allowed ('devUrl', 'frontendDist'…)* or *('app', 'bundle'…)*, your `cargo tauri` is **v1** validating a **v2** config — switch to `bun run tauri:build` above.
+
+Dev CLI from the repo root:
+
+```bash
+cargo run -p crossusage-cli -- list
+cargo run -p crossusage-cli -- dashboard
+```

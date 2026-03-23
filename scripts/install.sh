@@ -3,13 +3,13 @@
 # Repo: https://github.com/barramee27/crossusage
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 #
 # Environment:
 #   GITHUB_REPO     default: barramee27/crossusage
 #   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS) from releases/ or Release assets (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
 #   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
-#   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: main)
+#   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: feat/linux-windows-native-support)
 #   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional)
 
 set -euo pipefail
@@ -157,7 +157,7 @@ map_rpm_arch_suffix() {
 
 TMP="${TMPDIR:-/tmp}"
 INSTALL_MODE="${INSTALL_MODE:-full}"
-INSTALL_GIT_REF="${INSTALL_GIT_REF:-main}"
+INSTALL_GIT_REF="${INSTALL_GIT_REF:-feat/linux-windows-native-support}"
 KERNEL="$(uname -s)"
 
 # --- CLI-only: one tarball = binary + resources/bundled_plugins (Linux + macOS; no desktop app / no WebKit) ---

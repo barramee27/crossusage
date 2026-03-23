@@ -13,7 +13,10 @@
 
 - **Cargo workspace** with `crossusage-core` (shared `plugin_engine` + path helpers) and **`crossusage-cli`** (`list`, `probe`, `--json` / `--plain`). The CLI ships in the **same** app bundle as the GUI (Tauri `externalBin`), e.g. `crossusage-cli` next to the main binary on Linux `.deb`.
 - **Install scripts:** [`scripts/install.sh`](scripts/install.sh) (Linux: GitHub latest `.deb` / `.rpm` / AppImage; **`INSTALL_MODE=cli`** portable tarball; auto-repair when `.deb` lacks `crossusage-cli`; macOS message; Windows redirect), [`scripts/install.ps1`](scripts/install.ps1) (Windows NSIS), and [`scripts/build-cli-tarball.sh`](scripts/build-cli-tarball.sh) for release assets. Documented in [README](README.md) and [INSTALL.md](INSTALL.md).
-- **CLI:** `crossusage-cli dashboard` — full-screen TUI (ratatui) with a multi-panel usage view (`q` to quit).
+- **CLI:** `crossusage-cli dashboard` — full-screen TUI (ratatui) with a multi-panel usage view (`q` / `Esc` to quit), optional JSONL history (`persist_history` in `~/.config/crossusage/config.toml`), and **`crossusage-cli export`** (`--format json|csv`, optional `--from-file` for JSONL).
+- **CI:** GitHub Actions job **crossusage-cli** builds/tests the CLI on Linux, Windows, and macOS.
+- **CLI:** `crossusage-cli daemon` — background polling with **`notify-rust`** desktop alerts when usage crosses **`--threshold-percent`** (default 85); **`--detach`** spawns a child and exits; optional **`--log-file`**.
+- **CLI (btop-style refresh):** default command opens the **dashboard** (no subcommand); global flags **`--config`**, **`--theme`**, **`--refresh-sec`**, **`--no-mouse`**, **`--daemon`** (mutually exclusive with subcommands); **`probe`** defaults to **JSON** (`--human` for tables); **`list`** probes and shows usage columns; TUI adds **header** (clock, CPU/RAM, est. spend), **chart** pane, **probe progress** line, **quit confirm**, themes **`btop-rainbow`** / **`auto`**; panic hook **press any key to exit**.
 - **Vitest**: global `testTimeout` raised to reduce flaky timeouts under parallel runs; `main.test.tsx` mocks entry deps and Tauri log to stabilize the bootstrap test.
 
 ### Included from prior fork work (summary)

@@ -118,6 +118,8 @@ Returns whether user is in slow pool, feature gates, and allowed models. Respons
 
 Returns limit policy status plus any active credit grants. Response undocumented.
 
+**CrossUsage fallback:** When **`GetCurrentPeriodUsage`** returns **HTTP 400** with detail **`Usage summary is not enabled`** (Cursor gates that RPC for some accounts), the plugin calls this endpoint **next** and **heuristically maps** the JSON toward the same `planUsage` / billing shape as `GetCurrentPeriodUsage` (unwrap `data` / `usage` / `limitStatus`, coerce numeric strings). If mapping yields usable limits or percents, the usual **All usage** / credits lines are shown. If not, the plugin falls back to **`GET cursor.com/api/usage`**, then to a minimal **`Account`** text line from **`GET /api/auth/stripe`** (`membershipType` / `subscriptionStatus`) when present.
+
 ### GET /api/auth/stripe
 
 Returns subscription and Stripe customer balance metadata from `cursor.com`.
@@ -226,4 +228,30 @@ Some web endpoints (for example `/api/auth/stripe` and enterprise `/api/usage`) 
 WorkosCursorSessionToken=<userId>%3A%3A<access_token>
 ```
 
-`userId` is derived from JWT `sub` (e.g. `google-oauth2|user_abc` -> `user_abc`).
+`userId` is derived from JWT `sub`: the **last** `|`-separated segment (e.g. `google-oauth2|user_abc` → `user_abc`; multi-segment Auth0 subjects resolve to the final segment).
+
+## Troubleshooting
+
+### `Usage request failed (HTTP 400)` / **“Usage summary is not enabled”**
+
+The Connect call to `GetCurrentPeriodUsage` can return **400** with a JSON detail such as **`Usage summary is not enabled`**. That means Cursor’s backend is **not exposing the usage-summary RPC** for that account or session (feature gate), not necessarily that your token is invalid.
+
+**What the plugin does (order):**
+
+1. **`GetUsageLimitStatusAndActiveGrants`** — map response heuristically to the same metrics shape when possible.  
+2. **`GET cursor.com/api/usage`** (cookie + Bearer; two URL variants).  
+3. **`GET /api/auth/stripe`** — if **`membershipType`** / **`subscriptionStatus`** are present, show an **Account** text line so you still see plan tier when meters are unavailable.
+
+For other **400/403** errors (without that detail), the same chain applies; the final error string may differ.
+
+**Older message text:** On **400** or **403** without usable data from any step, CrossUsage throws a longer message (and a **specific** explanation when the server said **usage summary is not enabled**).
+
+**Desktop app still on an old build (e.g. v1.0.0)?** Plugins are copied at build time (`bun copy-bundled.cjs` → `src-tauri/resources/bundled_plugins`). Rebuild the Tauri app after pulling plugin fixes, or run **`crossusage-cli`** from a **local `cargo build`** so it loads the current `plugins/` tree.
+
+**If it still fails:**
+
+1. Run **`agent login`** (CLI) *and* open the **Cursor** desktop app signed into the **same** account so `state.vscdb` tokens match, or sign out/in to refresh.
+2. Ensure `~/.config/Cursor/User/globalStorage/state.vscdb` exists on Linux (or the macOS/Windows paths above).
+3. Update Cursor to the latest version — their Connect API can change.
+
+CrossUsage’s **CLI header “host CPU / MEM”** is your **PC’s** CPU and RAM via `sysinfo`; it is **not** Cursor cloud usage.

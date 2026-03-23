@@ -25,3 +25,21 @@ jobs:
 
       - name: Run tests
         run: bun run test
+
+  crossusage-cli:
+    name: crossusage-cli (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test (crossusage-cli)
+        run: cargo test -p crossusage-cli --locked
+
+      - name: Cargo build (crossusage-cli)
+        run: cargo build -p crossusage-cli --locked

@@ -44,6 +44,9 @@ package-lock.json
 src-tauri/resources/bundled_plugins/*
 !src-tauri/resources/bundled_plugins/.gitkeep
 
+# Local research (wget spider output — may contain huge lists)
+docs/research/crawl-output/
+
 # Local scratch
 fix-tray-bars.cjs
 my_changes.patch

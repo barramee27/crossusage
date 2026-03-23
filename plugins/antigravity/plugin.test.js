@@ -49,17 +49,17 @@ function makeUserStatusResponse(overrides) {
           {
             label: "Claude Sonnet 4.6 (Thinking)",
             modelOrAlias: { model: "MODEL_PLACEHOLDER_M35" },
-            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { remainingFraction: 0.62, resetTime: "2026-02-26T15:23:41Z" },
           },
           {
             label: "Claude Opus 4.6 (Thinking)",
             modelOrAlias: { model: "MODEL_PLACEHOLDER_M26" },
-            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { remainingFraction: 0.55, resetTime: "2026-02-26T15:23:41Z" },
           },
           {
             label: "GPT-OSS 120B (Medium)",
             modelOrAlias: { model: "MODEL_OPENAI_GPT_OSS_120B_MEDIUM" },
-            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { remainingFraction: 0.78, resetTime: "2026-02-26T15:23:41Z" },
           },
         ],
       },
@@ -216,9 +216,15 @@ describe("antigravity plugin", () => {
 
     expect(result.plan).toBe("Pro")
 
-    // Model lines exist — 3 pool lines
+    // Gemini Pro/Flash pooled; Claude Sonnet, Claude Opus, GPT-OSS each get a line
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
+    expect(labels).toEqual([
+      "Gemini Pro",
+      "Gemini Flash",
+      "Claude Opus 4.6",
+      "Claude Sonnet 4.6",
+      "GPT-OSS 120B",
+    ])
   })
 
   it("prefers cached Cloud tier over stale LS plan without calling Cloud in LS fast path", async () => {
@@ -272,7 +278,13 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     expect(result.plan).toBe("Ultra")
-    expect(result.lines.map((l) => l.label)).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
+    expect(result.lines.map((l) => l.label)).toEqual([
+      "Gemini Pro",
+      "Gemini Flash",
+      "Claude Opus 4.6",
+      "Claude Sonnet 4.6",
+      "GPT-OSS 120B",
+    ])
   })
 
   it("keeps LS plan when no cached override exists", async () => {
@@ -445,7 +457,13 @@ describe("antigravity plugin", () => {
 
     const labels = result.lines.map((l) => l.label)
 
-    expect(labels).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
+    expect(labels).toEqual([
+      "Gemini Pro",
+      "Gemini Flash",
+      "Claude Opus 4.6",
+      "Claude Sonnet 4.6",
+      "GPT-OSS 120B",
+    ])
   })
 
   it("falls back to GetCommandModelConfigs when GetUserStatus fails", async () => {
@@ -525,7 +543,7 @@ describe("antigravity plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const claude = result.lines.find((l) => l.label === "Claude")
+    const claude = result.lines.find((l) => l.label === "Claude Opus 4.6")
     expect(claude).toBeTruthy()
     expect(claude.used).toBe(100)
     expect(claude.limit).toBe(100)
@@ -567,7 +585,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
     expect(result).toBeTruthy()
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude"])
+    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6"])
     expect(result.lines.every((l) => l.used === 100)).toBe(true)
   })
 
@@ -742,7 +760,7 @@ describe("antigravity plugin", () => {
     expect(result.plan).toBeNull()
     const labels = result.lines.map((l) => l.label)
     expect(labels).toContain("Gemini Pro")
-    expect(labels).toContain("Claude")
+    expect(labels).toContain("Claude Sonnet 4.5")
   })
 
   it("Cloud Code sends correct Authorization header with proto token", async () => {
@@ -1698,7 +1716,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Claude"])
+    expect(labels).toEqual(["Claude Sonnet 4.5"])
   })
 
   it("Cloud Code keeps non-blacklisted models with valid displayName", async () => {
@@ -1739,7 +1757,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude"])
+    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6", "GPT-OSS 120B"])
   })
 
   it("LS filters out blacklisted model IDs (Claude Opus 4.5)", async () => {
@@ -1770,7 +1788,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude"])
+    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6"])
   })
 
   it("LS still takes priority over Cloud Code with proto tokens (no regression)", async () => {

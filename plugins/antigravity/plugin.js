@@ -338,21 +338,26 @@
     return label.replace(/\s*\([^)]*\)\s*$/, "").trim()
   }
 
-  function poolLabel(normalizedLabel) {
+  /** Gemini Pro / Flash stay pooled; every other model gets its own line (Claude Sonnet 4.6, GPT-OSS 120B, …). */
+  function modelKeyAndDisplay(normalizedLabel) {
     var lower = normalizedLabel.toLowerCase()
-    if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) return "Gemini Pro"
-    if (lower.indexOf("gemini") !== -1 && lower.indexOf("flash") !== -1) return "Gemini Flash"
-    // All non-Gemini models (Claude, GPT-OSS, etc.) share a single quota pool
-    return "Claude"
+    if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) {
+      return { key: "pool:gemini_pro", display: "Gemini Pro" }
+    }
+    if (lower.indexOf("gemini") !== -1 && lower.indexOf("flash") !== -1) {
+      return { key: "pool:gemini_flash", display: "Gemini Flash" }
+    }
+    return { key: "model:" + normalizedLabel, display: normalizedLabel }
   }
 
   function modelSortKey(label) {
     var lower = label.toLowerCase()
-    // Gemini Pro variants first, then other Gemini, then Claude Opus, then other Claude, then rest
+    // Gemini Pro variants first, then other Gemini, then Claude Opus, then other Claude, then GPT-OSS, then rest
     if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) return "0a_" + label
     if (lower.indexOf("gemini") !== -1) return "0b_" + label
     if (lower.indexOf("claude") !== -1 && lower.indexOf("opus") !== -1) return "1a_" + label
     if (lower.indexOf("claude") !== -1) return "1b_" + label
+    if (lower.indexOf("gpt") !== -1 || lower.indexOf("oss") !== -1) return "1c_" + label
     return "2_" + label
   }
 
@@ -380,10 +385,12 @@
       var qi = c.quotaInfo
       var frac = (qi && typeof qi.remainingFraction === "number") ? qi.remainingFraction : 0
       var rtime = (qi && qi.resetTime) || undefined
-      var pool = poolLabel(normalizeLabel(label))
-      if (!deduped[pool] || frac < deduped[pool].remainingFraction) {
-        deduped[pool] = {
-          label: pool,
+      var norm = normalizeLabel(label)
+      var kd = modelKeyAndDisplay(norm)
+      var key = kd.key
+      if (!deduped[key] || frac < deduped[key].remainingFraction) {
+        deduped[key] = {
+          label: kd.display,
           remainingFraction: frac,
           resetTime: rtime,
         }

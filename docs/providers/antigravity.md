@@ -14,6 +14,7 @@ Antigravity is essentially a Google-branded fork of [Windsurf](windsurf.md) — 
 - **Quota window:** 5 hours
 - **Timestamps:** ISO 8601
 - **Requires:** Antigravity IDE running (language server process), or signed-in credentials in SQLite (Cloud Code fallback)
+- **OpenUsage / CrossUsage display:** Model **names** are whatever the backend returns on each config’s **`label`** (language server) or **`displayName`** (Cloud Code `fetchAvailableModels`) — they are **not** hardcoded fake strings; the plugin only strips a trailing parenthetical like `(High)` / `(Thinking)` and pools Gemini **Pro** / **Flash** variants into single “Gemini Pro” / “Gemini Flash” lines. Every other model (e.g. **Claude Sonnet 4.6**, **Claude Opus 4.6**, **GPT-OSS 120B**) keeps **its own** line so you can read usage per model. **Percent used** is derived from API **`remainingFraction`** (0–1).
 
 ## Discovery
 

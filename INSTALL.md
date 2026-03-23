@@ -13,18 +13,18 @@ Scripts live under [`scripts/`](scripts/): they query the [latest GitHub release
 - **Full app (GUI + CLI when the `.deb` was built with the CLI sidecar):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 ```
 
 - **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script looks for `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (or the latest GitHub Release). Build with `bun run release:cli-tarball` on Linux, copy into `releases/`, commit, and push — or upload the tarball as a release asset.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.sh | INSTALL_MODE=cli bash
+curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
 ```
 
 If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older build), the script will **automatically** add the portable CLI under `~/.local/lib/crossusage` when that tarball exists on the branch or release.
 
-- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` to pick a branch/tag for `releases/` URLs.
+- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` for `releases/` URLs (defaults to **`feat/linux-windows-native-support`** in this fork’s `install.sh`).
 
 **macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. You need `releases/crossusage-cli_<version>_darwin_amd64.tar.gz` or `_darwin_arm64.tar.gz` (build with `bun run release:cli-tarball` on an Intel or Apple Silicon Mac, commit under `releases/`). This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
@@ -36,7 +36,7 @@ If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older
 - **Command:**
 
 ```powershell
-irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 ```
 
 - **Environment:** `GITHUB_REPO`; `INSTALL_SILENT=0` (or `false`) for an interactive installer.

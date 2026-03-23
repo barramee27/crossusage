@@ -2,7 +2,7 @@
 # Repo: https://github.com/barramee27/crossusage
 #
 # Usage (PowerShell):
-#   irm https://raw.githubusercontent.com/barramee27/crossusage/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 #
 # Environment:
 #   $env:GITHUB_REPO  default: barramee27/crossusage
