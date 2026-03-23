@@ -14,23 +14,11 @@
   const CODING_PLAN_WINDOW_MS = 5 * 60 * 60 * 1000
   const CODING_PLAN_WINDOW_TOLERANCE_MS = 10 * 60 * 1000
   const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000
-  const GLOBAL_PROMPT_LIMIT_TO_PLAN = {
-    100: "Starter",
-    300: "Plus",
-    1000: "Max",
-    2000: "Ultra-High-Speed",
-  }
   const GLOBAL_MODEL_CALL_LIMIT_TO_PLAN = {
     1500: "Starter",
     4500: "Plus",
     15000: "Max",
     30000: "Ultra-High-Speed",
-  }
-  const CN_PROMPT_LIMIT_TO_PLAN = {
-    40: "Starter",
-    100: "Plus",
-    300: "Max",
-    2000: "Ultra-High-Speed",
   }
   const CN_MODEL_CALL_LIMIT_TO_PLAN = {
     600: "Starter",
@@ -114,9 +102,9 @@
 
     const normalized = Math.round(n)
     if (endpointSelection === "CN") {
-      return CN_MODEL_CALL_LIMIT_TO_PLAN[normalized] || CN_PROMPT_LIMIT_TO_PLAN[normalized] || null
+      return CN_MODEL_CALL_LIMIT_TO_PLAN[normalized] || null
     }
-    return GLOBAL_MODEL_CALL_LIMIT_TO_PLAN[normalized] || GLOBAL_PROMPT_LIMIT_TO_PLAN[normalized] || null
+    return GLOBAL_MODEL_CALL_LIMIT_TO_PLAN[normalized] || null
   }
 
   function readUsageRawName(item) {

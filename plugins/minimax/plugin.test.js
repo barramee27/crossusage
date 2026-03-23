@@ -439,60 +439,6 @@ describe("minimax plugin", () => {
     expect(result.lines[0].limit).toBe(15000)
   })
 
-  it("infers Plus tier from 300 GLOBAL prompt limit", async () => {
-    const ctx = makeCtx()
-    setEnv(ctx, { MINIMAX_API_KEY: "mini-key" })
-    ctx.host.http.request.mockReturnValue({
-      status: 200,
-      headers: {},
-      bodyText: JSON.stringify({
-        base_resp: { status_code: 0 },
-        model_remains: [
-          {
-            current_interval_total_count: 300,
-            current_interval_usage_count: 120,
-            model_name: "MiniMax-M2.5",
-          },
-        ],
-      }),
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Plus (GLOBAL)")
-    expect(result.lines[0].used).toBe(180)
-    expect(result.lines[0].limit).toBe(300)
-    expect(result.lines[0].format.suffix).toBe("model-calls")
-  })
-
-  it("infers Ultra-High-Speed plan from 2000 prompt limit", async () => {
-    const ctx = makeCtx()
-    setEnv(ctx, { MINIMAX_API_KEY: "mini-key" })
-    ctx.host.http.request.mockReturnValue({
-      status: 200,
-      headers: {},
-      bodyText: JSON.stringify({
-        base_resp: { status_code: 0 },
-        model_remains: [
-          {
-            current_interval_total_count: 2000,
-            current_interval_usage_count: 1500,
-            model_name: "MiniMax-M2.5-highspeed",
-          },
-        ],
-      }),
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Ultra-High-Speed (GLOBAL)")
-    expect(result.lines[0].used).toBe(500)
-    expect(result.lines[0].limit).toBe(2000)
-    expect(result.lines[0].format.suffix).toBe("model-calls")
-  })
-
   it("does not fallback to model name when plan cannot be inferred", async () => {
     const ctx = makeCtx()
     setEnv(ctx, { MINIMAX_API_KEY: "mini-key" })
@@ -936,6 +882,63 @@ describe("minimax plugin", () => {
     expect(result.lines[0].limit).toBe(4500)
   })
 
+  it("falls back to the coarse CN tier when companion quotas conflict", async () => {
+    const ctx = makeCtx()
+    setEnv(ctx, { MINIMAX_CN_API_KEY: "cn-key" })
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify({
+        base_resp: { status_code: 0 },
+        model_remains: [
+          {
+            model_name: "MiniMax-M*",
+            current_interval_total_count: 1500,
+            current_interval_usage_count: 1400,
+          },
+          {
+            model_name: "speech-hd",
+            current_interval_total_count: 9000,
+            current_interval_usage_count: 9000,
+          },
+          {
+            model_name: "image-01",
+            current_interval_total_count: 50,
+            current_interval_usage_count: 50,
+          },
+          {
+            model_name: "speech-2.8-turbo",
+            current_interval_total_count: 8000,
+            current_interval_usage_count: 7900,
+          },
+          {
+            model_name: "Image Generation",
+            current_interval_total_count: 25,
+            current_interval_usage_count: 24,
+          },
+        ],
+      }),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Plus (CN)")
+    expect(result.lines).toHaveLength(5)
+    expect(result.lines[1]).toMatchObject({
+      label: "Text to Speech HD",
+      format: { kind: "count", suffix: "chars" },
+    })
+    expect(result.lines[3]).toMatchObject({
+      label: "Text to Speech Turbo",
+      format: { kind: "count", suffix: "chars" },
+    })
+    expect(result.lines[4]).toMatchObject({
+      label: "Image Generation",
+      format: { kind: "count", suffix: "images" },
+    })
+  })
+
   it("normalizes CN explicit high-speed plan labels to the shared six-plan naming", async () => {
     const ctx = makeCtx()
     setEnv(ctx, { MINIMAX_CN_API_KEY: "cn-key" })
@@ -1076,6 +1079,26 @@ describe("minimax plugin", () => {
     expect(result.lines[0].used).toBe(120)
     expect(result.lines[0].limit).toBe(300)
     expect(result.lines[0].format.suffix).toBe("model-calls")
+  })
+
+  it("falls back to GLOBAL when MINIMAX_CN_API_KEY lookup throws in AUTO mode", async () => {
+    const ctx = makeCtx()
+    ctx.host.env.get.mockImplementation((name) => {
+      if (name === "MINIMAX_CN_API_KEY") throw new Error("cn env unavailable")
+      if (name === "MINIMAX_API_KEY") return "global-key"
+      return null
+    })
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify(successPayload()),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.http.request.mock.calls[0][0].url).toBe(PRIMARY_USAGE_URL)
+    expect(result.plan).toBe("Plus (GLOBAL)")
   })
 
   it("supports camelCase modelRemains and explicit used count fields", async () => {
@@ -1290,6 +1313,55 @@ describe("minimax plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.lines[0].resetsAt).toBe(new Date(1700000000000 + 300000).toISOString())
+  })
+
+  it("prefers milliseconds remains_time when end_time makes it a closer match", async () => {
+    const ctx = makeCtx()
+    setEnv(ctx, { MINIMAX_API_KEY: "mini-key" })
+    vi.spyOn(Date, "now").mockReturnValue(1700000000000)
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify({
+        base_resp: { status_code: 0 },
+        model_remains: [
+          {
+            current_interval_total_count: 100,
+            current_interval_usage_count: 40,
+            remains_time: 300000,
+            end_time: 1700000300000,
+          },
+        ],
+      }),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines[0].resetsAt).toBe(new Date(1700000300000).toISOString())
+  })
+
+  it("uses overflow comparison when remains_time exceeds the expected window", async () => {
+    const ctx = makeCtx()
+    setEnv(ctx, { MINIMAX_API_KEY: "mini-key" })
+    vi.spyOn(Date, "now").mockReturnValue(1700000000000)
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify({
+        base_resp: { status_code: 0 },
+        model_remains: [
+          {
+            current_interval_total_count: 100,
+            current_interval_usage_count: 40,
+            remains_time: 20000000,
+          },
+        ],
+      }),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines[0].resetsAt).toBe(new Date(1700000000000 + 20000000).toISOString())
   })
 
   it("throws parse error when model_remains entries are unusable", async () => {

@@ -9,7 +9,6 @@
 - **Auth:** `Authorization: Bearer <api_key>`
 - **Window model:** dynamic rolling 5-hour limit (per MiniMax Coding Plan docs)
 - **Display note:** OpenUsage shows the raw text-session counts from the remains API as `model-calls`, because that matches the observed official usage display.
-- **Docs note:** as of 2026-03-23, MiniMax public pricing/FAQ pages still describe Coding Plan in `prompts`, so this provider doc explains the mismatch explicitly.
 - **CN note:** current CN docs use `https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains`.
 
 ## Authentication
@@ -65,7 +64,7 @@ Expected payload fields:
 
 ## Usage Mapping
 
-- Treat `current_interval_usage_count` as remaining prompts (MiniMax remains API behavior).
+- Treat `current_interval_usage_count` as the remaining raw session/resource count returned by the remains API.
 - For the main text `Session` line, OpenUsage displays the raw remains numbers as `model-calls` rather than converting them to `prompts`.
 - If only remaining aliases are provided, compute `used = total - remaining`.
 - If explicit used-count fields are provided, prefer them.
@@ -78,9 +77,7 @@ Expected payload fields:
   - `Ultra-High-Speed`
 - If plan fields are missing, infer the plan tier from the current Token Plan quota table for the selected region:
   - `GLOBAL` raw `model-calls`: `1500 => Starter`, `4500 => Plus`, `15000 => Max`, `30000 => Ultra-High-Speed`
-  - `GLOBAL` legacy prompt-sized payloads: `100 => Starter`, `300 => Plus`, `1000 => Max`, `2000 => Ultra-High-Speed`
   - `CN` raw `model-calls`: `600 => Starter`, `1500 => Plus`, `4500 => Max`, `30000 => Ultra-High-Speed`
-  - `CN` legacy prompt-sized payloads: `40 => Starter`, `100 => Plus`, `300 => Max`, `2000 => Ultra-High-Speed`
 - For overlapping middle tiers, the plugin also inspects companion daily quotas when present to disambiguate `Standard` vs `High-Speed`:
   - `GLOBAL 4500`: `image-01 50` or `Speech 2.8 4000` => `Plus`; `image-01 100` or `Speech 2.8 9000` => `Plus-High-Speed`
   - `GLOBAL 15000`: `image-01 120` or `Speech 2.8 11000` => `Max`; `image-01 200` or `Speech 2.8 19000` => `Max-High-Speed`
@@ -91,7 +88,7 @@ Expected payload fields:
 - Use `end_time` for reset timestamp when present.
 - Fallback to `remains_time` when `end_time` is absent.
 - Use `start_time` + `end_time` as `periodDurationMs` when both are valid.
-- Historical note: MiniMax public docs and pricing copy still describe Coding Plan in `prompts`, but the plugin follows the raw remains reading and labels the main text session as `model-calls`.
+- Prompt-based marketing copy is ignored by the plugin; all inference is based on raw remains quotas and companion resource buckets.
 - Official package tables used for this split, checked on 2026-03-23:
   - Global: <https://platform.minimax.io/docs/token-plan/intro>
   - CN: <https://platform.minimaxi.com/docs/token-plan/intro>
