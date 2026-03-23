@@ -12,6 +12,15 @@
 - Versioned: `crossusage-cli_<version>_darwin_<arch>.tar.gz`
 - Legacy: `crossusage-cli_darwin_<arch>.tar.gz`
 
+**Windows** (`scripts/install.ps1` with `$env:INSTALL_MODE='cli'`)
+
+- Build on **Windows:** [`scripts/build-cli-windows.ps1`](../scripts/build-cli-windows.ps1)
+- Build on **Linux** (cross-compile to `x86_64-pc-windows-gnu`): [`scripts/build-cli-zip-windows-gnu.sh`](../scripts/build-cli-zip-windows-gnu.sh) — needs `mingw-w64`, `zip`, and `rustup target add x86_64-pc-windows-gnu` (see script header)
+
+- Versioned (preferred): `crossusage-cli_<version>_windows_<arch>.zip` (`amd64` / `arm64`)
+- Legacy fallback: `crossusage-cli_windows_<arch>.zip`
+- Optional: `.tar.gz` with the same basename (extracted with `tar.exe`)
+
 Raw URL pattern:
 
 `https://raw.githubusercontent.com/<user>/<repo>/<branch>/releases/<filename>.tar.gz`

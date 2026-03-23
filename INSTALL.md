@@ -32,18 +32,25 @@ If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older
 
 ### Windows (`install.ps1`)
 
-- Downloads the latest `*x64-setup.exe` (NSIS) and runs it (silent `/S` unless `INSTALL_SILENT=0`).
-- **Command:**
+- **Full app (default):** downloads the latest `*x64-setup.exe` (NSIS) and runs it (silent `/S` unless `INSTALL_SILENT=0`).
+- **CLI-only (portable bundle — same idea as `INSTALL_MODE=cli` on Linux):** downloads `releases/crossusage-cli_<version>_windows_<arch>.zip` (or `.tar.gz`) from the branch, extracts to `%USERPROFILE%\.local\lib\crossusage\`, adds `%USERPROFILE%\.local\bin\crossusage-cli.cmd` to your **user** `PATH`, and verifies `crossusage-cli list`. Build the zip on Windows with [`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1), commit under `releases/`, then push.
+
+- **Commands:**
 
 ```powershell
+# Full installer (NSIS)
+irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
+
+# CLI-only (no desktop app)
+$env:INSTALL_MODE = "cli"
 irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 ```
 
-- **Environment:** `GITHUB_REPO`; `INSTALL_SILENT=0` (or `false`) for an interactive installer.
+- **Environment:** `GITHUB_REPO`; `INSTALL_GIT_REF` (for `releases/` URLs, default `feat/linux-windows-native-support`); `INSTALL_MODE=full|cli`; `INSTALL_CLI_URL` to force a specific `.zip`/`.tar.gz` URL; `INSTALL_SILENT=0` (or `false`) for an interactive NSIS install (**full** mode only).
 
 ### Security
 
-Review the scripts in this repo before piping to `bash` or `iex`. They only use `https://api.github.com` and `https://github.com/.../releases/download/...`.
+Review the scripts in this repo before piping to `bash` or `iex`. They use `https://api.github.com`, `https://raw.githubusercontent.com/...` (CLI bundles on a branch), and `https://github.com/.../releases/download/...`.
 
 ---
 

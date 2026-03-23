@@ -33,7 +33,7 @@ Pre-built binaries — install and run.
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 ```
 
-**Windows** (PowerShell; downloads the latest NSIS `*x64-setup.exe` and runs it, silent by default):
+**Windows** (PowerShell; by default downloads the latest NSIS `*x64-setup.exe` and runs it, silent by default). For **CLI-only** (portable zip into `%USERPROFILE%\.local\lib\crossusage`, like Linux `INSTALL_MODE=cli`), set `$env:INSTALL_MODE='cli'` first — see [INSTALL.md](INSTALL.md).
 
 ```powershell
 irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
@@ -41,9 +41,9 @@ irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-n
 
 **macOS:** this fork does not ship a macOS **desktop** `.dmg` here. For the **terminal CLI** from this repo, use `INSTALL_MODE=cli` (downloads `releases/crossusage-cli_*_darwin_*.tar.gz` when published — build on a Mac with `bun run release:cli-tarball`). For a macOS **GUI** app, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
-**Security:** Inspect [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) before piping to `bash` or `iex`. They only talk to GitHub’s API and release asset URLs over HTTPS. You can always install manually from [releases](https://github.com/barramee27/crossusage/releases/latest).
+**Security:** Inspect [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) before piping to `bash` or `iex`. They use GitHub’s API, `raw.githubusercontent.com` (CLI bundles on a branch), and release download URLs over HTTPS. You can always install manually from [releases](https://github.com/barramee27/crossusage/releases/latest).
 
-**Optional environment:** `GITHUB_REPO` (default `barramee27/crossusage`); Linux `INSTALL_KIND=deb|rpm|appimage`; Windows `INSTALL_SILENT=0` for a non-silent NSIS install.
+**Optional environment:** `GITHUB_REPO` (default `barramee27/crossusage`); Linux `INSTALL_KIND=deb|rpm|appimage`; Windows `INSTALL_SILENT=0` for a non-silent NSIS install; Windows `INSTALL_MODE=cli` for portable CLI zip (no NSIS).
 
 **CLI-only (no desktop app / no WebKit):** downloads a portable tarball from `releases/` on the branch (`crossusage-cli_<version>_linux_<arch>.tar.gz` or `_darwin_<arch>.tar.gz` — build with `bun run release:cli-tarball` on Linux or macOS, then commit under `releases/` or attach to a GitHub Release):
 

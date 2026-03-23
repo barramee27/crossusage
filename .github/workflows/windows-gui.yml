@@ -1,0 +1,46 @@
+# Build the Windows Tauri GUI (NSIS installer + crossusage.exe) and upload artifacts.
+# Use this to get fresh .exe builds without tagging a release.
+#
+# After push: GitHub → Actions → "Windows GUI (Tauri)" → Run workflow.
+# Download the artifact zip from the completed run and copy into your VM.
+name: Windows GUI (Tauri)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          shared-key: crossusage-windows-gui
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JS deps
+        run: bun install
+
+      - name: Build Tauri (Windows GUI + NSIS)
+        shell: bash
+        run: bun run tauri build
+
+      - name: Upload Windows GUI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossusage-windows-gui-${{ github.sha }}
+          retention-days: 21
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/crossusage.exe
+            target/release/crossusage-cli.exe
