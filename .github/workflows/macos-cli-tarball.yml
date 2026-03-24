@@ -1,0 +1,33 @@
+# Build crossusage-cli_<version>_darwin_arm64.tar.gz on Apple Silicon (GitHub-hosted).
+# Download the artifact, copy into releases/, commit + push so raw.githubusercontent.com installs work.
+# Intel Mac users need darwin_amd64: run ./scripts/build-cli-tarball.sh locally on x86_64-apple-darwin.
+name: macOS CLI tarball
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tarball:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build portable CLI bundle (native macOS)
+        run: ./scripts/build-cli-tarball.sh
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossusage-cli-darwin-arm64-tarball
+          path: crossusage-cli_*_darwin_arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 30

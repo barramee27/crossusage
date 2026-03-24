@@ -9,10 +9,12 @@
 - Versioned (preferred): `crossusage-cli_<version>_linux_<arch>.tar.gz` (`amd64` / `arm64`)
 - Legacy fallback: `crossusage-cli_linux_<arch>.tar.gz`
 
-**macOS** (build the tarball on a Mac; this fork ships CLI from here — no upstream CLI requirement)
+**macOS** (this fork ships CLI from here — no upstream GUI installer on this repo)
 
 - Versioned: `crossusage-cli_<version>_darwin_<arch>.tar.gz`
 - Legacy: `crossusage-cli_darwin_<arch>.tar.gz`
+- **Apple Silicon (`arm64`):** on a Mac run `./scripts/build-cli-tarball.sh` (or `bun run release:cli-tarball`). **Without a Mac:** GitHub → **Actions** → **macOS CLI tarball** → **Run workflow** → download **`crossusage-cli-darwin-arm64-tarball`**, then copy the `.tar.gz` into **`releases/`** on your branch and push.
+- **Intel (`amd64`):** run the same script **on an Intel Mac** (GitHub’s `macos-latest` runners are ARM64, so they only produce `darwin_arm64`).
 
 **Windows** (`scripts/install.ps1` with `$env:INSTALL_MODE='cli'`)
 

@@ -26,7 +26,7 @@ If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older
 
 - **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` for `releases/` URLs (defaults to **`feat/linux-windows-native-support`** in this fork’s `install.sh`).
 
-**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. You need `releases/crossusage-cli_<version>_darwin_amd64.tar.gz` or `_darwin_arm64.tar.gz` (build with `bun run release:cli-tarball` on an Intel or Apple Silicon Mac, commit under `releases/`). This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
+**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. You need `releases/crossusage-cli_<version>_darwin_amd64.tar.gz` or `_darwin_arm64.tar.gz` on your branch. Build with `bun run release:cli-tarball` / `./scripts/build-cli-tarball.sh` on a Mac, **or** run the **macOS CLI tarball** workflow (Actions → workflow_dispatch) on GitHub to get **`darwin_arm64`**, then copy the artifact into `releases/` and push. **Intel Mac** requires a local build for `darwin_amd64` (GitHub-hosted macOS runners are Apple Silicon). This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
 **Git Bash / MSYS on Windows:** `install.sh` tells you to use PowerShell and [`install.ps1`](scripts/install.ps1) instead.
 
