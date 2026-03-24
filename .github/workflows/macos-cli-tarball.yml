@@ -21,6 +21,25 @@ jobs:
         with:
           node-version: "20"
 
+      # bundled_plugins/* is gitignored — populate before packaging (same as publish / tauri build).
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JS deps and bundle plugins
+        run: |
+          bun install
+          bun run bundle:plugins
+
+      - name: Verify bundled plugins exist
+        run: |
+          COUNT=$(find src-tauri/resources/bundled_plugins -maxdepth 2 -name plugin.json | wc -l | tr -d ' ')
+          if [[ "$COUNT" -lt 1 ]]; then
+            echo "No bundled plugins under src-tauri/resources/bundled_plugins after bundle:plugins"
+            exit 1
+          fi
+          echo "Found $COUNT plugin.json files"
+
       - name: Build portable CLI bundle (native macOS)
         run: ./scripts/build-cli-tarball.sh
 
