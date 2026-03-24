@@ -7,6 +7,7 @@
 - **Windows [`scripts/install.ps1`](scripts/install.ps1):** **`INSTALL_MODE=cli`** — download portable CLI from `releases/` (versioned → legacy → latest Release asset), extract to `%USERPROFILE%\.local\lib\crossusage`, add `%USERPROFILE%\.local\bin` to user `PATH` (with `crossusage-cli.cmd` shim). **[`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1)** builds `crossusage-cli_<version>_windows_<arch>.zip` for publishing.
 - **Linux → Windows CLI zip:** **[`scripts/build-cli-zip-windows-gnu.sh`](scripts/build-cli-zip-windows-gnu.sh)** cross-compiles `x86_64-pc-windows-gnu` and zips for `releases/`. **[`.cargo/config.toml`](.cargo/config.toml)** sets the MinGW linker.
 - **Windows GUI builds in CI:** [`.github/workflows/windows-gui.yml`](.github/workflows/windows-gui.yml) — run **Actions → Windows GUI (Tauri) → Run workflow** to download NSIS `*x64-setup.exe`, `crossusage.exe`, and `crossusage-cli.exe` artifacts (no tag required).
+- **Publish workflow:** [`.github/workflows/publish.yml`](.github/workflows/publish.yml) no longer runs on **`v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is **`workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
 
 ### App version
 

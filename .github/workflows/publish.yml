@@ -1,16 +1,22 @@
+# Upstream-style macOS release: signs DMGs and uploads to GitHub Releases + updater (.sig / latest.json).
+# This fork focuses Linux/Windows; those secrets are usually unset, so tag pushes were failing CI noise.
+# CLI installs use branch files under releases/ (raw.githubusercontent.com) — no GitHub "Release" required.
+# Re-enable automatic publishing only after configuring APPLE_* and TAURI_SIGNING_* repository secrets.
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to build (e.g. v1.0.1); must match package.json / tauri / Cargo versions"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:
@@ -21,11 +27,11 @@ jobs:
             args: "--target x86_64-apple-darwin"
     runs-on: ${{ matrix.platform }}
     env:
-      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_TAG: ${{ github.event.inputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ github.event.inputs.tag }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -51,7 +57,7 @@ jobs:
       - name: Validate release tag
         run: |
           if [[ -z "$RELEASE_TAG" ]]; then
-            echo "Missing RELEASE_TAG (push a v* tag)."
+            echo "Missing RELEASE_TAG (enter tag in workflow_dispatch)."
             exit 1
           fi
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

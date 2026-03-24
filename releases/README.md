@@ -1,5 +1,7 @@
 # Portable CLI tarballs (optional)
 
+**You do not need a GitHub “Release”** for CLI-only installs: `install.sh` / `install.ps1` (`INSTALL_MODE=cli`) read these files from the **git branch** via `raw.githubusercontent.com/.../releases/...`. The GitHub Releases page is only a **fallback** if the branch file is missing, and **full** Linux/Windows installers (`install.sh` default / `install.ps1` default) still look at **latest Release** for `.deb` / `.rpm` / AppImage / NSIS.
+
 `scripts/install.sh` with `INSTALL_MODE=cli` downloads from this folder on your branch, using **`package.json`’s `version`** (same naming as `scripts/build-cli-tarball.sh`):
 
 **Linux**
