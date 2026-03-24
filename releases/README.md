@@ -13,7 +13,7 @@
 
 - Versioned: `crossusage-cli_<version>_darwin_<arch>.tar.gz`
 - Legacy: `crossusage-cli_darwin_<arch>.tar.gz`
-- **Apple Silicon (`arm64`):** on a Mac run `./scripts/build-cli-tarball.sh` (or `bun run release:cli-tarball`). **Without a Mac:** GitHub → **Actions** → **macOS CLI tarball** → **Run workflow** → download **`crossusage-cli-darwin-arm64-tarball`**, then copy the `.tar.gz` into **`releases/`** on your branch and push.
+- **Apple Silicon (`arm64`):** on a Mac run `./scripts/build-cli-tarball.sh` (or `bun run release:cli-tarball`). **Without a Mac:** GitHub → **Actions** → **macOS CLI tarball** → **Run workflow** → download **`crossusage-cli-darwin-arm64-tarball`**, then copy the `.tar.gz` into **`releases/`** on your branch and push. (That workflow runs **`bun run bundle:plugins`** first because **`bundled_plugins/`** contents are gitignored.)
 - **Intel (`amd64`):** run the same script **on an Intel Mac** (GitHub’s `macos-latest` runners are ARM64, so they only produce `darwin_arm64`).
 
 **Windows** (`scripts/install.ps1` with `$env:INSTALL_MODE='cli'`)
