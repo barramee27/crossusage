@@ -37,6 +37,14 @@ bun run release:cli-tarball
 cp crossusage-cli_*_linux_amd64.tar.gz releases/   # example: Linux x86_64
 ```
 
+**macOS (`darwin_arm64`) from CI:** unzip the Actions artifact (`crossusage-cli-darwin-arm64-tarball.zip`), take the inner `crossusage-cli_<version>_darwin_arm64.tar.gz`, copy into **`releases/`**, then duplicate as legacy:
+
+```bash
+unzip -j ~/Downloads/crossusage-cli-darwin-arm64-tarball.zip -d /tmp/cu-darwin
+cp /tmp/cu-darwin/crossusage-cli_*_darwin_arm64.tar.gz releases/
+cp releases/crossusage-cli_1.0.1_darwin_arm64.tar.gz releases/crossusage-cli_darwin_arm64.tar.gz   # adjust version
+```
+
 Optionally keep a **legacy** copy in sync (install.sh uses it if the versioned file is missing):
 
 ```bash
