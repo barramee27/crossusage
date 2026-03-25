@@ -14,6 +14,8 @@ release-artifacts
 /crossusage-cli_*_linux_*.tar.gz
 /crossusage-cli_*_darwin_*.tar.gz
 /crossusage-cli_*_windows_*.zip
+# Legacy unversioned name at repo root (from local download tests)
+/crossusage-cli_windows_*.zip
 src-tauri/binaries/crossusage-cli-*
 dist-ssr
 *.local
