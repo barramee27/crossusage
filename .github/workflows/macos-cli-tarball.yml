@@ -66,8 +66,11 @@ jobs:
             exit 1
           fi
           TARBALL="${files[0]}"
-          if ! tar -tzf "$TARBALL" | grep -q '^resources/bundled_plugins/'; then
+          # macOS bsdtar lists members as ./resources/...; GNU tar often omits ./
+          if ! tar -tzf "$TARBALL" | grep -qE '^(\./)?resources/bundled_plugins/'; then
             echo "Tarball is missing resources/bundled_plugins/: $TARBALL"
+            echo "Archive listing (first 30 entries):"
+            tar -tzf "$TARBALL" | head -30
             exit 1
           fi
           echo "Verified tarball layout in $TARBALL"
