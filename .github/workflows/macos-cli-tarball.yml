@@ -1,9 +1,9 @@
 # Build crossusage-cli_<version>_darwin_arm64.tar.gz on Apple Silicon (GitHub-hosted).
 #
 # Artifacts: download from the workflow run (Actions → macOS CLI tarball → run).
-# Branch installs: copy the .tar.gz into releases/ on your branch and push (raw.githubusercontent.com).
-# Release fallback: run with "Upload to latest GitHub Release" so install.sh can fetch the asset
-# when the branch path has no tarball (see scripts/install.sh INSTALL_MODE=cli).
+# Optional: copy the .tar.gz into releases/ on your branch for raw.githubusercontent.com fallback.
+# Prefer "Upload to latest GitHub Release": install.sh INSTALL_MODE=cli fetches matching assets from
+# the latest Release first (see scripts/install.sh).
 #
 # Intel Mac users need darwin_amd64: run ./scripts/build-cli-tarball.sh locally on x86_64-apple-darwin.
 name: macOS CLI tarball

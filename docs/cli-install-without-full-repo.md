@@ -4,7 +4,7 @@ A full developer tree can get very large (`node_modules/`, `target/`, GUI assets
 
 ## Option 1 — Pre-built CLI bundle (recommended)
 
-Downloads a small **tarball** — **`crossusage-cli`** plus **`resources/bundled_plugins/`** (same layout as [`scripts/build-cli-tarball.sh`](../scripts/build-cli-tarball.sh)) — **no `git clone`**. `install.sh` with `INSTALL_MODE=cli` tries the **`releases/`** tree on your chosen git ref (`INSTALL_GIT_REF`, often `feat/linux-windows-native-support`) via `raw.githubusercontent.com`, then the **latest GitHub Release** if no matching file exists on the branch.
+Downloads a small **tarball** — **`crossusage-cli`** plus **`resources/bundled_plugins/`** (same layout as [`scripts/build-cli-tarball.sh`](../scripts/build-cli-tarball.sh)) — **no `git clone`**. `install.sh` with `INSTALL_MODE=cli` tries the **latest GitHub Release** asset first (`crossusage-cli_<version>_<os>_<arch>.tar.gz`), then the **`releases/`** tree on your git ref (`INSTALL_GIT_REF`, often `feat/linux-windows-native-support`) via `raw.githubusercontent.com` if the release has no matching file.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash

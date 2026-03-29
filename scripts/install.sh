@@ -7,7 +7,7 @@
 #
 # Environment:
 #   GITHUB_REPO     default: barramee27/crossusage
-#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS) from releases/ or Release assets (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
+#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS): prefers latest GitHub Release asset, then branch releases/ on raw.githubusercontent.com (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
 #   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
 #   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: feat/linux-windows-native-support)
 #   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional)
@@ -188,42 +188,39 @@ if [[ "$INSTALL_MODE" == cli ]]; then
     VERSIONED_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz"
   fi
   LEGACY_CLI_URL="${REPO_URL_BASE}/crossusage-cli_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz"
-  # Prefer INSTALL_CLI_URL override, then versioned name (matches scripts/build-cli-tarball.sh), then legacy unversioned path.
-  if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
-    DEFAULT_CLI_URL="$INSTALL_CLI_URL"
-  elif [[ -n "$VERSIONED_CLI_URL" ]]; then
-    DEFAULT_CLI_URL="$VERSIONED_CLI_URL"
-  else
-    DEFAULT_CLI_URL="$LEGACY_CLI_URL"
-  fi
 
   echo "Downloading portable CLI bundle (${CLI_OS} ${CLI_ARCH_TAG}) …"
   rm -f "$TMP_CLI"
   GOT_FROM=""
-  if ! download_try "$DEFAULT_CLI_URL" "$TMP_CLI"; then
-    if [[ -z "${INSTALL_CLI_URL:-}" && -n "$VERSIONED_CLI_URL" && "$DEFAULT_CLI_URL" != "$LEGACY_CLI_URL" ]]; then
-      echo "Trying legacy repo path: releases/crossusage-cli_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz …"
-      rm -f "$TMP_CLI"
-      if download_try "$LEGACY_CLI_URL" "$TMP_CLI"; then
-        GOT_FROM="legacy"
-      fi
-    fi
+  # Prefer INSTALL_CLI_URL override, then latest GitHub Release asset, then branch releases/ on raw.githubusercontent.com.
+  if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
+    download_to "$INSTALL_CLI_URL" "$TMP_CLI"
+    GOT_FROM="override"
   else
-    if [[ "$DEFAULT_CLI_URL" == "$VERSIONED_CLI_URL" ]]; then
-      GOT_FROM="versioned"
-    elif [[ "$DEFAULT_CLI_URL" == "$LEGACY_CLI_URL" ]]; then
-      GOT_FROM="legacy"
+    RELEASE_URL=""
+    JSON=""
+    if JSON="$(fetch_json 2>/dev/null)"; then
+      RELEASE_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_${CLI_OS}_${CLI_ARCH_TAG}\\.tar\\.gz\$" || true)"
+    fi
+    if [[ -n "$RELEASE_URL" ]] && download_try "$RELEASE_URL" "$TMP_CLI"; then
+      GOT_FROM="release"
     else
-      GOT_FROM="override"
+      rm -f "$TMP_CLI"
+      if [[ -n "$VERSIONED_CLI_URL" ]] && download_try "$VERSIONED_CLI_URL" "$TMP_CLI"; then
+        GOT_FROM="versioned"
+      else
+        rm -f "$TMP_CLI"
+        if [[ -n "$VERSIONED_CLI_URL" ]]; then
+          echo "Trying legacy branch path: releases/crossusage-cli_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz …" >&2
+        fi
+        if download_try "$LEGACY_CLI_URL" "$TMP_CLI"; then
+          GOT_FROM="legacy"
+        fi
+      fi
     fi
   fi
   if [[ ! -s "$TMP_CLI" ]]; then
-    echo "Trying GitHub Release assets instead …"
-    JSON="$(fetch_json)" || die "failed to fetch release metadata"
-    FALLBACK_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_${CLI_OS}_${CLI_ARCH_TAG}\\.tar\\.gz\$" || true)"
-    [[ -n "$FALLBACK_URL" ]] || die "No CLI tarball found. Add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh), or attach that asset to the latest GitHub Release."
-    download_to "$FALLBACK_URL" "$TMP_CLI"
-    GOT_FROM="release"
+    die "No CLI tarball found. Attach crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz to the latest GitHub Release, or add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh)."
   fi
   if [[ "$GOT_FROM" == "legacy" && -n "$REPO_VER" ]]; then
     echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is committed on ${INSTALL_GIT_REF} so installs get the matching build." >&2
