@@ -14,7 +14,9 @@ pub fn app_data_dir() -> Option<PathBuf> {
 ///
 /// - If `CROSSUSAGE_RESOURCES` is set, it is used as the resource root.
 /// - Otherwise: `../Resources` next to the executable (macOS app bundle),
-///   or `../share/crossusage` (Linux install), or parent of the exe (dev).
+///   or Homebrew-style `share/crossusage` on macOS,
+///   or `/usr/share/crossusage` (Linux install), or `resources/` next to the exe (portable),
+///   or the OpenUsage repo’s `src-tauri/resources` when the current working directory is the repo root.
 pub fn resource_dir() -> PathBuf {
     if let Ok(p) = std::env::var("CROSSUSAGE_RESOURCES") {
         return PathBuf::from(p);
@@ -34,6 +36,18 @@ pub fn resource_dir() -> PathBuf {
                         || resources.join("resources/bundled_plugins").exists()
                     {
                         return resources;
+                    }
+                }
+
+                // Standalone CLI (Homebrew / /usr/local): same layout as Linux installs
+                for share in [
+                    PathBuf::from("/opt/homebrew/share/crossusage"),
+                    PathBuf::from("/usr/local/share/crossusage"),
+                ] {
+                    if share.join("bundled_plugins").exists()
+                        || share.join("resources/bundled_plugins").exists()
+                    {
+                        return share;
                     }
                 }
             }
