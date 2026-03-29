@@ -19,7 +19,8 @@ Artifacts use the **`crossusage_1.0.0_…`** style (see [GitHub Releases](https:
 
 - **Windows** — `crossusage_1.0.0_x64-setup.exe` (NSIS installer) and/or `crossusage.exe` (beside the installer output)
 - **Linux** — `crossusage_1.0.0_amd64.deb`, RPM `crossusage-1.0.0-…`, `crossusage_1.0.0_amd64.AppImage`
-- **macOS** — use [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest) (this fork targets Linux/Windows first)
+- **macOS GUI** — use [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest) (this fork targets Linux/Windows first for the desktop app)
+- **macOS CLI (Apple Silicon)** — portable `crossusage-cli` via `INSTALL_MODE=cli` (see below); no `.dmg` for this fork
 
 Pre-built binaries — install and run.
 
@@ -39,13 +40,13 @@ curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-wi
 irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 ```
 
-**macOS:** this fork does not ship a macOS **desktop** `.dmg` here. For the **terminal CLI** from this repo, use `INSTALL_MODE=cli` (downloads `releases/crossusage-cli_*_darwin_*.tar.gz` when published — build on a Mac with `bun run release:cli-tarball`). For a macOS **GUI** app, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
+**macOS:** no **desktop** `.dmg` in this fork. For the **terminal CLI** on **Apple Silicon**, use `INSTALL_MODE=cli`: `install.sh` looks for `crossusage-cli_*_darwin_arm64.tar.gz` on your `INSTALL_GIT_REF` branch under `releases/`, then falls back to the **latest GitHub Release** if needed. The tarball is **`crossusage-cli` + `resources/bundled_plugins/`** together (see [`scripts/build-cli-tarball.sh`](scripts/build-cli-tarball.sh)); extracting only the binary (or `cargo install` without that tree) leaves **no bundled plugins** until you set **`CROSSUSAGE_RESOURCES`** or install via **`INSTALL_MODE=cli`** (binary and `resources/` land under `~/.local/lib/crossusage/`). Publish the tarball by building on a Mac (`bun run release:cli-tarball`), or use **Actions → macOS CLI tarball** (optionally **Upload to latest GitHub Release**). **Developers** can also `cargo build -p crossusage-cli` from a clone; set `CROSSUSAGE_RESOURCES` to a folder that contains `bundled_plugins/` or `resources/bundled_plugins/` (see [`crates/crossusage-core/src/paths.rs`](crates/crossusage-core/src/paths.rs)). For a macOS **GUI** app, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
 **Security:** Inspect [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) before piping to `bash` or `iex`. They use GitHub’s API, `raw.githubusercontent.com` (CLI bundles on a branch), and release download URLs over HTTPS. You can always install manually from [releases](https://github.com/barramee27/crossusage/releases/latest).
 
 **Optional environment:** `GITHUB_REPO` (default `barramee27/crossusage`); Linux `INSTALL_KIND=deb|rpm|appimage`; Windows `INSTALL_SILENT=0` for a non-silent NSIS install; Windows `INSTALL_MODE=cli` for portable CLI zip (no NSIS).
 
-**CLI-only (no desktop app / no WebKit):** downloads a portable tarball from `releases/` on the branch (`crossusage-cli_<version>_linux_<arch>.tar.gz` or `_darwin_<arch>.tar.gz` — build with `bun run release:cli-tarball` on Linux or macOS, then commit under `releases/` or attach to a GitHub Release):
+**CLI-only (no desktop app / no WebKit):** downloads a portable tarball (`crossusage-cli_<version>_linux_<arch>.tar.gz` or, on macOS, `_darwin_arm64.tar.gz` from the branch’s `releases/` path, with **latest Release** as fallback). Each archive includes **`resources/bundled_plugins/`** next to the `crossusage-cli` binary — keep that layout after extract (or set `CROSSUSAGE_RESOURCES`). Build with `bun run release:cli-tarball` or the **macOS CLI tarball** workflow, then commit under `releases/` and/or attach to a GitHub Release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
@@ -114,7 +115,7 @@ crossusage-cli daemon --interval-sec 60 --threshold-percent 90 cursor
 
 **Daemon:** normalized “primary %” threshold alerts via `notify-rust`. Notifications need a desktop session; use `--log-file` when headless.
 
-Set `CROSSUSAGE_RESOURCES` if bundled plugins are not found (see `crates/crossusage-core/src/paths.rs`).
+If the CLI reports **no providers**, it could not find bundled plugins: use **`INSTALL_MODE=cli`**, or set **`CROSSUSAGE_RESOURCES`** to the directory that contains `bundled_plugins/` or `resources/bundled_plugins/`, or run from the **repo root** with `src-tauri/resources/` populated (`bun run bundle:plugins`). The resolver does **not** fall back to the current directory (`.`). Details: [`crates/crossusage-core/src/paths.rs`](crates/crossusage-core/src/paths.rs).
 
 **Troubleshooting (dev / terminal):**
 

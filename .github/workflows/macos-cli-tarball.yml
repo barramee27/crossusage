@@ -1,10 +1,21 @@
 # Build crossusage-cli_<version>_darwin_arm64.tar.gz on Apple Silicon (GitHub-hosted).
-# Download the artifact, copy into releases/, commit + push so raw.githubusercontent.com installs work.
+#
+# Artifacts: download from the workflow run (Actions → macOS CLI tarball → run).
+# Branch installs: copy the .tar.gz into releases/ on your branch and push (raw.githubusercontent.com).
+# Release fallback: run with "Upload to latest GitHub Release" so install.sh can fetch the asset
+# when the branch path has no tarball (see scripts/install.sh INSTALL_MODE=cli).
+#
 # Intel Mac users need darwin_amd64: run ./scripts/build-cli-tarball.sh locally on x86_64-apple-darwin.
 name: macOS CLI tarball
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_latest_release:
+        description: "Attach darwin_arm64 tarball to latest GitHub Release (--clobber)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -12,6 +23,8 @@ permissions:
 jobs:
   tarball:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -43,10 +56,61 @@ jobs:
       - name: Build portable CLI bundle (native macOS)
         run: ./scripts/build-cli-tarball.sh
 
-      - name: Upload tarball
+      - name: Verify tarball layout includes bundled plugins
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(crossusage-cli_*_darwin_arm64.tar.gz)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No darwin_arm64 tarball produced"
+            exit 1
+          fi
+          TARBALL="${files[0]}"
+          if ! tar -tzf "$TARBALL" | grep -q '^resources/bundled_plugins/'; then
+            echo "Tarball is missing resources/bundled_plugins/: $TARBALL"
+            exit 1
+          fi
+          echo "Verified tarball layout in $TARBALL"
+
+      - name: Upload tarball (workflow artifact)
         uses: actions/upload-artifact@v4
         with:
           name: crossusage-cli-darwin-arm64-tarball
           path: crossusage-cli_*_darwin_arm64.tar.gz
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    needs: tarball
+    if: ${{ github.event.inputs.upload_to_latest_release == 'true' }}
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download tarball from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: crossusage-cli-darwin-arm64-tarball
+          path: release-assets
+
+      - name: Upload to latest GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd release-assets
+          files=(crossusage-cli_*_darwin_arm64.tar.gz)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No darwin_arm64 tarball in artifact"
+            exit 1
+          fi
+          TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name)
+          if [[ "$TAG" == "null" || -z "$TAG" ]]; then
+            echo "No GitHub Release found. Create a release first, or commit the tarball under releases/ on your branch."
+            exit 1
+          fi
+          echo "Uploading to release $TAG: ${files[*]}"
+          gh release upload "$TAG" "${files[@]}" --clobber

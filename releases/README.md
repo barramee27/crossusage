@@ -2,6 +2,8 @@
 
 **You do not need a GitHub “Release”** for CLI-only installs: `install.sh` / `install.ps1` (`INSTALL_MODE=cli`) read these files from the **git branch** via `raw.githubusercontent.com/.../releases/...`. The GitHub Releases page is only a **fallback** if the branch file is missing, and **full** Linux/Windows installers (`install.sh` default / `install.ps1` default) still look at **latest Release** for `.deb` / `.rpm` / AppImage / NSIS.
 
+**Tarball contents (all platforms):** at archive root, **`crossusage-cli`** (or `crossusage-cli.exe` on Windows) and **`resources/bundled_plugins/`** with plugin payloads. The CLI finds plugins by canonicalizing **`current_exe`** and looking for **`resources/bundled_plugins`** next to that binary (plus app-bundle / Linux FHS / `CROSSUSAGE_RESOURCES` — see [`crates/crossusage-core/src/paths.rs`](../crates/crossusage-core/src/paths.rs)). Do not ship the binary alone without that tree unless users set **`CROSSUSAGE_RESOURCES`**.
+
 `scripts/install.sh` with `INSTALL_MODE=cli` downloads from this folder on your branch, using **`package.json`’s `version`** (same naming as `scripts/build-cli-tarball.sh`):
 
 **Linux**
@@ -14,6 +16,7 @@
 - Versioned: `crossusage-cli_<version>_darwin_<arch>.tar.gz`
 - Legacy: `crossusage-cli_darwin_<arch>.tar.gz`
 - **Apple Silicon (`arm64`):** on a Mac run `./scripts/build-cli-tarball.sh` (or `bun run release:cli-tarball`). **Without a Mac:** GitHub → **Actions** → **macOS CLI tarball** → **Run workflow** → download **`crossusage-cli-darwin-arm64-tarball`**, then copy the `.tar.gz` into **`releases/`** on your branch and push. (That workflow runs **`bun run bundle:plugins`** first because **`bundled_plugins/`** contents are gitignored.)
+- **Same workflow, attach to Release:** when running **macOS CLI tarball**, enable **“Upload to latest GitHub Release”**. That uploads `crossusage-cli_<version>_darwin_arm64.tar.gz` to the repo’s **latest** GitHub Release (`gh release upload … --clobber`). Then `scripts/install.sh` with `INSTALL_MODE=cli` can use the **release fallback** even if the tarball is not committed under `releases/` on the branch. You still need at least one GitHub Release to exist.
 - **Intel (`amd64`):** run the same script **on an Intel Mac** (GitHub’s `macos-latest` runners are ARM64, so they only produce `darwin_arm64`).
 
 **Windows** (`scripts/install.ps1` with `$env:INSTALL_MODE='cli'`)

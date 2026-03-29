@@ -30,4 +30,4 @@ echo "" >&2
 echo "Installed: ~/.cargo/bin/crossusage-cli (ensure ~/.cargo/bin is on PATH)" >&2
 echo "Bundled plugins are NOT in this repo snapshot — for a working CLI with plugins use:" >&2
 echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash" >&2
-echo "Or set CROSSUSAGE_RESOURCES to a directory containing bundled_plugins/. See docs/cli-install-without-full-repo.md" >&2
+echo "Or set CROSSUSAGE_RESOURCES to a directory containing bundled_plugins/ or resources/bundled_plugins/. See docs/cli-install-without-full-repo.md" >&2

@@ -16,7 +16,7 @@ Scripts live under [`scripts/`](scripts/): they query the [latest GitHub release
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 ```
 
-- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script looks for `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (or the latest GitHub Release). Build with `bun run release:cli-tarball` on Linux, copy into `releases/`, commit, and push — or upload the tarball as a release asset.
+- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script looks for `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (or the latest GitHub Release). The extracted layout must keep **`crossusage-cli`** and **`resources/bundled_plugins/`** side by side (install puts them under `~/.local/lib/crossusage/`). A bare `cargo install` of the CLI **does not** ship that folder — use this install mode, or set **`CROSSUSAGE_RESOURCES`**. Build with `bun run release:cli-tarball` on Linux, copy into `releases/`, commit, and push — or upload the tarball as a release asset.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
@@ -26,7 +26,12 @@ If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older
 
 - **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` for `releases/` URLs (defaults to **`feat/linux-windows-native-support`** in this fork’s `install.sh`).
 
-**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. You need `releases/crossusage-cli_<version>_darwin_amd64.tar.gz` or `_darwin_arm64.tar.gz` on your branch. Build with `bun run release:cli-tarball` / `./scripts/build-cli-tarball.sh` on a Mac, **or** run the **macOS CLI tarball** workflow (Actions → workflow_dispatch) on GitHub to get **`darwin_arm64`**, then copy the artifact into `releases/` and push. **Intel Mac** requires a local build for `darwin_amd64` (GitHub-hosted macOS runners are Apple Silicon). This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
+**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. The installer tries, in order: `INSTALL_CLI_URL` override → versioned `releases/crossusage-cli_<version>_darwin_<arch>.tar.gz` on the branch (`INSTALL_GIT_REF`) → legacy unversioned name → **latest GitHub Release** asset matching `crossusage-cli_.+_darwin_<arch>.tar.gz`. The CLI resolves plugins via the real binary path (symlinks in `~/.local/bin` are OK); it will **not** use the shell’s current directory as a fake resource root. If you copy only the binary out of the tarball, set **`CROSSUSAGE_RESOURCES`** to the folder that still contains **`resources/bundled_plugins`** (or point it at `…/Contents/Resources` inside a `.app`).
+
+- **Apple Silicon (`arm64`):** build locally with `bun run release:cli-tarball` / `./scripts/build-cli-tarball.sh` (after `bun install` and `bun run bundle:plugins`), **or** run **Actions → macOS CLI tarball** (workflow_dispatch). Then either commit the `.tar.gz` under [`releases/`](releases/README.md) on your branch **or** re-run that workflow with **Upload to latest GitHub Release** enabled so `install.sh` can use the release fallback without committing the binary to git (a release must already exist).
+- **Intel (`amd64`):** GitHub’s macOS runners only produce `darwin_arm64`; build `crossusage-cli_<version>_darwin_amd64.tar.gz` on an Intel Mac with the same scripts, then publish it the same way (branch `releases/` and/or release asset).
+
+This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
 **Git Bash / MSYS on Windows:** `install.sh` tells you to use PowerShell and [`install.ps1`](scripts/install.ps1) instead.
 

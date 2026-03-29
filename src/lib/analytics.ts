@@ -1,20 +1,16 @@
-import { invoke, isTauri } from "@tauri-apps/api/core"
+import { trackEvent } from "@aptabase/tauri"
+import { isTauri } from "@tauri-apps/api/core"
 
 /**
- * Thin wrapper around Aptabase's trackEvent.
- * Aptabase only supports string and number property values.
+ * Aptabase analytics (string/number props only). Requires `aptabase:allow-track-event` in Tauri capabilities.
  */
-const APTABASE_TRACK_EVENT_CMD = "plugin:aptabase|track_event"
-
 export function track(
   event: string,
   props?: Record<string, string | number>,
 ) {
-  const tauriRuntime = isTauri()
-
-  if (!tauriRuntime) {
+  if (!isTauri()) {
     return
   }
 
-  void invoke(APTABASE_TRACK_EVENT_CMD, { name: event, props })
+  void trackEvent(event, props)
 }

@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const state = vi.hoisted(() => ({
-  invokeMock: vi.fn(),
+  trackEventMock: vi.fn(),
   isTauriMock: vi.fn(() => true),
 }))
 
+vi.mock("@aptabase/tauri", () => ({
+  trackEvent: (...args: unknown[]) => state.trackEventMock(...args),
+}))
+
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: state.invokeMock,
   isTauri: state.isTauriMock,
 }))
 
 describe("analytics track", () => {
   beforeEach(() => {
     vi.resetModules()
-    state.invokeMock.mockReset()
+    state.trackEventMock.mockReset()
     state.isTauriMock.mockReset()
     state.isTauriMock.mockReturnValue(true)
   })
@@ -24,7 +27,7 @@ describe("analytics track", () => {
 
     track("setting_changed", { setting: "theme", value: "dark" })
 
-    expect(state.invokeMock).not.toHaveBeenCalled()
+    expect(state.trackEventMock).not.toHaveBeenCalled()
   })
 
   it("tracks all events when running in tauri", async () => {
@@ -33,6 +36,10 @@ describe("analytics track", () => {
     track("setting_changed", { setting: "theme", value: "dark" })
     track("setting_changed", { setting: "theme", value: "dark" })
 
-    expect(state.invokeMock).toHaveBeenCalledTimes(2)
+    expect(state.trackEventMock).toHaveBeenCalledTimes(2)
+    expect(state.trackEventMock).toHaveBeenCalledWith("setting_changed", {
+      setting: "theme",
+      value: "dark",
+    })
   })
 })

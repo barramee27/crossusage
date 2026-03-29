@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 pub fn initialize_plugins(
     app_data_dir: &Path,
-    resource_dir: &Path,
+    resource_dir: Option<&Path>,
 ) -> (PathBuf, Vec<LoadedPlugin>) {
     if let Some(dev_dir) = find_dev_plugins_dir() {
         if !is_dir_empty(&dev_dir) {
@@ -25,9 +25,11 @@ pub fn initialize_plugins(
         );
     }
 
-    let bundled_dir = resolve_bundled_dir(resource_dir);
-    if bundled_dir.exists() {
-        copy_dir_recursive(&bundled_dir, &install_dir);
+    if let Some(res) = resource_dir {
+        let bundled_dir = resolve_bundled_dir(res);
+        if bundled_dir.exists() {
+            copy_dir_recursive(&bundled_dir, &install_dir);
+        }
     }
 
     let plugins = manifest::load_plugins_from_dir(&install_dir);

@@ -14,10 +14,11 @@ mod tui;
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand, ValueEnum};
+use crossusage_core::paths::{self as cu_paths, ResourceDirResolution};
 use crossusage_core::plugin_engine::runtime::{MetricLine, PluginOutput, ProgressFormat};
 use crossusage_core::plugin_engine::{self, manifest::LoadedPlugin};
 use owo_colors::OwoColorize;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tabled::settings::object::Columns;
@@ -220,12 +221,15 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
             return Ok(());
         }
 
-        let (app_data, resource_dir) = resolve_install_paths().context(
-            "Could not resolve app data / resource paths. Set CROSSUSAGE_RESOURCES if needed.",
-        )?;
+        let cu_paths::CliPaths {
+            app_data,
+            resource_dir,
+            resource_resolution,
+        } = resolve_install_paths()?;
 
         let version = env!("CARGO_PKG_VERSION").to_string();
-        let (_plugin_dir, plugins) = plugin_engine::initialize_plugins(&app_data, &resource_dir);
+        let (_plugin_dir, plugins) =
+            plugin_engine::initialize_plugins(&app_data, resource_dir.as_deref());
         let plugins = Arc::new(plugins);
 
         let config_path = CliConfig::resolve_path(cli.config.clone());
@@ -236,7 +240,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
             if plugins.is_empty() {
                 bail!(
                     "No plugins discovered; nothing to watch.\n{}",
-                    plugin_bundle_hint(&resource_dir)
+                    cu_paths::plugins_empty_diagnostic(&resource_resolution)
                 );
             }
             return run_global_daemon(app_data, version, Arc::clone(&plugins), cli.verbose);
@@ -252,7 +256,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                     &app_data,
                     &version,
                     &plugins,
-                    &resource_dir,
+                    &resource_resolution,
                 )?;
             }
             Some(Commands::UsageStats { .. }) => {
@@ -267,7 +271,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                     &app_data,
                     &version,
                     &plugins,
-                    &resource_dir,
+                    &resource_resolution,
                 )?;
             }
             Some(Commands::List { ref plugin_ids }) => {
@@ -279,7 +283,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                     &version,
                     &plugins,
                     plain,
-                    &resource_dir,
+                    &resource_resolution,
                 )?;
             }
             Some(Commands::Probe {
@@ -294,7 +298,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                     &plugins,
                     plain,
                     cli.verbose,
-                    &resource_dir,
+                    &resource_resolution,
                 )?;
             }
             Some(Commands::Export {
@@ -310,7 +314,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                     &version,
                     &plugins,
                     cli.verbose,
-                    &resource_dir,
+                    &resource_resolution,
                 )?;
             }
         Some(Commands::Daemon {
@@ -327,7 +331,7 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                 if plugins.is_empty() {
                     bail!(
                         "No plugins discovered; nothing to watch.\n{}",
-                        plugin_bundle_hint(&resource_dir)
+                        cu_paths::plugins_empty_diagnostic(&resource_resolution)
                     );
                 }
                 daemon::spawn_detached(daemon::SpawnArgs {
@@ -376,16 +380,6 @@ fn run_global_daemon(
     })
 }
 
-fn plugin_bundle_hint(resource_root: &Path) -> String {
-    format!(
-        "Bundled providers were not found under the resolved resource root ({}).\n\
-         Fix: set CROSSUSAGE_RESOURCES to the directory that contains `bundled_plugins` \
-         (e.g. CrossUsage.app/Contents/Resources, or your OpenUsage clone’s src-tauri/resources), \
-         or run the CLI from the OpenUsage repo root, or launch the desktop app once so it copies plugins into app data.",
-        resource_root.display()
-    )
-}
-
 fn run_dashboard_cmd(
     cli: &Cli,
     cfg: &CliConfig,
@@ -394,7 +388,7 @@ fn run_dashboard_cmd(
     app_data: &PathBuf,
     version: &str,
     plugins: &Arc<Vec<LoadedPlugin>>,
-    resource_root: &Path,
+    resource_resolution: &ResourceDirResolution,
 ) -> Result<()> {
     apply_cli_log_policy(cli.verbose);
 
@@ -413,7 +407,10 @@ fn run_dashboard_cmd(
     };
 
     if selected_indices.is_empty() {
-        eprintln!("No plugins to show.\n{}", plugin_bundle_hint(resource_root));
+        eprintln!(
+            "No plugins to show.\n{}",
+            cu_paths::plugins_empty_diagnostic(resource_resolution)
+        );
         return Ok(());
     }
 
@@ -451,7 +448,7 @@ fn run_list_cmd(
     version: &str,
     plugins: &Arc<Vec<LoadedPlugin>>,
     plain: bool,
-    resource_root: &Path,
+    resource_resolution: &ResourceDirResolution,
 ) -> Result<()> {
     apply_cli_log_policy(cli.verbose);
 
@@ -474,7 +471,10 @@ fn run_list_cmd(
     }
 
     if selected.is_empty() {
-        eprintln!("No plugins to list.\n{}", plugin_bundle_hint(resource_root));
+        eprintln!(
+            "No plugins to list.\n{}",
+            cu_paths::plugins_empty_diagnostic(resource_resolution)
+        );
         return Ok(());
     }
 
@@ -597,7 +597,7 @@ fn run_probe_cmd(
     plugins: &Arc<Vec<LoadedPlugin>>,
     plain: bool,
     verbose: bool,
-    resource_root: &Path,
+    resource_resolution: &ResourceDirResolution,
 ) -> Result<()> {
     apply_cli_log_policy(verbose);
 
@@ -616,7 +616,10 @@ fn run_probe_cmd(
     };
 
     if selected.is_empty() {
-        eprintln!("No plugins to probe.\n{}", plugin_bundle_hint(resource_root));
+        eprintln!(
+            "No plugins to probe.\n{}",
+            cu_paths::plugins_empty_diagnostic(resource_resolution)
+        );
         return Ok(());
     }
 
@@ -660,7 +663,7 @@ fn run_export_cmd(
     version: &str,
     plugins: &Arc<Vec<LoadedPlugin>>,
     verbose: bool,
-    resource_root: &Path,
+    resource_resolution: &ResourceDirResolution,
 ) -> Result<()> {
     apply_cli_log_policy(verbose);
 
@@ -683,7 +686,7 @@ fn run_export_cmd(
         if selected.is_empty() {
             eprintln!(
                 "No plugins to export.\n{}",
-                plugin_bundle_hint(resource_root)
+                cu_paths::plugins_empty_diagnostic(resource_resolution)
             );
             return Ok(());
         }
@@ -883,6 +886,11 @@ fn print_probe_human_table(rows: &[LineRowProbe]) {
     }
 }
 
-fn resolve_install_paths() -> Option<(PathBuf, PathBuf)> {
-    crossusage_core::paths::resolve_paths()
+fn resolve_install_paths() -> Result<cu_paths::CliPaths> {
+    cu_paths::resolve_cli_paths().map_err(|e| match e {
+        cu_paths::PathsError::NoAppDataDir => anyhow::anyhow!(
+            "Could not resolve application data directory (e.g. HOME / XDG_DATA_HOME, or Windows AppData). \
+             Setting CROSSUSAGE_RESOURCES does not fix this."
+        ),
+    })
 }

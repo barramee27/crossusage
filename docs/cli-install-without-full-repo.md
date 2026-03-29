@@ -4,11 +4,13 @@ A full developer tree can get very large (`node_modules/`, `target/`, GUI assets
 
 ## Option 1 — Pre-built CLI bundle (recommended)
 
-Downloads a small **tarball** (binary + `bundled_plugins`) from GitHub Releases — **no `git clone`**.
+Downloads a small **tarball** — **`crossusage-cli`** plus **`resources/bundled_plugins/`** (same layout as [`scripts/build-cli-tarball.sh`](../scripts/build-cli-tarball.sh)) — **no `git clone`**. `install.sh` with `INSTALL_MODE=cli` tries the **`releases/`** tree on your chosen git ref (`INSTALL_GIT_REF`, often `feat/linux-windows-native-support`) via `raw.githubusercontent.com`, then the **latest GitHub Release** if no matching file exists on the branch.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
 ```
+
+**macOS (Apple Silicon):** the asset must be named like `crossusage-cli_<version>_darwin_arm64.tar.gz`. Maintainers build it with **`bun run release:cli-tarball`** on a Mac or **Actions → macOS CLI tarball**; commit it under `releases/` on the branch and/or upload it to a GitHub Release (workflow option **Upload to latest GitHub Release**). See [releases/README.md](../releases/README.md).
 
 Requires `curl` or `wget`, and `jq` or `python3`. See [INSTALL.md](../INSTALL.md) for `GITHUB_REPO`, `INSTALL_GIT_REF`, etc.
 
@@ -48,11 +50,13 @@ cargo install --git https://github.com/barramee27/crossusage.git \
 To get plugins:
 
 - Prefer **Option 1** (tarball includes them), or  
-- Extract `bundled_plugins` from a release tarball and point the CLI at them:
+- Extract the **full** portable bundle (or at least keep `resources/bundled_plugins/`). Point the CLI at the **resource root** — the directory that directly contains `bundled_plugins/` **or** `resources/bundled_plugins/`:
 
 ```bash
-export CROSSUSAGE_RESOURCES=/path/to/extracted/folder
-# folder should contain bundled_plugins/ or resources/bundled_plugins/
+# Example: tarball extracted to ~/cu — resource root is the dir that contains resources/
+export CROSSUSAGE_RESOURCES="$HOME/cu/resources"
+# Or, if you copied only bundled_plugins into ~/my-plugins:
+export CROSSUSAGE_RESOURCES="$HOME/my-plugins"
 crossusage-cli list
 ```
 

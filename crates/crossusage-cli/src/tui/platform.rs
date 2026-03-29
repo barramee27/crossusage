@@ -32,7 +32,27 @@ pub fn parent_process_is_cargo() -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(not(target_os = "linux"))]
+/// macOS, FreeBSD, etc.: use sysinfo (same crate as the dashboard) so we detect `cargo run` parents.
+#[cfg(all(unix, not(target_os = "linux")))]
+pub fn parent_process_is_cargo() -> bool {
+    use std::os::unix::process::parent_id;
+
+    let ppid = parent_id();
+    if ppid == 0 {
+        return false;
+    }
+    let pid = sysinfo::Pid::from_u32(ppid);
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+    sys.process(pid)
+        .map(|p| {
+            let name = p.name().to_string_lossy();
+            name.eq_ignore_ascii_case("cargo") || name.ends_with("/cargo")
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
 pub fn parent_process_is_cargo() -> bool {
     false
 }

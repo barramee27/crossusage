@@ -23,6 +23,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use serde::Serialize;
 use tauri::Emitter;
 use tauri_plugin_aptabase::EventTracker;
+
+/// Aptabase app key (dashboard: https://aptabase.com) — CrossUsage fork analytics.
+const APTABASE_APP_KEY: &str = "A-US-2161452114";
 #[cfg(target_os = "macos")]
 use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
 use tauri_plugin_log::{Target, TargetKind};
@@ -563,7 +566,7 @@ pub fn run() {
     let _guard = runtime.enter();
 
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_aptabase::Builder::new("A-US-6435241436").build())
+        .plugin(tauri_plugin_aptabase::Builder::new(APTABASE_APP_KEY).build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build());
         
@@ -614,6 +617,9 @@ pub fn run() {
             log::info!("CrossUsage v{} starting", version);
 
             track_daily_active_if_needed(app.handle());
+            // Send startup event immediately; otherwise Aptabase only flushes on an interval and the
+            // dashboard can sit on “Waiting for the first event…” for up to a minute in release builds.
+            app.handle().flush_events_blocking();
             #[cfg(desktop)]
             spawn_daily_active_rollover_tracker(app.handle().clone());
 
@@ -621,7 +627,8 @@ pub fn run() {
             let resource_dir = app.path().resource_dir().expect("no resource dir");
             log::debug!("app_data_dir: {:?}", app_data_dir);
 
-            let (_, plugins) = plugin_engine::initialize_plugins(&app_data_dir, &resource_dir);
+            let (_, plugins) =
+                plugin_engine::initialize_plugins(&app_data_dir, Some(resource_dir.as_path()));
             app.manage(Mutex::new(AppState {
                 plugins,
                 app_data_dir,
