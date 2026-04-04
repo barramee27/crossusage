@@ -52,7 +52,7 @@ describe("getEffectiveTrayLines", () => {
           ...base,
           trayLines: { cursor: ["__NONE__", "Credits"] },
         },
-        ["Credits", "All usage"]
+        ["Credits", "Total usage"]
       )
     ).toEqual(["Credits"])
   })

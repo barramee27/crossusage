@@ -40,6 +40,7 @@ const state = vi.hoisted(() => ({
   traySetIconMock: vi.fn(),
   traySetIconAsTemplateMock: vi.fn(),
   traySetTitleMock: vi.fn(),
+  traySetTooltipMock: vi.fn(),
   resolveResourceMock: vi.fn(),
 }))
 
@@ -293,6 +294,7 @@ describe("App", () => {
     state.traySetIconMock.mockReset()
     state.traySetIconAsTemplateMock.mockReset()
     state.traySetTitleMock.mockReset()
+    state.traySetTooltipMock.mockReset()
     state.resolveResourceMock.mockReset()
     menuState.iconMenuItemConfigs.length = 0
     menuState.iconMenuItemNewMock.mockReset()
@@ -338,6 +340,7 @@ describe("App", () => {
       setIcon: state.traySetIconMock.mockResolvedValue(undefined),
       setIconAsTemplate: state.traySetIconAsTemplateMock.mockResolvedValue(undefined),
       setTitle: state.traySetTitleMock.mockResolvedValue(undefined),
+      setTooltip: state.traySetTooltipMock.mockResolvedValue(undefined),
     })
     state.resolveResourceMock.mockResolvedValue("/resource/icons/tray-icon.png")
     state.invokeMock.mockImplementation(async (cmd: string) => {
@@ -625,6 +628,7 @@ describe("App", () => {
     state.trayGetByIdMock.mockResolvedValueOnce({
       setIcon: state.traySetIconMock.mockResolvedValue(undefined),
       setIconAsTemplate: state.traySetIconAsTemplateMock.mockResolvedValue(undefined),
+      setTooltip: state.traySetTooltipMock.mockResolvedValue(undefined),
     })
 
     render(<App />)

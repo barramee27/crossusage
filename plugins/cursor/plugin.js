@@ -605,7 +605,7 @@
     const pu = flags.pu
 
     if (!hasPlanUsageLimit && !hasTotalUsagePercent) {
-      throw "All usage limit missing from API response."
+      throw "Total usage limit missing from API response."
     }
 
     let plan = null
@@ -667,7 +667,7 @@
         return null
       }
       lines.push(ctx.line.progress({
-        label: "All usage",
+        label: "Total usage",
         used: ctx.fmt.dollars(planUsed),
         limit: ctx.fmt.dollars(pu.limit),
         format: { kind: "dollars" },
@@ -680,7 +680,7 @@
       }
     } else {
       lines.push(ctx.line.progress({
-        label: "All usage",
+        label: "Total usage",
         used: totalUsagePercent,
         limit: 100,
         format: { kind: "percent" },
@@ -803,7 +803,7 @@
         }
       } catch (e) {
         if (typeof e === "string") {
-          if (e === "No active Cursor subscription." || e === "All usage limit missing from API response.") {
+          if (e === "No active Cursor subscription." || e === "Total usage limit missing from API response.") {
             throw e
           }
           ctx.host.log.warn("request-based: connect-style parse failed: " + e)

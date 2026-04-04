@@ -310,7 +310,7 @@ describe("getTrayPrimaryBars", () => {
           id: "a",
           name: "A",
           iconUrl: "",
-          primaryCandidates: ["Credits", "All usage", "Requests"],
+          primaryCandidates: ["Credits", "Total usage", "Requests"],
           lines: [],
         },
       ],
@@ -332,7 +332,7 @@ describe("getTrayPrimaryBars", () => {
               },
               {
                 type: "progress",
-                label: "All usage",
+                label: "Total usage",
                 used: 25,
                 limit: 100,
                 format: { kind: "percent" },

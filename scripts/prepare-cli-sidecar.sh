@@ -4,7 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [[ -n "${CARGO_BUILD_TARGET:-}" ]]; then
+# Tauri sets this for beforeBuildCommand (see TAURI_ENV_* in Tauri docs).
+if [[ -n "${TAURI_ENV_TARGET_TRIPLE:-}" ]]; then
+  TARGET="$TAURI_ENV_TARGET_TRIPLE"
+elif [[ -n "${CARGO_BUILD_TARGET:-}" ]]; then
   TARGET="$CARGO_BUILD_TARGET"
 else
   TARGET="$(rustc -vV | awk '/host:/{print $2}')"

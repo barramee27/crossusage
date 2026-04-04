@@ -152,6 +152,7 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - **Global shortcut.** Toggle the panel from anywhere with a customizable keyboard shortcut.
 - **Lightweight.** Opens instantly, stays out of your way.
 - **Plugin-based.** New providers get added without updating the whole app.
+- **[Local HTTP API](docs/local-http-api.md).** Other apps can read cached usage data from `127.0.0.1:6736` while CrossUsage is running.
 
 ## Supported Providers
 

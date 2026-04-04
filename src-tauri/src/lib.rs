@@ -11,6 +11,7 @@ mod panel_windows;
 #[cfg(target_os = "windows")]
 use panel_windows as panel;
 use crossusage_core::plugin_engine;
+mod local_http_api;
 mod tray;
 #[cfg(target_os = "macos")]
 mod webkit_config;
@@ -396,6 +397,7 @@ async fn start_probe_batch(
                             plugin_id,
                             output.lines.len()
                         );
+                        local_http_api::cache_successful_output(&output);
                     }
                     let _ = handle.emit(
                         "probe:result",
@@ -629,6 +631,11 @@ pub fn run() {
 
             let (_, plugins) =
                 plugin_engine::initialize_plugins(&app_data_dir, Some(resource_dir.as_path()));
+            let known_plugin_ids: Vec<String> =
+                plugins.iter().map(|p| p.manifest.id.clone()).collect();
+            local_http_api::init(&app_data_dir, known_plugin_ids);
+            local_http_api::start_server();
+
             app.manage(Mutex::new(AppState {
                 plugins,
                 app_data_dir,

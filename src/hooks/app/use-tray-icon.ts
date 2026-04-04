@@ -7,6 +7,7 @@ import { getEnabledPluginIds } from "@/lib/settings"
 
 import { getTrayIconSizePx, renderTrayBarsIcon, type TrayGridCell } from "@/lib/tray-bars-icon"
 import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
+import { formatTrayPercentText, formatTrayTooltip } from "@/lib/tray-tooltip"
 
 import type { PluginState } from "@/hooks/app/types"
 
@@ -33,12 +34,6 @@ const EMPTY_TRAY_SETTINGS_PREVIEW: TraySettingsPreview = {
   bars: [],
   providerBars: [],
   providerPercentText: "--%",
-}
-
-function formatTrayPercentText(fraction: number | undefined): string {
-  if (typeof fraction !== "number" || !Number.isFinite(fraction)) return "--%"
-  const clampedFraction = Math.max(0, Math.min(1, fraction))
-  return `${Math.round(clampedFraction * 100)}%`
 }
 
 function isSameTraySettingsPreview(a: TraySettingsPreview, b: TraySettingsPreview): boolean {
@@ -156,6 +151,20 @@ export function useTrayIcon({
         return Promise.resolve()
       }
 
+      const maybeSetTooltip = (
+        tray as TrayIcon & { setTooltip?: (value: string | null) => Promise<void> }
+      ).setTooltip
+      const setTooltipFn =
+        typeof maybeSetTooltip === "function"
+          ? (value: string | null) => maybeSetTooltip.call(tray, value)
+          : null
+      const setTrayTooltip = (tooltip: string | null) => {
+        if (setTooltipFn) {
+          return setTooltipFn(tooltip)
+        }
+        return Promise.resolve()
+      }
+
       const restoreGaugeIcon = () => {
         const gaugePath = trayGaugeIconPathRef.current
         if (gaugePath) {
@@ -163,6 +172,7 @@ export function useTrayIcon({
             tray.setIcon(gaugePath),
             tray.setIconAsTemplate(true),
             setTrayTitle(""),
+            setTrayTooltip("CrossUsage"),
           ])
             .catch((e) => {
               console.error("Failed to restore tray gauge icon:", e)
@@ -241,6 +251,16 @@ export function useTrayIcon({
         isSameTraySettingsPreview(prev, nextPreview) ? prev : nextPreview
       )
 
+      const tooltipBars = getTrayPrimaryBars({
+        pluginsMeta: pluginsMetaRef.current,
+        pluginSettings: currentSettings,
+        pluginStates: pluginStatesRef.current,
+        maxBars: 20,
+        displayMode: displayModeRef.current,
+      })
+      const tooltip = formatTrayTooltip(tooltipBars, pluginsMetaRef.current)
+      const updateTooltip = () => setTrayTooltip(tooltip)
+
       if (style === "bars") {
         renderTrayBarsIcon({
           bars: barsForPreview,
@@ -251,6 +271,7 @@ export function useTrayIcon({
             await tray.setIcon(img)
             await tray.setIconAsTemplate(true)
             await setTrayTitle("")
+            await updateTooltip()
           })
           .catch((e) => {
             console.error("Failed to update tray icon:", e)
@@ -279,6 +300,7 @@ export function useTrayIcon({
             await tray.setIcon(img)
             await tray.setIconAsTemplate(true)
             await setTrayTitle("")
+            await updateTooltip()
           })
           .catch((e) => {
             console.error("Failed to update tray icon:", e)
@@ -300,17 +322,10 @@ export function useTrayIcon({
 
       const items = bars[0]?.items || []
 
-      let tooltipText: string | undefined
       let gridCellsToRender: TrayGridCell[] = []
       let providerIconUrlToRender = pluginsMetaRef.current.find((plugin) => plugin.id === trayProviderId)?.iconUrl
 
       if (items.length > 0) {
-        tooltipText = items.map(item => {
-          const hasFraction = typeof item.fraction === "number" && Number.isFinite(item.fraction)
-          const clampedFraction = hasFraction ? Math.max(0, Math.min(1, item.fraction!)) : undefined
-          return `${item.label}: ${typeof clampedFraction === "number" ? Math.round(clampedFraction * 100) + '%' : '--%'}`
-        }).join("\n")
-
         gridCellsToRender = items.map(item => {
           const hasFraction = typeof item.fraction === "number" && Number.isFinite(item.fraction)
           const clampedFraction = hasFraction ? Math.max(0, Math.min(1, item.fraction!)) : undefined
@@ -352,15 +367,7 @@ export function useTrayIcon({
           await setTrayTitle(providerPercentText)
 
           await setTrayTitle(null) // Disabling native Title clipping entirely
-          const maybeSetTooltip =
-            (tray as TrayIcon & { setTooltip?: (value: string | null) => Promise<void> }).setTooltip
-          if (typeof maybeSetTooltip === "function") {
-            // If tooltip is null, clear current tooltip.
-            await maybeSetTooltip.call(tray, tooltipText ?? null).catch((error) => {
-              console.error("Failed to update tray tooltip:", error)
-            })
-          }
-
+          await updateTooltip()
         })
         .catch((e) => {
           console.error("Failed to update tray icon:", e)

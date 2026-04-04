@@ -194,7 +194,7 @@ export function normalizePluginSettings(
       trayLines[key] = [
         ...new Set(
           normalizedLines.map((l) =>
-            l === "Total usage" ? "All usage" : l
+            l === "All usage" || l === "Total usage" ? "Total usage" : l
           )
         ),
       ];

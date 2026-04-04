@@ -103,7 +103,7 @@ describe("settings", () => {
     expect(normalized.trayLines).toEqual({ cursor: ["Credits"] })
   })
 
-  it("migrates trayLines: Total usage label to All usage (deduped)", () => {
+  it("migrates trayLines: All usage and Total usage to Total usage (deduped)", () => {
     const plugins: PluginMeta[] = [
       { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
     ]
@@ -115,7 +115,7 @@ describe("settings", () => {
       },
       plugins
     )
-    expect(normalized.trayLines).toEqual({ cursor: ["All usage"] })
+    expect(normalized.trayLines).toEqual({ cursor: ["Total usage"] })
   })
 
   it("auto-disables new non-default plugins", () => {

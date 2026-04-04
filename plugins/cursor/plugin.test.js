@@ -45,7 +45,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("cursor-access-token")
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("cursor-refresh-token")
   })
@@ -86,7 +86,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
     expect(ctx.host.keychain.writeGenericPassword).toHaveBeenCalledWith(
       "cursor-access-token",
       refreshedAccessToken
@@ -135,7 +135,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("cursor-access-token")
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("cursor-refresh-token")
   })
@@ -190,7 +190,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
   })
 
   it("throws on sqlite errors when reading token", async () => {
@@ -254,7 +254,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.plan).toBe("Team")
-    const totalLine = result.lines.find((line) => line.label === "All usage")
+    const totalLine = result.lines.find((line) => line.label === "Total usage")
     expect(totalLine).toBeTruthy()
     expect(totalLine.format).toEqual({ kind: "dollars" })
     expect(totalLine.used).toBe(84.74)
@@ -273,7 +273,7 @@ describe("cursor plugin", () => {
       }),
     })
     const plugin = await loadPlugin()
-    expect(() => plugin.probe(ctx)).toThrow("All usage limit missing")
+    expect(() => plugin.probe(ctx)).toThrow("Total usage limit missing")
   })
 
 
@@ -334,7 +334,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.plan).toBe("Free")
-    const totalLine = result.lines.find((line) => line.label === "All usage")
+    const totalLine = result.lines.find((line) => line.label === "Total usage")
     expect(totalLine).toBeTruthy()
     expect(totalLine.format).toEqual({ kind: "percent" })
     expect(totalLine.used).toBe(0)
@@ -387,7 +387,7 @@ describe("cursor plugin", () => {
     })
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const planLine = result.lines.find((l) => l.label === "All usage")
+    const planLine = result.lines.find((l) => l.label === "Total usage")
     expect(planLine).toBeTruthy()
     expect(planLine.format).toEqual({ kind: "percent" })
     // computed = (2400 - 1200) / 2400 * 100 = 50
@@ -417,7 +417,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.plan).toBeTruthy()
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
   })
 
   it("omits plan badge for blank plan names", async () => {
@@ -986,7 +986,7 @@ describe("cursor plugin", () => {
     })
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
   })
 
   it("outputs Credits first when available", async () => {
@@ -1020,7 +1020,7 @@ describe("cursor plugin", () => {
     
     // Credits should be first in the lines array
     expect(result.lines[0].label).toBe("Credits")
-    expect(result.lines[1].label).toBe("All usage")
+    expect(result.lines[1].label).toBe("Total usage")
     // On-demand should come after
     const onDemandIndex = result.lines.findIndex((l) => l.label === "On-demand")
     expect(onDemandIndex).toBeGreaterThan(1)
@@ -1158,7 +1158,7 @@ describe("cursor plugin", () => {
     expect(creditsLine.limit).toBe(500)
   })
 
-  it("outputs All usage first when Credits not available", async () => {
+  it("outputs Total usage first when Credits not available", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1182,8 +1182,8 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     
-    // All usage should be first when Credits not available
-    expect(result.lines[0].label).toBe("All usage")
+    // Total usage should be first when Credits not available
+    expect(result.lines[0].label).toBe("Total usage")
   })
 
   it("emits Auto usage and API usage percent lines when available", async () => {
@@ -1211,7 +1211,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const totalLine = result.lines.find((line) => line.label === "All usage")
+    const totalLine = result.lines.find((line) => line.label === "Total usage")
     const autoLine = result.lines.find((line) => line.label === "Auto usage")
     const apiLine = result.lines.find((line) => line.label === "API usage")
 
@@ -1239,7 +1239,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const totalLine = result.lines.find((l) => l.label === "All usage")
+    const totalLine = result.lines.find((l) => l.label === "Total usage")
     expect(totalLine).toBeTruthy()
     expect(totalLine.used).toBe(50)
   })
@@ -1257,12 +1257,12 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
     expect(result.lines.find((line) => line.label === "Auto usage")).toBeUndefined()
     expect(result.lines.find((line) => line.label === "API usage")).toBeUndefined()
   })
 
-  it("team account uses dollars format for All usage", async () => {
+  it("team account uses dollars format for Total usage", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1281,7 +1281,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const totalLine = result.lines.find((line) => line.label === "All usage")
+    const totalLine = result.lines.find((line) => line.label === "Total usage")
     expect(totalLine).toBeTruthy()
     expect(totalLine.format).toEqual({ kind: "dollars" })
     expect(totalLine.used).toBe(12)
@@ -1322,7 +1322,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
     expect(ctx.host.sqlite.exec).toHaveBeenCalled()
   })
 
@@ -1402,7 +1402,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
   })
 
   it("throws not logged in when only refresh token exists but refresh returns no access token", async () => {
@@ -1568,7 +1568,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const planLine = result.lines.find((line) => line.label === "All usage")
+    const planLine = result.lines.find((line) => line.label === "Total usage")
     expect(planLine).toBeTruthy()
     expect(planLine.used).toBe(50)
   })
@@ -1609,7 +1609,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(usageCalls).toBeGreaterThanOrEqual(2)
-    const planLine = result.lines.find((line) => line.label === "All usage")
+    const planLine = result.lines.find((line) => line.label === "Total usage")
     expect(planLine).toBeTruthy()
     expect(planLine.used).toBe(50)
   })
@@ -1681,7 +1681,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.plan).toBe("Pro")
-    const planLine = result.lines.find((line) => line.label === "All usage")
+    const planLine = result.lines.find((line) => line.label === "Total usage")
     expect(planLine).toBeTruthy()
     expect(planLine.used).toBe(50)
   })
@@ -1785,7 +1785,7 @@ describe("cursor plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const planLine = result.lines.find((line) => line.label === "All usage")
+    const planLine = result.lines.find((line) => line.label === "Total usage")
     expect(planLine).toBeTruthy()
     expect(planLine.used).toBe(100)
     expect(result.lines.find((line) => line.label === "On-demand")).toBeUndefined()
@@ -1831,7 +1831,7 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.lines.find((line) => line.label === "Credits")).toBeUndefined()
-    expect(result.lines.find((line) => line.label === "All usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
   })
 
   it("uses expired access token when refresh token is missing", async () => {

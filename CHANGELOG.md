@@ -10,9 +10,16 @@
 - **Publish workflow:** [`.github/workflows/publish.yml`](.github/workflows/publish.yml) no longer runs on **`v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is **`workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
 - **macOS CLI tarball CI:** [`.github/workflows/macos-cli-tarball.yml`](.github/workflows/macos-cli-tarball.yml) — **`workflow_dispatch`** on **`macos-latest`** builds **`crossusage-cli_*_darwin_arm64.tar.gz`** and uploads an artifact (copy into `releases/` and push for branch installs).
 
-### App version
+## 1.0.2
 
-- Align **`src-tauri/tauri.conf.json`** and **`src-tauri/Cargo.toml`** with **`package.json`** (**1.0.1**).
+### App
+
+- Version **1.0.2** (`package.json`, Tauri config, `crossusage` / `crossusage-cli` Cargo packages).
+- **Cursor** plugin: progress line label **Total usage** (replaces **All usage**). Saved tray line selections for either old label normalize to **Total usage**.
+
+### Docs
+
+- [Local HTTP API](docs/local-http-api.md): **curl** smoke-test section while the app is running.
 
 ## 1.0.0
 
@@ -35,7 +42,7 @@
 
 ### Included from prior fork work (summary)
 
-- Cursor **All usage** (renamed from Total usage) + tray line migration; provider card spacing; effective tray-line selection in Settings for all providers; `aes-gcm` on all platforms for Windows/cross-builds; build helper scripts.
+- Cursor **Total usage** line label + tray line migration (later releases may rename labels; CrossUsage **1.0.2** uses **Total usage** again); provider card spacing; effective tray-line selection in Settings for all providers; `aes-gcm` on all platforms for Windows/cross-builds; build helper scripts.
 
 ## 0.6.11
 
