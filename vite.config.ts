@@ -71,8 +71,12 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // Ignore Rust build trees so Linux inotify limits are not exhausted (workspace `target/` is at repo root).
+      ignored: [
+        "**/src-tauri/**",
+        path.resolve(__dirname, "target"),
+        path.resolve(__dirname, "src-tauri/target"),
+      ],
     },
   },
 }));

@@ -1,9 +1,63 @@
+use std::sync::{Mutex, OnceLock};
+
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::path::BaseDirectory;
 use tauri::tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_store::StoreExt;
+
+#[cfg(target_os = "linux")]
+static TRAY_USAGE_SUMMARY_ITEM: OnceLock<Mutex<MenuItem<Wry>>> = OnceLock::new();
+
+/// Cap lines so the tray menu stays readable; mirrors native tooltip truncation intent.
+const TRAY_USAGE_SUMMARY_MAX_LINES: usize = 12;
+
+/// Linux AppIndicator: native tray tooltips are unreliable. We mirror the same text in one
+/// disabled menu row using embedded newlines (GTK allocates one item, not N blank rows).
+#[cfg(target_os = "linux")]
+fn store_tray_usage_summary_handle(item: MenuItem<Wry>) {
+    let _ = TRAY_USAGE_SUMMARY_ITEM.set(Mutex::new(item));
+}
+
+/// Update the disabled “usage summary” item on Linux. No-op on other platforms.
+pub fn update_tray_usage_summary(summary: &str) {
+    #[cfg(not(target_os = "linux"))]
+    let _ = summary;
+
+    #[cfg(target_os = "linux")]
+    {
+        let Some(lock) = TRAY_USAGE_SUMMARY_ITEM.get() else {
+            return;
+        };
+        let Ok(item) = lock.lock() else {
+            return;
+        };
+
+        let mut lines: Vec<String> = summary
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                if s.chars().count() > 120 {
+                    format!("{}…", s.chars().take(120).collect::<String>())
+                } else {
+                    s.to_string()
+                }
+            })
+            .collect();
+
+        if lines.is_empty() {
+            lines.push("CrossUsage".to_string());
+        }
+        if lines.len() > TRAY_USAGE_SUMMARY_MAX_LINES {
+            lines.truncate(TRAY_USAGE_SUMMARY_MAX_LINES);
+        }
+
+        let joined = lines.join("\n");
+        let _ = item.set_text(&joined);
+    }
+}
 
 use crate::panel::{position_panel_at_tray_icon, show_panel};
 
@@ -127,6 +181,34 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
     let about = MenuItem::with_id(app_handle, "about", "About CrossUsage", true, None::<&str>)?;
     let quit = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?;
 
+    #[cfg(target_os = "linux")]
+    let menu = {
+        let usage_summary = MenuItem::with_id(
+            app_handle,
+            "tray_usage_summary",
+            "CrossUsage",
+            false,
+            None::<&str>,
+        )?;
+        store_tray_usage_summary_handle(usage_summary.clone());
+        let sep_usage = PredefinedMenuItem::separator(app_handle)?;
+        Menu::with_items(
+            app_handle,
+            &[
+                &usage_summary,
+                &sep_usage,
+                &show_stats,
+                &go_to_settings,
+                &log_level_submenu,
+                &separator,
+                &restart,
+                &about,
+                &quit,
+            ],
+        )?
+    };
+
+    #[cfg(not(target_os = "linux"))]
     let menu = Menu::with_items(
         app_handle,
         &[

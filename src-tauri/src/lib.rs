@@ -451,6 +451,18 @@ fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     }
 }
 
+/// Returns `std::env::consts::OS` for the **built** target (e.g. `linux`, `windows`, `macos`).
+#[tauri::command]
+fn get_platform() -> String {
+    std::env::consts::OS.to_string()
+}
+
+/// Linux: updates disabled tray menu rows that mirror the dynamic usage tooltip. Other OS: no-op.
+#[tauri::command]
+fn update_tray_usage_summary(summary: String) {
+    tray::update_tray_usage_summary(&summary);
+}
+
 /// Update the global shortcut registration.
 /// Pass `null` to disable the shortcut, or a shortcut string like "CommandOrControl+Shift+U".
 #[cfg(desktop)]
@@ -601,6 +613,8 @@ pub fn run() {
             start_probe_batch,
             list_plugins,
             get_log_path,
+            get_platform,
+            update_tray_usage_summary,
             update_global_shortcut
         ])
         .setup(|app| {

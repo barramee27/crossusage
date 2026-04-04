@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { invoke, isTauri } from "@tauri-apps/api/core"
 import { resolveResource } from "@tauri-apps/api/path"
 import { TrayIcon } from "@tauri-apps/api/tray"
 import type { PluginMeta } from "@/lib/plugin-types"
@@ -34,6 +35,14 @@ const EMPTY_TRAY_SETTINGS_PREVIEW: TraySettingsPreview = {
   bars: [],
   providerBars: [],
   providerPercentText: "--%",
+}
+
+/** Linux: tray tooltips are unreliable on AppIndicator; Rust mirrors this text in disabled menu rows. */
+function mirrorTrayUsageSummaryToBackend(summary: string) {
+  if (!isTauri()) return
+  void invoke("update_tray_usage_summary", { summary }).catch(() => {
+    /* ignore: command no-ops off Linux or before tray init */
+  })
 }
 
 function isSameTraySettingsPreview(a: TraySettingsPreview, b: TraySettingsPreview): boolean {
@@ -166,6 +175,7 @@ export function useTrayIcon({
       }
 
       const restoreGaugeIcon = () => {
+        mirrorTrayUsageSummaryToBackend("CrossUsage")
         const gaugePath = trayGaugeIconPathRef.current
         if (gaugePath) {
           Promise.all([
@@ -259,6 +269,7 @@ export function useTrayIcon({
         displayMode: displayModeRef.current,
       })
       const tooltip = formatTrayTooltip(tooltipBars, pluginsMetaRef.current)
+      mirrorTrayUsageSummaryToBackend(tooltip)
       const updateTooltip = () => setTrayTooltip(tooltip)
 
       if (style === "bars") {
