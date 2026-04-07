@@ -18,12 +18,17 @@ case "$(uname -m)" in
   *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;;
 esac
 
-MACOS_DIR="$ROOT/target/release/bundle/macos"
+# Tauri usually writes here for a native macOS build; some toolchains use target/<triple>/release/...
 shopt -s nullglob
-apps=( "$MACOS_DIR"/*.app )
+apps=( "$ROOT/target/release/bundle/macos"/*.app )
+if [[ ${#apps[@]} -eq 0 ]]; then
+  mapfile -t apps < <(find "$ROOT/target" -type d -name '*.app' 2>/dev/null | grep '/bundle/macos/' | sort -u)
+fi
 shopt -u nullglob
 if [[ ${#apps[@]} -eq 0 ]]; then
-  echo "No .app under $MACOS_DIR — run: bun run tauri build" >&2
+  echo "No .app under target/**/bundle/macos/*.app — run: bun run tauri build" >&2
+  echo "Hint: listing bundle dirs:" >&2
+  find "$ROOT/target" -type d -name bundle 2>/dev/null | head -20 >&2 || true
   exit 1
 fi
 

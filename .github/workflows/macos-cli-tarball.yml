@@ -28,7 +28,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          shared-key: crossusage-macos-release
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -37,7 +37,10 @@ jobs:
       - name: Install JS deps
         run: bun install
 
+      # GHA sets CI=true; some frontend/tooling treats that as "non-interactive" and can break builds.
       - name: Build Tauri (macOS GUI — runs bundle:plugins + CLI sidecar via beforeBuildCommand)
+        env:
+          CI: ""
         run: |
           unset CI || true
           bun run tauri build
@@ -61,16 +64,34 @@ jobs:
           tar -tzf "$T" | grep -qE '^(\./)?resources/bundled_plugins/' || { echo "bad layout in $T"; exit 1; }
           echo "OK: $T"
 
+      - name: Stage artifacts (upload-artifact needs paths that exist)
+        run: |
+          set -euo pipefail
+          mkdir -p _macos_artifacts
+          shopt -s nullglob
+          for f in crossusage-cli_*_darwin_arm64.tar.gz crossusage_*_darwin_arm64.tar.gz; do
+            [[ -f "$f" ]] && cp -v "$f" _macos_artifacts/
+          done
+          shopt -u nullglob
+          while IFS= read -r -d '' d; do
+            cp -v "$d" _macos_artifacts/
+          done < <(find target -type f -name '*.dmg' -print0 2>/dev/null)
+          echo "==> Staged:"
+          ls -la _macos_artifacts/
+          n="$(find _macos_artifacts -type f | wc -l | tr -d ' ')"
+          if [[ "$n" -lt 2 ]]; then
+            echo "Expected at least CLI .tar.gz and one .dmg; got $n file(s). Bundle tree:" >&2
+            find target -type d \( -path '*/bundle/dmg' -o -path '*/bundle/macos' \) 2>/dev/null | head -30 >&2 || true
+            exit 1
+          fi
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: crossusage-macos-release-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
-          path: |
-            crossusage-cli_*_darwin_arm64.tar.gz
-            crossusage_*_darwin_arm64.tar.gz
-            target/release/bundle/dmg/*.dmg
+          path: _macos_artifacts/*
 
   publish-release:
     needs: build
