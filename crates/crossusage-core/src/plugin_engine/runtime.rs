@@ -112,6 +112,9 @@ pub fn run_probe_with_account(
         if host_api::patch_ccusage_wrapper(&ctx).is_err() {
             return error_output(plugin, "ccusage wrapper patch failed".to_string());
         }
+        if host_api::patch_fireworks_wrapper(&ctx).is_err() {
+            return error_output(plugin, "fireworks wrapper patch failed".to_string());
+        }
         if host_api::inject_utils(&ctx).is_err() {
             return error_output(plugin, "utils injection failed".to_string());
         }
