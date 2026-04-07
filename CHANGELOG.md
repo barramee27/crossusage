@@ -4,11 +4,22 @@
 
 ### Install
 
-- **Windows [`scripts/install.ps1`](scripts/install.ps1):** **`INSTALL_MODE=cli`** — download portable CLI from `releases/` (versioned → legacy → latest Release asset), extract to `%USERPROFILE%\.local\lib\crossusage`, add `%USERPROFILE%\.local\bin` to user `PATH` (with `crossusage-cli.cmd` shim). **[`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1)** builds `crossusage-cli_<version>_windows_<arch>.zip` for publishing.
+- **Windows [`scripts/install.ps1`](scripts/install.ps1):** **`INSTALL_MODE=cli`** — prefers the **latest GitHub Release** asset matching `crossusage-cli_*_windows_<arch>.zip` (or `.tar.gz`), then falls back to `releases/` on the branch. Extracts to `%USERPROFILE%\.local\lib\crossusage` and adds `%USERPROFILE%\.local\bin` (with `crossusage-cli.cmd` shim). **[`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1)** builds the zip for publishing.
 - **Linux → Windows CLI zip:** **[`scripts/build-cli-zip-windows-gnu.sh`](scripts/build-cli-zip-windows-gnu.sh)** cross-compiles `x86_64-pc-windows-gnu` and zips for `releases/`. **[`.cargo/config.toml`](.cargo/config.toml)** sets the MinGW linker.
 - **Windows GUI builds in CI:** [`.github/workflows/windows-gui.yml`](.github/workflows/windows-gui.yml) — run **Actions → Windows GUI (Tauri) → Run workflow** to download NSIS `*x64-setup.exe`, `crossusage.exe`, and `crossusage-cli.exe` artifacts (no tag required).
 - **Publish workflow:** [`.github/workflows/publish.yml`](.github/workflows/publish.yml) no longer runs on **`v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is **`workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
-- **macOS CLI tarball CI:** [`.github/workflows/macos-cli-tarball.yml`](.github/workflows/macos-cli-tarball.yml) — **`workflow_dispatch`** on **`macos-latest`** builds **`crossusage-cli_*_darwin_arm64.tar.gz`** and uploads an artifact (copy into `releases/` and push for branch installs).
+- **macOS release CI:** [`.github/workflows/macos-cli-tarball.yml`](.github/workflows/macos-cli-tarball.yml) — **`workflow_dispatch`** on **`macos-latest`** runs **`bun run tauri build`**, then **`build-cli-tarball.sh`**, **`build-gui-portable-macos-tarball.sh`**, and uploads **`crossusage-cli_*_darwin_arm64.tar.gz`**, **`crossusage_*_darwin_arm64.tar.gz`**, and **`target/release/bundle/dmg/*.dmg`**. Optional upload to the latest GitHub Release.
+
+## 1.0.3
+
+### App
+
+- Version **1.0.3** (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, and `crossusage-core` Cargo packages).
+
+### Packaging
+
+- **Portable GUI:** [`scripts/build-gui-portable-linux-tarball.sh`](scripts/build-gui-portable-linux-tarball.sh) (Linux `.tar.gz`), [`scripts/build-gui-portable-windows.ps1`](scripts/build-gui-portable-windows.ps1) (Windows `.zip`), [`scripts/build-gui-portable-zip-windows-gnu.sh`](scripts/build-gui-portable-zip-windows-gnu.sh) (same GUI `.zip` from Linux after `tauri build --target x86_64-pc-windows-gnu`), [`scripts/build-gui-portable-macos-tarball.sh`](scripts/build-gui-portable-macos-tarball.sh) (macOS `.tar.gz` of the `.app`). [`scripts/collect-release-artifacts.sh`](scripts/collect-release-artifacts.sh) collects these when present.
+- **Portable CLI (Windows zip from Linux):** [`scripts/build-cli-zip-windows-gnu.sh`](scripts/build-cli-zip-windows-gnu.sh) — **`crossusage-cli.exe` + `resources/bundled_plugins` only** (no `crossusage.exe`). Install: `INSTALL_MODE=cli` / `install.ps1`.
 
 ## 1.0.2
 

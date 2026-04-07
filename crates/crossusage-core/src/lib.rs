@@ -2,3 +2,4 @@
 
 pub mod paths;
 pub mod plugin_engine;
+pub mod proxy_config;

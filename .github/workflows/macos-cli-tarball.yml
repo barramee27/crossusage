@@ -1,18 +1,15 @@
-# Build crossusage-cli_<version>_darwin_arm64.tar.gz on Apple Silicon (GitHub-hosted).
+# macOS: portable CLI (.tar.gz), GUI (.dmg), portable GUI (.tar.gz of .app).
+# Install scripts prefer assets on the latest GitHub Release (see scripts/install.sh / install.ps1).
 #
-# Artifacts: download from the workflow run (Actions → macOS CLI tarball → run).
-# Optional: copy the .tar.gz into releases/ on your branch for raw.githubusercontent.com fallback.
-# Prefer "Upload to latest GitHub Release": install.sh INSTALL_MODE=cli fetches matching assets from
-# the latest Release first (see scripts/install.sh).
-#
-# Intel Mac users need darwin_amd64: run ./scripts/build-cli-tarball.sh locally on x86_64-apple-darwin.
-name: macOS CLI tarball
+# Actions → "macOS CLI + GUI artifacts" → Run workflow.
+# Download workflow artifacts, or enable "Upload to latest GitHub Release".
+name: macOS CLI + GUI artifacts
 
 on:
   workflow_dispatch:
     inputs:
       upload_to_latest_release:
-        description: "Attach darwin_arm64 tarball to latest GitHub Release (--clobber)"
+        description: "Attach build outputs to the latest GitHub Release (--clobber)"
         required: false
         default: false
         type: boolean
@@ -21,81 +18,71 @@ permissions:
   contents: read
 
 jobs:
-  tarball:
+  build:
     runs-on: macos-latest
-    permissions:
-      contents: read
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/setup-node@v4
+      - uses: swatinem/rust-cache@v2
         with:
-          node-version: "20"
+          workspaces: "./src-tauri -> target"
 
-      # bundled_plugins/* is gitignored — populate before packaging (same as publish / tauri build).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install JS deps and bundle plugins
-        run: |
-          bun install
-          bun run bundle:plugins
+      - name: Install JS deps
+        run: bun install
 
-      - name: Verify bundled plugins exist
+      - name: Build Tauri (macOS GUI — runs bundle:plugins + CLI sidecar via beforeBuildCommand)
         run: |
-          COUNT=$(find src-tauri/resources/bundled_plugins -maxdepth 2 -name plugin.json | wc -l | tr -d ' ')
-          if [[ "$COUNT" -lt 1 ]]; then
-            echo "No bundled plugins under src-tauri/resources/bundled_plugins after bundle:plugins"
-            exit 1
-          fi
-          echo "Found $COUNT plugin.json files"
+          unset CI || true
+          bun run tauri build
 
-      - name: Build portable CLI bundle (native macOS)
+      - name: Build portable CLI tarball (binary + bundled_plugins)
         run: ./scripts/build-cli-tarball.sh
 
-      - name: Verify tarball layout includes bundled plugins
+      - name: Pack portable GUI (.app → .tar.gz)
+        run: ./scripts/build-gui-portable-macos-tarball.sh
+
+      - name: Verify CLI tarball layout
         run: |
           set -euo pipefail
           shopt -s nullglob
           files=(crossusage-cli_*_darwin_arm64.tar.gz)
           if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No darwin_arm64 tarball produced"
+            echo "No darwin_arm64 CLI tarball"
             exit 1
           fi
-          TARBALL="${files[0]}"
-          # macOS bsdtar lists members as ./resources/...; GNU tar often omits ./
-          if ! tar -tzf "$TARBALL" | grep -qE '^(\./)?resources/bundled_plugins/'; then
-            echo "Tarball is missing resources/bundled_plugins/: $TARBALL"
-            echo "Archive listing (first 30 entries):"
-            tar -tzf "$TARBALL" | head -30
-            exit 1
-          fi
-          echo "Verified tarball layout in $TARBALL"
+          T="${files[0]}"
+          tar -tzf "$T" | grep -qE '^(\./)?resources/bundled_plugins/' || { echo "bad layout in $T"; exit 1; }
+          echo "OK: $T"
 
-      - name: Upload tarball (workflow artifact)
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: crossusage-cli-darwin-arm64-tarball
-          path: crossusage-cli_*_darwin_arm64.tar.gz
+          name: crossusage-macos-release-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
+          path: |
+            crossusage-cli_*_darwin_arm64.tar.gz
+            crossusage_*_darwin_arm64.tar.gz
+            target/release/bundle/dmg/*.dmg
 
   publish-release:
-    needs: tarball
+    needs: build
     if: ${{ github.event.inputs.upload_to_latest_release == 'true' }}
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download tarball from build job
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: crossusage-cli-darwin-arm64-tarball
+          name: crossusage-macos-release-${{ github.sha }}
           path: release-assets
 
       - name: Upload to latest GitHub Release
@@ -103,17 +90,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
           cd release-assets
-          files=(crossusage-cli_*_darwin_arm64.tar.gz)
+          mapfile -t files < <(find . -type f \( -name '*.tar.gz' -o -name '*.dmg' \) | sort)
           if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No darwin_arm64 tarball in artifact"
+            echo "No .tar.gz or .dmg in artifact"
             exit 1
           fi
           TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name)
           if [[ "$TAG" == "null" || -z "$TAG" ]]; then
-            echo "No GitHub Release found. Create a release first, or commit the tarball under releases/ on your branch."
+            echo "No GitHub Release found. Create a release first."
             exit 1
           fi
-          echo "Uploading to release $TAG: ${files[*]}"
+          echo "Uploading to $TAG:"
+          printf '%s\n' "${files[@]}"
           gh release upload "$TAG" "${files[@]}" --clobber

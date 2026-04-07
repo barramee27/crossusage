@@ -17,6 +17,7 @@ mod tray;
 mod webkit_config;
 
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -38,6 +39,37 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 const GLOBAL_SHORTCUT_STORE_KEY: &str = "globalShortcut";
 const DAILY_ACTIVE_TRACKED_DAY_KEY: &str = "analytics.daily_active_day";
 const DAILY_ACTIVE_EVENT_NAME: &str = "app_started";
+
+/// Create `~/.crossusage/config.json` on first launch if missing (proxy + optional Synthetic key).
+fn ensure_crossusage_user_config_file() {
+    let Some(home) = dirs::home_dir() else {
+        log::debug!("Skipping default user config: no home directory");
+        return;
+    };
+    let dir = home.join(".crossusage");
+    let path = dir.join("config.json");
+    if path.exists() {
+        return;
+    }
+    if let Err(e) = fs::create_dir_all(&dir) {
+        log::warn!("Cannot create {}: {}", dir.display(), e);
+        return;
+    }
+    const TEMPLATE: &str = r#"{
+  "proxy": {
+    "enabled": false,
+    "url": ""
+  },
+  "synthetic": {
+    "apiKey": ""
+  }
+}
+"#;
+    match fs::write(&path, TEMPLATE) {
+        Ok(()) => log::info!("Created default user config at {}", path.display()),
+        Err(e) => log::warn!("Cannot write {}: {}", path.display(), e),
+    }
+}
 
 fn today_utc_ymd() -> String {
     let date = time::OffsetDateTime::now_utc().date();
@@ -631,6 +663,8 @@ pub fn run() {
 
             let version = app.package_info().version.to_string();
             log::info!("CrossUsage v{} starting", version);
+
+            ensure_crossusage_user_config_file();
 
             track_daily_active_if_needed(app.handle());
             // Send startup event immediately; otherwise Aptabase only flushes on an interval and the

@@ -153,6 +153,7 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - **Lightweight.** Opens instantly, stays out of your way.
 - **Plugin-based.** New providers get added without updating the whole app.
 - **[Local HTTP API](docs/local-http-api.md).** Other apps can read cached usage data from `127.0.0.1:6736` while CrossUsage is running.
+- **[HTTP/SOCKS proxy](docs/proxy.md).** Optional proxy in `~/.crossusage/config.json` (auto-created on first launch; legacy `~/.openusage/config.json` still honored for proxy).
 
 ## Supported Providers
 
@@ -165,9 +166,11 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - [**Factory / Droid**](docs/providers/factory.md) / standard, premium tokens
 - [**Gemini**](docs/providers/gemini.md) / pro, flash, workspace/free/paid tier
 - [**JetBrains AI Assistant**](docs/providers/jetbrains-ai-assistant.md) / quota, remaining
+- [**Kiro**](docs/providers/kiro.md) / credits, bonus credits, overages
 - [**Kimi Code**](docs/providers/kimi.md) / session, weekly
 - [**MiniMax**](docs/providers/minimax.md) / coding plan session
 - [**OpenCode Go**](docs/providers/opencode-go.md) / 5h, weekly, monthly spend limits
+- [**Synthetic**](docs/providers/synthetic.md) / rate limits, weekly mana, search quota
 - [**Windsurf**](docs/providers/windsurf.md) / prompt credits, flex credits
 - [**Z.ai**](docs/providers/zai.md) / session, weekly, web searches
 

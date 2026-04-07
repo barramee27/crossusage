@@ -1,14 +1,17 @@
 # CrossUsage — install from GitHub (Windows).
 # Repo: https://github.com/barramee27/crossusage
 #
+# INSTALL_MODE=cli: portable CLI zip/tar.gz — tries latest GitHub Release asset first; only if missing, falls back to
+# releases/ on the branch (raw.githubusercontent.com). Full mode uses NSIS/setup from the latest Release.
+#
 # Usage (PowerShell):
 #   irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 #
 # Environment:
 #   $env:GITHUB_REPO     default: barramee27/crossusage
 #   $env:INSTALL_MODE    full (default) | cli — full = NSIS x64-setup.exe; cli = portable zip/tar.gz (binary + resources) like install.sh INSTALL_MODE=cli
-#   $env:INSTALL_GIT_REF branch or tag for raw.githubusercontent.com CLI bundle (default: feat/linux-windows-native-support)
-#   $env:INSTALL_CLI_URL optional override URL for the CLI .zip or .tar.gz
+#   $env:INSTALL_GIT_REF branch or tag for raw.githubusercontent.com CLI bundle fallback (default: feat/linux-windows-native-support)
+#   $env:INSTALL_CLI_URL optional override URL for the CLI .zip or .tar.gz (skips GitHub Release + branch fallbacks)
 #   $env:INSTALL_SILENT  if "0" or "false", run NSIS installer interactively (full mode only; no effect in cli mode)
 
 $ErrorActionPreference = "Stop"
@@ -97,20 +100,6 @@ function Install-PortableCli {
   $legacyZip = "$repoBase/crossusage-cli_windows_${archTag}.zip"
   $legacyTgz = "$repoBase/crossusage-cli_windows_${archTag}.tar.gz"
 
-  $defaultUrl = $null
-  $kind = "unknown"
-
-  if ($env:INSTALL_CLI_URL -and $env:INSTALL_CLI_URL.Trim()) {
-    $defaultUrl = $env:INSTALL_CLI_URL.Trim()
-    $kind = "override"
-  } elseif ($versionedZip) {
-    $defaultUrl = $versionedZip
-    $kind = "versioned-zip"
-  } else {
-    $defaultUrl = $legacyZip
-    $kind = "legacy-zip"
-  }
-
   $tmp = Join-Path $env:TEMP ("crossusage-cli-" + [guid]::NewGuid().ToString())
   $tmpZip = $tmp + ".zip"
   $tmpTgz = $tmp + ".tar.gz"
@@ -129,57 +118,69 @@ function Install-PortableCli {
     }
   }
 
-  if ($defaultUrl -match "\.tar\.gz$") {
-    if (Try-Download $defaultUrl $tmpTgz) { $downloaded = $true; $gotFrom = $kind }
-  } else {
-    if (Try-Download $defaultUrl $tmpZip) { $downloaded = $true; $gotFrom = $kind }
+  # 1) Explicit URL override
+  if ($env:INSTALL_CLI_URL -and $env:INSTALL_CLI_URL.Trim()) {
+    $u = $env:INSTALL_CLI_URL.Trim()
+    if ($u -match "\.tar\.gz$") {
+      if (Try-Download $u $tmpTgz) { $downloaded = $true; $gotFrom = "override" }
+    } else {
+      if (Try-Download $u $tmpZip) { $downloaded = $true; $gotFrom = "override" }
+    }
   }
 
-  if (-not $downloaded -and -not ($env:INSTALL_CLI_URL -and $env:INSTALL_CLI_URL.Trim())) {
-    if ($kind -eq "versioned-zip" -and $legacyZip) {
-      Write-Host "Trying legacy repo path: releases/crossusage-cli_windows_${archTag}.zip …"
-      if (Try-Download $legacyZip $tmpZip) { $downloaded = $true; $gotFrom = "legacy-zip" }
+  # 2) Latest GitHub Release (same priority as scripts/install.sh INSTALL_MODE=cli)
+  if (-not $downloaded) {
+    Write-Host "Trying latest GitHub Release …"
+    try {
+      $apiUrl = "https://api.github.com/repos/$GithubRepo/releases/latest"
+      $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
+      $reZip = [regex]::new("crossusage-cli_.+_windows_${archTag}\.zip$", "IgnoreCase")
+      $reTgz = [regex]::new("crossusage-cli_.+_windows_${archTag}\.tar\.gz$", "IgnoreCase")
+      $asset = $release.assets | Where-Object { $reZip.IsMatch($_.name) } | Select-Object -First 1
+      if (-not $asset) {
+        $asset = $release.assets | Where-Object { $reTgz.IsMatch($_.name) } | Select-Object -First 1
+      }
+      if ($asset) {
+        if ($asset.name -match "\.tar\.gz$") {
+          Download-File -Url $asset.browser_download_url -Dest $tmpTgz
+          $gotFrom = "release-tgz"
+        } else {
+          Download-File -Url $asset.browser_download_url -Dest $tmpZip
+          $gotFrom = "release-zip"
+        }
+        $downloaded = $true
+      }
+    } catch {
+      Write-Host "Release fetch failed: $($_.Exception.Message)"
     }
-    if (-not $downloaded -and $versionedTgz) {
-      if (Try-Download $versionedTgz $tmpTgz) { $downloaded = $true; $gotFrom = "versioned-tgz" }
-    }
-    if (-not $downloaded -and $legacyTgz) {
-      if (Try-Download $legacyTgz $tmpTgz) { $downloaded = $true; $gotFrom = "legacy-tgz" }
-    }
+  }
+
+  # 3) Branch releases/ on raw.githubusercontent.com (versioned, then legacy)
+  if (-not $downloaded -and $versionedZip) {
+    Write-Host "Trying branch releases (versioned .zip) …"
+    if (Try-Download $versionedZip $tmpZip) { $downloaded = $true; $gotFrom = "versioned-zip" }
+  }
+  if (-not $downloaded -and $legacyZip) {
+    Write-Host "Trying branch releases (legacy .zip) …"
+    if (Try-Download $legacyZip $tmpZip) { $downloaded = $true; $gotFrom = "legacy-zip" }
+  }
+  if (-not $downloaded -and $versionedTgz) {
+    if (Try-Download $versionedTgz $tmpTgz) { $downloaded = $true; $gotFrom = "versioned-tgz" }
+  }
+  if (-not $downloaded -and $legacyTgz) {
+    if (Try-Download $legacyTgz $tmpTgz) { $downloaded = $true; $gotFrom = "legacy-tgz" }
   }
 
   if (-not $downloaded) {
-    Write-Host "Trying GitHub Release assets instead …"
-    $apiUrl = "https://api.github.com/repos/$GithubRepo/releases/latest"
-    $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
-    $reZip = [regex]::new("crossusage-cli_.+_windows_${archTag}\.zip$", "IgnoreCase")
-    $reTgz = [regex]::new("crossusage-cli_.+_windows_${archTag}\.tar\.gz$", "IgnoreCase")
-    $asset = $release.assets | Where-Object { $reZip.IsMatch($_.name) } | Select-Object -First 1
-    if (-not $asset) {
-      $asset = $release.assets | Where-Object { $reTgz.IsMatch($_.name) } | Select-Object -First 1
-    }
-
-    if (-not $asset) {
-      Write-Error @"
+    Write-Error @"
 No CLI bundle found for windows_${archTag}.
-Add releases/crossusage-cli_<version>_windows_${archTag}.zip on branch $InstallGitRef (see scripts/build-cli-windows.ps1), or attach that asset to the latest GitHub Release.
+Attach crossusage-cli_<version>_windows_${archTag}.zip (or .tar.gz) to the latest GitHub Release, or add it under releases/ on branch $InstallGitRef (see scripts/build-cli-windows.ps1).
 "@
-      exit 1
-    }
-
-    $ext = [System.IO.Path]::GetExtension($asset.name).ToLowerInvariant()
-    if ($asset.name -match "\.tar\.gz$") {
-      Download-File -Url $asset.browser_download_url -Dest $tmpTgz
-      $gotFrom = "release-tgz"
-    } else {
-      Download-File -Url $asset.browser_download_url -Dest $tmpZip
-      $gotFrom = "release-zip"
-    }
-    $downloaded = $true
+    exit 1
   }
 
   if ($gotFrom -like "legacy-*" -and $ver) {
-    Write-Warning "Used legacy filename; ensure releases/crossusage-cli_${ver}_windows_${archTag}.zip is committed on $InstallGitRef so installs get the matching build."
+    Write-Warning "Used legacy filename; ensure releases/crossusage-cli_${ver}_windows_${archTag}.zip is committed on $InstallGitRef or upload the asset to the latest Release."
   }
 
   $rootCli = Join-Path $env:USERPROFILE ".local\lib\crossusage"

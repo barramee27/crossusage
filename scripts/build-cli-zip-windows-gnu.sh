@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Build portable Windows CLI bundle (.zip) from Linux: crossusage-cli.exe + resources/bundled_plugins
-# (same layout as scripts/build-cli-windows.ps1 / install.ps1 INSTALL_MODE=cli).
+# Portable **CLI** only (Windows .zip) from Linux: crossusage-cli.exe + resources/bundled_plugins.
+# For the full **GUI** portable zip (crossusage.exe + crossusage-cli + resources), use:
+#   scripts/build-gui-portable-zip-windows-gnu.sh  (after tauri build --target x86_64-pc-windows-gnu)
+# Same CLI layout as scripts/build-cli-windows.ps1 / install.ps1 INSTALL_MODE=cli.
 #
 # Prerequisites (Debian/Ubuntu example):
 #   sudo apt install -y mingw-w64 zip

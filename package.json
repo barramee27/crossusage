@@ -1,7 +1,7 @@
 {
   "name": "crossusage",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,9 @@
     "release:collect": "./scripts/collect-release-artifacts.sh",
     "release:cli-tarball": "./scripts/build-cli-tarball.sh",
     "release:cli-zip-windows-gnu": "./scripts/build-cli-zip-windows-gnu.sh",
+    "release:gui-portable-linux": "./scripts/build-gui-portable-linux-tarball.sh",
+    "release:gui-portable-zip-windows-gnu": "./scripts/build-gui-portable-zip-windows-gnu.sh",
+    "release:gui-portable-macos": "./scripts/build-gui-portable-macos-tarball.sh",
     "cli": "cargo run -p crossusage-cli --",
     "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",

@@ -6,6 +6,7 @@ mod cli_width;
 mod config;
 mod cursor_token_usage;
 mod daemon;
+mod embedded_plugins;
 mod history;
 mod panic_hook;
 mod reset_display;
@@ -228,8 +229,17 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
         } = resolve_install_paths()?;
 
         let version = env!("CARGO_PKG_VERSION").to_string();
-        let (_plugin_dir, plugins) =
+        let (_plugin_dir, mut plugins) =
             plugin_engine::initialize_plugins(&app_data, resource_dir.as_deref());
+        if plugins.is_empty() {
+            if let Err(e) = embedded_plugins::materialize_into_app_data(&app_data) {
+                log::warn!("embedded plugins: could not unpack to {}: {e}", app_data.display());
+            } else {
+                let (_p2, p2) =
+                    plugin_engine::initialize_plugins(&app_data, resource_dir.as_deref());
+                plugins = p2;
+            }
+        }
         let plugins = Arc::new(plugins);
 
         let config_path = CliConfig::resolve_path(cli.config.clone());

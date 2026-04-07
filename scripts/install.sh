@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# CrossUsage — install latest release from GitHub (Linux desktop / macOS+Linux CLI / Windows redirect).
+# CrossUsage — install from GitHub (Linux desktop / macOS+Linux CLI / Windows redirect).
 # Repo: https://github.com/barramee27/crossusage
+#
+# Where downloads come from:
+#   • Linux full (deb/rpm/AppImage): latest GitHub Release only (api.github.com → browser_download_url).
+#   • INSTALL_MODE=cli (Linux/macOS tarball): latest GitHub Release asset first; only if missing, falls back to
+#     files under releases/ on the branch (raw.githubusercontent.com) — not the default path.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 #
 # Environment:
 #   GITHUB_REPO     default: barramee27/crossusage
-#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS): prefers latest GitHub Release asset, then branch releases/ on raw.githubusercontent.com (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
+#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS); Release-first, then branch releases/ fallback (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
 #   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
-#   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com CLI tarball (default: feat/linux-windows-native-support)
-#   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional)
+#   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com fallbacks (default: feat/linux-windows-native-support)
+#   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional; skips GitHub Release + branch fallbacks)
 
 set -euo pipefail
 

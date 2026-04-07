@@ -1,16 +1,20 @@
+#[cfg(target_os = "linux")]
 use std::sync::{Mutex, OnceLock};
 
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::path::BaseDirectory;
 use tauri::tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "linux")]
+use tauri::Wry;
 use tauri_plugin_store::StoreExt;
 
 #[cfg(target_os = "linux")]
 static TRAY_USAGE_SUMMARY_ITEM: OnceLock<Mutex<MenuItem<Wry>>> = OnceLock::new();
 
 /// Cap lines so the tray menu stays readable; mirrors native tooltip truncation intent.
+#[cfg(target_os = "linux")]
 const TRAY_USAGE_SUMMARY_MAX_LINES: usize = 12;
 
 /// Linux AppIndicator: native tray tooltips are unreliable. We mirror the same text in one
