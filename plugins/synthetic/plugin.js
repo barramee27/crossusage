@@ -2,7 +2,6 @@
   var API_URL = "https://api.synthetic.new/v2/quotas";
   var ONE_HOUR_MS = 60 * 60 * 1000;
 
-  var CROSSUSAGE_CONFIG_PATH = "~/.crossusage/config.json";
   var DEFAULT_PI_AGENT_DIR = "~/.pi/agent";
   var FACTORY_SETTINGS_PATH = "~/.factory/settings.json";
   var OPENCODE_AUTH_PATH = "~/.local/share/opencode/auth.json";
@@ -49,46 +48,16 @@
     }
   }
 
-  function toFiniteNumber(v) {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() !== "") {
-      var n = Number(v);
-      if (Number.isFinite(n)) return n;
-    }
-    return null;
-  }
-
-  /** API may nest the payload under `data`. */
-  function unwrapQuotasJson(raw) {
-    if (!raw || typeof raw !== "object") return raw;
-    if (raw.data && typeof raw.data === "object") {
-      return Object.assign({}, raw.data, raw);
-    }
-    return raw;
-  }
-
-  function pickRollingFiveHour(json) {
-    return json.rollingFiveHourLimit || json.rolling_five_hour_limit || null;
-  }
-
-  function pickWeeklyToken(json) {
-    return json.weeklyTokenLimit || json.weekly_token_limit || null;
-  }
-
-  function pickFreeToolCalls(json) {
-    return json.freeToolCalls || json.free_tool_calls || null;
-  }
-
   function hasUsableRollingFiveHourLimit(value) {
-    if (!value || typeof value !== "object") return false;
-    var max = toFiniteNumber(value.max);
-    var remaining = toFiniteNumber(value.remaining);
-    return max !== null && remaining !== null;
+    return (
+      value &&
+      typeof value.max === "number" &&
+      typeof value.remaining === "number"
+    );
   }
 
   function hasUsableWeeklyTokenLimit(value) {
-    if (!value || typeof value !== "object") return false;
-    return toFiniteNumber(value.percentRemaining) !== null;
+    return value && typeof value.percentRemaining === "number";
   }
 
   function normalizeApiErrorMessage(json, status) {
@@ -113,18 +82,6 @@
   }
 
   function loadApiKey(ctx) {
-    // 0. CrossUsage user config (created on first app launch)
-    var cu = tryReadJson(ctx, CROSSUSAGE_CONFIG_PATH);
-    var sk;
-    if (cu && cu.synthetic && typeof cu.synthetic === "object") {
-      sk = extractKey(cu.synthetic.apiKey);
-      if (sk) return sk;
-    }
-    if (cu && typeof cu.syntheticApiKey === "string") {
-      sk = extractKey(cu.syntheticApiKey);
-      if (sk) return sk;
-    }
-
     var piDir = resolvePiAgentDir(ctx);
 
     // 1. Pi auth.json — primary source
@@ -172,7 +129,7 @@
   function probe(ctx) {
     var apiKey = loadApiKey(ctx);
     if (!apiKey) {
-      throw "Synthetic API key not found. Put your syn_ key in ~/.crossusage/config.json under synthetic.apiKey, set SYNTHETIC_API_KEY, or configure Pi / Factory / OpenCode.";
+      throw "Synthetic API key not found. Set SYNTHETIC_API_KEY or add key to ~/.pi/agent/auth.json";
     }
 
     var resp, json;
@@ -205,29 +162,23 @@
       throw "Could not parse usage data.";
     }
 
-    json = unwrapQuotasJson(json);
-
-    var rfl = pickRollingFiveHour(json);
-    var wtl = pickWeeklyToken(json);
-
     var lines = [];
 
     // 5h Rate Limit — hero metric (immediate blocker)
-    if (hasUsableRollingFiveHourLimit(rfl)) {
-      var rflMax = toFiniteNumber(rfl.max);
-      var rflRem = toFiniteNumber(rfl.remaining);
-      var rflUsed = Math.max(0, rflMax - rflRem);
+    if (hasUsableRollingFiveHourLimit(json.rollingFiveHourLimit)) {
+      var rfl = json.rollingFiveHourLimit;
+      var rflUsed = Math.max(0, rfl.max - rfl.remaining);
       lines.push(ctx.line.progress({
         label: "5h Rate Limit",
         used: rflUsed,
-        limit: rflMax,
+        limit: rfl.max,
         format: { kind: "count", suffix: "requests" },
       }));
     }
 
     // Mana Bar — longer-term weekly budget
-    if (hasUsableWeeklyTokenLimit(wtl)) {
-      var pct = toFiniteNumber(wtl.percentRemaining);
+    if (hasUsableWeeklyTokenLimit(json.weeklyTokenLimit)) {
+      var pct = json.weeklyTokenLimit.percentRemaining;
       var manaUsed = Math.max(0, Math.round(100 - pct));
       lines.push(ctx.line.progress({
         label: "Mana Bar",
@@ -238,7 +189,10 @@
     }
 
     // Rate Limited badge — only when actively limited
-    if (rfl && rfl.limited === true) {
+    if (
+      json.rollingFiveHourLimit &&
+      json.rollingFiveHourLimit.limited === true
+    ) {
       lines.push(
         ctx.line.badge({
           label: "Rate Limited",
@@ -249,79 +203,53 @@
     }
 
     // Subscription — legacy request count, only shown if NOT on v3 rate limits
-    var onV3 = hasUsableRollingFiveHourLimit(rfl) || hasUsableWeeklyTokenLimit(wtl);
-    if (!onV3 && json.subscription) {
+    var onV3 =
+      hasUsableRollingFiveHourLimit(json.rollingFiveHourLimit) ||
+      hasUsableWeeklyTokenLimit(json.weeklyTokenLimit);
+    if (!onV3 && json.subscription && typeof json.subscription.limit === "number") {
       var sub = json.subscription;
-      var subLimit = toFiniteNumber(sub.limit);
-      if (subLimit !== null) {
-        var subReq = toFiniteNumber(sub.requests);
-        if (subReq === null) subReq = 0;
-        var subOpts = {
-          label: "Subscription",
-          used: subReq,
-          limit: subLimit,
-          format: { kind: "count", suffix: "requests" },
-        };
-        var subReset = ctx.util.toIso(sub.renewsAt);
-        if (subReset) subOpts.resetsAt = subReset;
-        lines.push(ctx.line.progress(subOpts));
-      }
+      var subOpts = {
+        label: "Subscription",
+        used: sub.requests,
+        limit: sub.limit,
+        format: { kind: "count", suffix: "requests" },
+      };
+      var subReset = ctx.util.toIso(sub.renewsAt);
+      if (subReset) subOpts.resetsAt = subReset;
+      lines.push(ctx.line.progress(subOpts));
     }
 
     // Free Tool Calls — legacy only, zeroed out on v3
-    var ftc = pickFreeToolCalls(json);
-    if (!onV3 && ftc) {
-      var ftcLimit = toFiniteNumber(ftc.limit);
-      if (ftcLimit !== null && ftcLimit > 0) {
-        var ftcReq = toFiniteNumber(ftc.requests);
-        if (ftcReq === null) ftcReq = 0;
-        var ftcOpts = {
-          label: "Free Tool Calls",
-          used: Math.round(ftcReq),
-          limit: ftcLimit,
-          format: { kind: "count", suffix: "requests" },
-        };
-        var ftcReset = ctx.util.toIso(ftc.renewsAt);
-        if (ftcReset) ftcOpts.resetsAt = ftcReset;
-        lines.push(ctx.line.progress(ftcOpts));
-      }
+    if (!onV3 && json.freeToolCalls && typeof json.freeToolCalls.limit === "number" && json.freeToolCalls.limit > 0) {
+      var ftc = json.freeToolCalls;
+      var ftcOpts = {
+        label: "Free Tool Calls",
+        used: Math.round(ftc.requests),
+        limit: ftc.limit,
+        format: { kind: "count", suffix: "requests" },
+      };
+      var ftcReset = ctx.util.toIso(ftc.renewsAt);
+      if (ftcReset) ftcOpts.resetsAt = ftcReset;
+      lines.push(ctx.line.progress(ftcOpts));
     }
 
     // Search — hourly search quota (detail)
-    if (json.search && json.search.hourly) {
+    if (
+      json.search &&
+      json.search.hourly &&
+      typeof json.search.hourly.limit === "number"
+    ) {
       var srch = json.search.hourly;
-      var srchLimit = toFiniteNumber(srch.limit);
-      if (srchLimit !== null) {
-        var srchReq = toFiniteNumber(srch.requests);
-        if (srchReq === null) srchReq = 0;
-        var srchOpts = {
-          label: "Search",
-          used: srchReq,
-          limit: srchLimit,
-          format: { kind: "count", suffix: "requests" },
-          periodDurationMs: ONE_HOUR_MS,
-        };
-        var srchReset = ctx.util.toIso(srch.renewsAt);
-        if (srchReset) srchOpts.resetsAt = srchReset;
-        lines.push(ctx.line.progress(srchOpts));
-      }
-    }
-
-    if (lines.length === 0) {
-      var keys = Object.keys(json).filter(function (k) {
-        return k !== "data";
-      });
-      ctx.host.log.warn(
-        "Synthetic /v2/quotas: no quota rows matched; top-level keys: " + keys.join(", ")
-      );
-      lines.push(
-        ctx.line.badge({
-          label: "Quotas",
-          text:
-            "API OK — no fields matched (check Synthetic API changes or open a GitHub issue)",
-          color: "#64748b",
-        })
-      );
+      var srchOpts = {
+        label: "Search",
+        used: srch.requests,
+        limit: srch.limit,
+        format: { kind: "count", suffix: "requests" },
+        periodDurationMs: ONE_HOUR_MS,
+      };
+      var srchReset = ctx.util.toIso(srch.renewsAt);
+      if (srchReset) srchOpts.resetsAt = srchReset;
+      lines.push(ctx.line.progress(srchOpts));
     }
 
     return { lines: lines };

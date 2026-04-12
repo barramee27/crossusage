@@ -4,7 +4,7 @@
 
 - **Protocol:** REST (`GET /v2/quotas`)
 - **URL:** `https://api.synthetic.new/v2/quotas`
-- **Auth:** API key from `~/.crossusage/config.json`, Pi, Factory/Droid, OpenCode, or `SYNTHETIC_API_KEY` env var
+- **Auth:** API key discovered from Pi, Factory/Droid, OpenCode, or `SYNTHETIC_API_KEY` env var
 - **Tier:** Subscription packs ($30/month base) with rolling rate limits
 
 ## Authentication
@@ -12,30 +12,6 @@
 The plugin searches multiple sources for a Synthetic API key, checking under the provider names `synthetic`, `synthetic.new`, and `syn`. The first key found wins.
 
 ### Credential Sources (checked in order)
-
-**0. CrossUsage config** — `~/.crossusage/config.json`
-
-CrossUsage creates this file on first launch. Set your API key there (no need for Pi/OpenCode if you only use CrossUsage):
-
-```json
-{
-  "proxy": {
-    "enabled": false,
-    "url": ""
-  },
-  "synthetic": {
-    "apiKey": "syn_..."
-  }
-}
-```
-
-Alternatively you may set a top-level string field:
-
-```json
-{
-  "syntheticApiKey": "syn_..."
-}
-```
 
 **1. Pi auth.json** — `~/.pi/agent/auth.json`
 
@@ -96,10 +72,6 @@ Falls back to the `SYNTHETIC_API_KEY` environment variable if no file source con
 
 The key is sent as `Authorization: Bearer <key>` to the quotas API.
 
-## Troubleshooting
-
-- **`no lines returned` in the UI** means the probe ran but built zero progress rows. CrossUsage now accepts **numeric strings**, **`data { … }` wrappers**, and **`rolling_five_hour_limit` / `weekly_token_limit`** snake_case aliases. If the API shape changes again, you should see a **“Quotas”** badge instead of a hard error; check app logs for `Synthetic /v2/quotas: no quota rows matched`.
-
 ## Data Source
 
 ### API Endpoint
@@ -147,14 +119,12 @@ Quota checks do not count against subscription limits.
 Synthetic uses two complementary rate limiting systems:
 
 **Rolling 5-hour limit** — burst rate control:
-
 - `remaining` / `max` requests in a rolling 5-hour window
 - Every ~15 minutes, 5% of `max` is restored (a "tick")
 - `limited` is `true` when `remaining` hits 0
 - `max` varies by subscription level (e.g. 400 standard, 600 founder's pack)
 
 **Weekly mana bar** — longer-term budget:
-
 - A single quota that scales by token costs and cache hits (cache hits discounted 80%)
 - Regenerates 2% every ~3.36 hours (full regen in one week)
 - `percentRemaining` (0–100) tracks how much budget remains
@@ -169,35 +139,29 @@ No plan name is returned by the API. The plugin does not set a plan label.
 
 ## Displayed Lines
 
-
-| Line            | Scope    | Condition                                                    | Description                                     |
-| --------------- | -------- | ------------------------------------------------------------ | ----------------------------------------------- |
-| 5h Rate Limit   | overview | `rollingFiveHourLimit.max` and `remaining` are numeric       | Usage in 5-hour rolling window (used / limit)   |
-| Mana Bar        | overview | `weeklyTokenLimit.percentRemaining` is numeric               | Weekly token budget as percentage used          |
-| Rate Limited    | detail   | `rollingFiveHourLimit.limited`                               | Red badge shown only when actively rate limited |
-| Subscription    | overview | `subscription` present and no usable v3 quota lines exist    | Legacy request count for billing period         |
-| Free Tool Calls | detail   | `freeToolCalls.limit > 0` and no usable v3 quota lines exist | Legacy free tool-call quota                     |
-| Search          | detail   | `search.hourly` present                                      | Hourly search request quota                     |
-
+| Line            | Scope    | Condition                                                 | Description                                   |
+|-----------------|----------|-----------------------------------------------------------|-----------------------------------------------|
+| 5h Rate Limit   | overview | `rollingFiveHourLimit.max` and `remaining` are numeric    | Usage in 5-hour rolling window (used / limit) |
+| Mana Bar        | overview | `weeklyTokenLimit.percentRemaining` is numeric            | Weekly token budget as percentage used        |
+| Rate Limited    | detail   | `rollingFiveHourLimit.limited`                            | Red badge shown only when actively rate limited |
+| Subscription    | overview | `subscription` present and no usable v3 quota lines exist | Legacy request count for billing period       |
+| Free Tool Calls | detail   | `freeToolCalls.limit > 0` and no usable v3 quota lines exist | Legacy free tool-call quota                |
+| Search          | detail   | `search.hourly` present                                   | Hourly search request quota                   |
 
 5h Rate Limit is the primary (tray icon) metric — it's the first constraint users hit during active use.
 
 Progress lines include:
-
 - 5h Rate Limit / Mana Bar: usage fields only, with no reset metadata
 - Subscription / Free Tool Calls: `resetsAt` from `renewsAt`
 - Search: `resetsAt` from `renewsAt` and `periodDurationMs = 3600000`
 
 ## Errors
 
-
-| Condition              | Message                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
+| Condition              | Message                                                                   |
+|------------------------|---------------------------------------------------------------------------|
 | No API key found       | "Synthetic API key not found. Set SYNTHETIC_API_KEY or add key to ~/.pi/agent/auth.json" |
-| 401/403                | "API key invalid or expired. Check your Synthetic API key."                              |
-| Non-2xx with detail    | Error message from API response                                                          |
-| Non-2xx without detail | "Request failed (HTTP {status})"                                                         |
-| Unparseable response   | "Could not parse usage data."                                                            |
-| Network error          | "Request failed. Check your connection."                                                 |
-
-
+| 401/403                | "API key invalid or expired. Check your Synthetic API key."               |
+| Non-2xx with detail    | Error message from API response                                           |
+| Non-2xx without detail | "Request failed (HTTP {status})"                                          |
+| Unparseable response   | "Could not parse usage data."                                             |
+| Network error          | "Request failed. Check your connection."                                  |

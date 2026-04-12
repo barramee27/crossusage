@@ -1,15 +1,14 @@
 (function () {
   var LS_SERVICE = "exa.language_server_pb.LanguageServerService"
+  var STATE_DB = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
   var CLOUD_CODE_URLS = [
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
   ]
   var FETCH_MODELS_PATH = "/v1internal:fetchAvailableModels"
-  var LOAD_CODE_ASSIST_PATH = "/v1internal:loadCodeAssist"
   var GOOGLE_OAUTH_URL = "https://oauth2.googleapis.com/token"
   var GOOGLE_CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
   var GOOGLE_CLIENT_SECRET = "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"
-  var PLAN_CACHE_MAX_AGE_MS = 30 * 60 * 1000
   var CC_MODEL_BLACKLIST = {
     "MODEL_CHAT_20706": true,
     "MODEL_CHAT_23310": true,
@@ -64,41 +63,17 @@
 
   // --- SQLite credential reading ---
 
-  function getAntigravityDbPath(ctx) {
-    var home = ctx.host.fs.homeDir
-    if (!home && ctx.app && ctx.app.appDataDir) {
-      var m = String(ctx.app.appDataDir).match(/^(.+)\/\.local\/share\/[^/]+$/)
-      if (m) home = m[1]
-    }
-    var macPath = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
-    var linuxPath = "~/.config/Antigravity/User/globalStorage/state.vscdb"
-    var winPath = "~/AppData/Roaming/Antigravity/User/globalStorage/state.vscdb"
-    if (ctx.host.fs.exists(macPath)) return macPath
-    if (ctx.host.fs.exists(linuxPath)) return linuxPath
-    if (ctx.host.fs.exists(winPath)) return winPath
-    if (home) { 
-      var linuxAbs = home + "/.config/Antigravity/User/globalStorage/state.vscdb"
-      var macAbs = home + "/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
-      var winAbs = home + "/AppData/Roaming/Antigravity/User/globalStorage/state.vscdb"
-      if (ctx.host.fs.exists(linuxAbs)) return linuxAbs
-      if (ctx.host.fs.exists(macAbs)) return macAbs
-      if (ctx.host.fs.exists(winAbs)) return winAbs
-    }
-    return macPath
-  }
-
-  function loadAuthStatus(ctx) {
+  function loadApiKey(ctx) {
     try {
-      var dbPath = getAntigravityDbPath(ctx)
       var rows = ctx.host.sqlite.query(
-        dbPath,
+        STATE_DB,
         "SELECT value FROM ItemTable WHERE key = 'antigravityAuthStatus' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)
       if (!parsed || !parsed.length || !parsed[0].value) return null
       var auth = ctx.util.tryParseJson(parsed[0].value)
-      if (!auth || typeof auth !== "object") return null
-      return auth
+      if (!auth || !auth.apiKey) return null
+      return auth.apiKey
     } catch (e) {
       ctx.host.log.warn("failed to read auth from antigravity DB: " + String(e))
       return null
@@ -107,9 +82,8 @@
 
   function loadProtoTokens(ctx) {
     try {
-      var dbPath = getAntigravityDbPath(ctx)
       var rows = ctx.host.sqlite.query(
-        dbPath,
+        STATE_DB,
         "SELECT value FROM ItemTable WHERE key = 'jetskiStateSync.agentManagerInitState' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)
@@ -199,72 +173,11 @@
     }
   }
 
-  function normalizeAccountId(value) {
-    if (typeof value !== "string") return null
-    var normalized = value.trim().toLowerCase()
-    return normalized || null
-  }
-
-  function loadCachedPlan(ctx, accountId) {
-    if (!accountId) return null
-    var path = ctx.app.pluginDataDir + "/plan.json"
-    try {
-      if (!ctx.host.fs.exists(path)) return null
-      var data = ctx.util.tryParseJson(ctx.host.fs.readText(path))
-      if (!data || typeof data.plan !== "string" || !data.plan || !data.updatedAtMs) return null
-      var updatedAtMs = Number(data.updatedAtMs)
-      if (!Number.isFinite(updatedAtMs)) return null
-      if (updatedAtMs > Date.now()) return null
-      if (Date.now() - updatedAtMs > PLAN_CACHE_MAX_AGE_MS) return null
-      if (normalizeAccountId(data.accountId) !== accountId) return null
-      return data.plan
-    } catch (e) {
-      ctx.host.log.warn("failed to read cached plan: " + String(e))
-      return null
-    }
-  }
-
-  function cachePlan(ctx, plan, accountId) {
-    if (typeof plan !== "string" || !plan || !accountId) return
-    var path = ctx.app.pluginDataDir + "/plan.json"
-    try {
-      ctx.host.fs.writeText(path, JSON.stringify({
-        plan: plan,
-        accountId: accountId,
-        updatedAtMs: Date.now(),
-      }))
-    } catch (e) {
-      ctx.host.log.warn("failed to cache plan: " + String(e))
-    }
-  }
-
-  function pushUniqueToken(tokens, token) {
-    if (typeof token !== "string" || !token) return
-    for (var i = 0; i < tokens.length; i++) {
-      if (tokens[i] === token) return
-    }
-    tokens.push(token)
-  }
-
-  function collectTokens(ctx, apiKey, proto) {
-    var tokens = []
-    if (proto && proto.accessToken) {
-      if (!proto.expirySeconds || proto.expirySeconds > Math.floor(Date.now() / 1000)) {
-        pushUniqueToken(tokens, proto.accessToken)
-      }
-    }
-
-    pushUniqueToken(tokens, loadCachedToken(ctx))
-    pushUniqueToken(tokens, apiKey)
-    return tokens
-  }
-
   // --- LS discovery ---
 
   function discoverLs(ctx) {
-    // "language_server" matches both language_server_macos and language_server_linux
     return ctx.host.ls.discover({
-      processName: "language_server",
+      processName: "language_server_macos",
       markers: ["antigravity"],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",
@@ -338,26 +251,21 @@
     return label.replace(/\s*\([^)]*\)\s*$/, "").trim()
   }
 
-  /** Gemini Pro / Flash stay pooled; every other model gets its own line (Claude Sonnet 4.6, GPT-OSS 120B, …). */
-  function modelKeyAndDisplay(normalizedLabel) {
+  function poolLabel(normalizedLabel) {
     var lower = normalizedLabel.toLowerCase()
-    if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) {
-      return { key: "pool:gemini_pro", display: "Gemini Pro" }
-    }
-    if (lower.indexOf("gemini") !== -1 && lower.indexOf("flash") !== -1) {
-      return { key: "pool:gemini_flash", display: "Gemini Flash" }
-    }
-    return { key: "model:" + normalizedLabel, display: normalizedLabel }
+    if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) return "Gemini Pro"
+    if (lower.indexOf("gemini") !== -1 && lower.indexOf("flash") !== -1) return "Gemini Flash"
+    // All non-Gemini models (Claude, GPT-OSS, etc.) share a single quota pool
+    return "Claude"
   }
 
   function modelSortKey(label) {
     var lower = label.toLowerCase()
-    // Gemini Pro variants first, then other Gemini, then Claude Opus, then other Claude, then GPT-OSS, then rest
+    // Gemini Pro variants first, then other Gemini, then Claude Opus, then other Claude, then rest
     if (lower.indexOf("gemini") !== -1 && lower.indexOf("pro") !== -1) return "0a_" + label
     if (lower.indexOf("gemini") !== -1) return "0b_" + label
     if (lower.indexOf("claude") !== -1 && lower.indexOf("opus") !== -1) return "1a_" + label
     if (lower.indexOf("claude") !== -1) return "1b_" + label
-    if (lower.indexOf("gpt") !== -1 || lower.indexOf("oss") !== -1) return "1c_" + label
     return "2_" + label
   }
 
@@ -385,12 +293,10 @@
       var qi = c.quotaInfo
       var frac = (qi && typeof qi.remainingFraction === "number") ? qi.remainingFraction : 0
       var rtime = (qi && qi.resetTime) || undefined
-      var norm = normalizeLabel(label)
-      var kd = modelKeyAndDisplay(norm)
-      var key = kd.key
-      if (!deduped[key] || frac < deduped[key].remainingFraction) {
-        deduped[key] = {
-          label: kd.display,
+      var pool = poolLabel(normalizeLabel(label))
+      if (!deduped[pool] || frac < deduped[pool].remainingFraction) {
+        deduped[pool] = {
+          label: pool,
           remainingFraction: frac,
           resetTime: rtime,
         }
@@ -414,55 +320,6 @@
       lines.push(modelLine(ctx, models[i].label, models[i].remainingFraction, models[i].resetTime))
     }
     return lines
-  }
-
-  function readFirstStringDeep(value, keys) {
-    if (!value || typeof value !== "object") return null
-
-    for (var i = 0; i < keys.length; i++) {
-      var direct = value[keys[i]]
-      if (typeof direct === "string" && direct.trim()) return direct.trim()
-    }
-
-    var nested = Object.values(value)
-    for (var j = 0; j < nested.length; j++) {
-      var found = readFirstStringDeep(nested[j], keys)
-      if (found) return found
-    }
-    return null
-  }
-
-  function mapTierToPlan(value) {
-    if (!value) return null
-    var normalized = String(value).trim().toLowerCase()
-    if (!normalized) return null
-    if (normalized.indexOf("ultra") !== -1) return "Ultra"
-    if (normalized.indexOf("pro") !== -1) return "Pro"
-    if (normalized.indexOf("free") !== -1) return "Free"
-    if (normalized === "standard-tier") return "Paid"
-    if (normalized === "legacy-tier") return "Legacy"
-    if (normalized.indexOf("workspace") !== -1) return "Workspace"
-    return null
-  }
-
-  function planRank(value) {
-    var normalized = String(mapTierToPlan(value) || "").trim().toLowerCase()
-    if (normalized === "ultra") return 3
-    if (normalized === "pro") return 2
-    if (normalized === "free") return 1
-    return 0
-  }
-
-  function extractTierValue(data) {
-    if (!data || typeof data !== "object") return null
-    var paidTier = data.paidTier && typeof data.paidTier === "object" ? data.paidTier : null
-    var currentTier = data.currentTier && typeof data.currentTier === "object" ? data.currentTier : null
-
-    return (
-      readFirstStringDeep(paidTier, ["id", "name", "slug", "quotaTier"]) ||
-      readFirstStringDeep(currentTier, ["id", "name", "slug", "quotaTier"]) ||
-      readFirstStringDeep(data, ["tier", "userTier", "subscriptionTier"])
-    )
   }
 
   // --- Cloud Code API ---
@@ -492,55 +349,6 @@
     return null
   }
 
-  function fetchCloudCodePlan(ctx, token) {
-    for (var i = 0; i < CLOUD_CODE_URLS.length; i++) {
-      try {
-        var resp = ctx.host.http.request({
-          method: "POST",
-          url: CLOUD_CODE_URLS[i] + LOAD_CODE_ASSIST_PATH,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-            "User-Agent": "antigravity",
-          },
-          bodyText: JSON.stringify({ metadata: { ideType: "ANTIGRAVITY" } }),
-          timeoutMs: 15000,
-        })
-        if (ctx.util.isAuthStatus(resp.status)) return { _authFailed: true }
-        if (resp.status >= 200 && resp.status < 300) {
-          var data = ctx.util.tryParseJson(resp.bodyText)
-          return { plan: mapTierToPlan(extractTierValue(data)) }
-        }
-      } catch (e) {
-        ctx.host.log.warn("Cloud Code plan request failed (" + CLOUD_CODE_URLS[i] + "): " + String(e))
-      }
-    }
-    return null
-  }
-
-  function resolveCloudCodePlan(ctx, tokens, refreshTokenValue, allowRefresh, accountId) {
-    for (var i = 0; i < tokens.length; i++) {
-      var result = fetchCloudCodePlan(ctx, tokens[i])
-      if (result && !result._authFailed && result.plan) {
-        cachePlan(ctx, result.plan, accountId)
-        return result.plan
-      }
-    }
-
-    if (allowRefresh !== false && refreshTokenValue) {
-      var refreshed = refreshAccessToken(ctx, refreshTokenValue)
-      if (refreshed) {
-        var refreshedResult = fetchCloudCodePlan(ctx, refreshed)
-        if (refreshedResult && !refreshedResult._authFailed && refreshedResult.plan) {
-          cachePlan(ctx, refreshedResult.plan, accountId)
-          return refreshedResult.plan
-        }
-      }
-    }
-
-    return null
-  }
-
   function parseCloudCodeModels(data) {
     var modelsObj = data && data.models
     if (!modelsObj || typeof modelsObj !== "object") return []
@@ -567,7 +375,7 @@
 
   // --- LS probe ---
 
-  function probeLs(ctx, apiKey, accountId, tokens, refreshTokenValue) {
+  function probeLs(ctx, apiKey) {
     var discovery = discoverLs(ctx)
     if (!discovery) return null
 
@@ -620,15 +428,20 @@
 
     var plan = null
     if (hasUserStatus) {
-      var ps = data.userStatus.planStatus || {}
-      var pi = ps.planInfo || {}
-      plan = pi.planName || null
-      var cachedOverridePlan = loadCachedPlan(ctx, accountId)
-      if (planRank(cachedOverridePlan) > planRank(plan)) {
-        plan = cachedOverridePlan
+      // Prefer userTier.name (Google's own subscription system) over the legacy
+      // planInfo.planName field inherited from Windsurf/Codeium, which always
+      // returns "Pro" for all paid tiers including Google AI Ultra.
+      var ut = data.userStatus.userTier
+      var userTierName =
+        ut && typeof ut.name === "string" && ut.name.trim() ? ut.name.trim() : null
+      if (userTierName) {
+        plan = userTierName
+      } else {
+        var ps = data.userStatus.planStatus || {}
+        var pi = ps.planInfo || {}
+        plan =
+          typeof pi.planName === "string" && pi.planName.trim() ? pi.planName.trim() : null
       }
-    } else {
-      plan = resolveCloudCodePlan(ctx, tokens || [], refreshTokenValue, true, accountId)
     }
 
     return { plan: plan, lines: lines }
@@ -637,50 +450,42 @@
   // --- Probe ---
 
   function probe(ctx) {
-    var auth = loadAuthStatus(ctx)
-    var apiKey = auth && typeof auth.apiKey === "string" ? auth.apiKey : null
-    var accountId = normalizeAccountId(auth && auth.email)
+    var apiKey = loadApiKey(ctx)
     var proto = loadProtoTokens(ctx)
-    var tokens = collectTokens(ctx, apiKey, proto)
 
-    var lsResult = probeLs(ctx, apiKey, accountId, tokens, proto && proto.refreshToken)
+    var lsResult = probeLs(ctx, apiKey)
     if (lsResult) return lsResult
+
+    var tokens = []
+    if (proto && proto.accessToken) {
+      if (!proto.expirySeconds || proto.expirySeconds > Math.floor(Date.now() / 1000)) {
+        tokens.push(proto.accessToken)
+      }
+    }
+
+    var cached = loadCachedToken(ctx)
+    if (cached && cached !== (proto && proto.accessToken)) tokens.push(cached)
+
+    if (apiKey && apiKey !== (proto && proto.accessToken) && apiKey !== cached) tokens.push(apiKey)
 
     if (tokens.length === 0) throw "Start Antigravity and try again."
 
     var ccData = null
-    var cloudPlan = null
-    var winningToken = null
     for (var i = 0; i < tokens.length; i++) {
       ccData = probeCloudCode(ctx, tokens[i])
-      if (ccData && !ccData._authFailed) {
-        winningToken = tokens[i]
-        break
-      }
+      if (ccData && !ccData._authFailed) break
       ccData = null
     }
 
     if (!ccData && proto && proto.refreshToken) {
       var refreshed = refreshAccessToken(ctx, proto.refreshToken)
-      if (refreshed) {
-        ccData = probeCloudCode(ctx, refreshed)
-        if (ccData && !ccData._authFailed) winningToken = refreshed
-      }
+      if (refreshed) ccData = probeCloudCode(ctx, refreshed)
     }
 
     if (ccData && !ccData._authFailed) {
       var configs = parseCloudCodeModels(ccData)
       var lines = buildModelLines(ctx, configs)
-      if (lines.length > 0) {
-        cloudPlan = resolveCloudCodePlan(
-          ctx,
-          winningToken ? [winningToken] : tokens,
-          proto && proto.refreshToken,
-          true,
-          accountId
-        )
-        return { plan: cloudPlan, lines: lines }
-      }
+      if (lines.length > 0) return { plan: null, lines: lines }
     }
 
     throw "Start Antigravity and try again."

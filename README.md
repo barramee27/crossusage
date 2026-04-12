@@ -152,14 +152,14 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - **Global shortcut.** Toggle the panel from anywhere with a customizable keyboard shortcut.
 - **Lightweight.** Opens instantly, stays out of your way.
 - **Plugin-based.** New providers get added without updating the whole app.
-- **[Local HTTP API](docs/local-http-api.md).** Other apps can read cached usage data from `127.0.0.1:6736` while CrossUsage is running.
-- **[HTTP/SOCKS proxy](docs/proxy.md).** Optional proxy in `~/.crossusage/config.json` (auto-created on first launch; legacy `~/.openusage/config.json` still honored for proxy).
+- **[Local HTTP API](docs/local-http-api.md).** Other apps can read your usage data from `127.0.0.1:6736` while CrossUsage is running.
+- **[HTTP/SOCKS proxy](docs/proxy.md).** Optional proxy in `~/.crossusage/config.json` (auto-created on first launch; legacy `~/.openusage/config.json` still honored). Route provider HTTP requests through SOCKS5 or HTTP when enabled.
 
 ## Supported Providers
 
 - [**Amp**](docs/providers/amp.md) / free tier, bonus, credits
 - [**Antigravity**](docs/providers/antigravity.md) / all models
-- [**Claude**](docs/providers/claude.md) / session, weekly, extra usage, local token usage (ccusage)
+- [**Claude**](docs/providers/claude.md) / session, weekly, peak/off-peak, extra usage, local token usage (ccusage)
 - [**Codex**](docs/providers/codex.md) / session, weekly, reviews, credits
 - [**Copilot**](docs/providers/copilot.md) / premium, chat, completions
 - [**Cursor**](docs/providers/cursor.md) / credits, total usage, auto usage, API usage, on-demand, CLI auth (the **Requests** tray line appears only for some Enterprise/Team accounts when the API returns request-based usage; Pro accounts typically use the other metrics)

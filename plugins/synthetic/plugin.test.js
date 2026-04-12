@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeCtx } from "../test-helpers.js";
 
-const CU_CONFIG = "~/.crossusage/config.json";
 const PI_AUTH = "~/.pi/agent/auth.json";
 const PI_MODELS = "~/.pi/agent/models.json";
 const FACTORY_SETTINGS = "~/.factory/settings.json";
@@ -12,16 +11,6 @@ const loadPlugin = async () => {
   await import("./plugin.js");
   return globalThis.__openusage_plugin;
 };
-
-function setCrossusageConfig(ctx, apiKey) {
-  ctx.host.fs.writeText(
-    CU_CONFIG,
-    JSON.stringify({
-      proxy: { enabled: false, url: "" },
-      synthetic: { apiKey: apiKey },
-    })
-  );
-}
 
 function setPiAuth(ctx, key, providerName) {
   var obj = {};
@@ -132,40 +121,6 @@ describe("synthetic plugin", () => {
       expect(() => plugin.probe(makeCtx())).toThrow(
         "Synthetic API key not found"
       );
-    });
-
-    // --- CrossUsage config.json (source 0) ---
-
-    it("reads key from ~/.crossusage/config.json synthetic.apiKey", () => {
-      var ctx = makeCtx();
-      setCrossusageConfig(ctx, "syn_crossusage");
-      mockHttp(ctx);
-      plugin.probe(ctx);
-      expect(ctx.host.http.request).toHaveBeenCalled();
-      var call = ctx.host.http.request.mock.calls[0][0];
-      expect(call.headers.Authorization).toBe("Bearer syn_crossusage");
-    });
-
-    it("reads key from syntheticApiKey at config root", () => {
-      var ctx = makeCtx();
-      ctx.host.fs.writeText(
-        CU_CONFIG,
-        JSON.stringify({ syntheticApiKey: "syn_root" })
-      );
-      mockHttp(ctx);
-      plugin.probe(ctx);
-      var call = ctx.host.http.request.mock.calls[0][0];
-      expect(call.headers.Authorization).toBe("Bearer syn_root");
-    });
-
-    it("prefers CrossUsage config over Pi auth.json", () => {
-      var ctx = makeCtx();
-      setCrossusageConfig(ctx, "syn_cu");
-      setPiAuth(ctx, "syn_pi");
-      mockHttp(ctx);
-      plugin.probe(ctx);
-      var call = ctx.host.http.request.mock.calls[0][0];
-      expect(call.headers.Authorization).toBe("Bearer syn_cu");
     });
 
     // --- Pi auth.json (source 1) ---
@@ -795,68 +750,6 @@ describe("synthetic plugin", () => {
       var result = plugin.probe(ctx);
       var line = result.lines.find((l) => l.label === "Search");
       expect(line).toBeUndefined();
-    });
-  });
-
-  describe("API shape tolerance", () => {
-    it("coerces string numbers for v3 blocks and search", () => {
-      var ctx = makeCtx();
-      setPiAuth(ctx, "syn_testkey");
-      mockHttp(ctx, {
-        rollingFiveHourLimit: {
-          max: "600",
-          remaining: "450",
-          limited: false,
-        },
-        weeklyTokenLimit: { percentRemaining: "75" },
-        search: {
-          hourly: {
-            limit: "250",
-            requests: "15",
-            renewsAt: "2026-03-30T16:18:54.145Z",
-          },
-        },
-      });
-      var result = plugin.probe(ctx);
-      expect(result.lines.find((l) => l.label === "5h Rate Limit")).toBeTruthy();
-      expect(result.lines.find((l) => l.label === "Mana Bar")).toBeTruthy();
-      expect(result.lines.find((l) => l.label === "Search")).toBeTruthy();
-    });
-
-    it("reads snake_case rolling_five_hour_limit and weekly_token_limit", () => {
-      var ctx = makeCtx();
-      setPiAuth(ctx, "syn_testkey");
-      mockHttp(ctx, {
-        rolling_five_hour_limit: { max: 10, remaining: 3, limited: false },
-        weekly_token_limit: { percentRemaining: 50 },
-      });
-      var result = plugin.probe(ctx);
-      expect(result.lines.find((l) => l.label === "5h Rate Limit")).toBeTruthy();
-      expect(result.lines.find((l) => l.label === "Mana Bar")).toBeTruthy();
-    });
-
-    it("unwraps nested data object", () => {
-      var ctx = makeCtx();
-      setPiAuth(ctx, "syn_testkey");
-      mockHttp(ctx, {
-        data: {
-          rollingFiveHourLimit: { max: 100, remaining: 40, limited: false },
-          weeklyTokenLimit: { percentRemaining: 60 },
-        },
-      });
-      var result = plugin.probe(ctx);
-      expect(result.lines.find((l) => l.label === "5h Rate Limit")).toBeTruthy();
-      expect(result.lines.find((l) => l.label === "Mana Bar")).toBeTruthy();
-    });
-
-    it("returns fallback badge when payload has no matching quota fields", () => {
-      var ctx = makeCtx();
-      setPiAuth(ctx, "syn_testkey");
-      mockHttp(ctx, { foo: 1, bar: "x" });
-      var result = plugin.probe(ctx);
-      expect(result.lines.length).toBe(1);
-      expect(result.lines[0].type).toBe("badge");
-      expect(result.lines[0].label).toBe("Quotas");
     });
   });
 

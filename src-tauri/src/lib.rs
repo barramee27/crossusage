@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 mod app_nap;
+mod config;
 #[cfg(target_os = "macos")]
 mod panel;
 #[cfg(target_os = "linux")]
@@ -666,6 +667,9 @@ pub fn run() {
 
             ensure_crossusage_user_config_file();
 
+            // Load config early (lazy init via OnceLock, zero-cost after)
+            let _proxy = config::get_resolved_proxy();
+
             track_daily_active_if_needed(app.handle());
             // Send startup event immediately; otherwise Aptabase only flushes on an interval and the
             // dashboard can sit on “Waiting for the first event…” for up to a minute in release builds.
@@ -675,7 +679,17 @@ pub fn run() {
 
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
             let resource_dir = app.path().resource_dir().expect("no resource dir");
-            log::debug!("app_data_dir: {:?}", app_data_dir);
+            let app_data_dir_tail = app_data_dir
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("unknown");
+            let redacted_app_data_dir =
+                plugin_engine::host_api::redact_log_message(&app_data_dir.display().to_string());
+            log::debug!(
+                "app_data_dir: tail={}, path={}",
+                app_data_dir_tail,
+                redacted_app_data_dir
+            );
 
             let (_, plugins) =
                 plugin_engine::initialize_plugins(&app_data_dir, Some(resource_dir.as_path()));
@@ -686,7 +700,7 @@ pub fn run() {
 
             app.manage(Mutex::new(AppState {
                 plugins,
-                app_data_dir,
+                app_data_dir: app_data_dir.clone(),
                 app_version: app.package_info().version.to_string(),
             }));
 

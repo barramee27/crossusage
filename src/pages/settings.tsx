@@ -16,9 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { GlobalShortcutSection } from "@/components/global-shortcut-section";
 import { getBarFillLayout, getTrayIconSizePx } from "@/lib/tray-bars-icon";
@@ -28,14 +26,12 @@ import {
   MENUBAR_ICON_STYLE_OPTIONS,
   RESET_TIMER_DISPLAY_OPTIONS,
   THEME_OPTIONS,
-  UI_SCALE_OPTIONS,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
-  type UIScale,
 } from "@/lib/settings";
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon";
 import { cn } from "@/lib/utils";
@@ -44,8 +40,6 @@ interface PluginConfig {
   id: string;
   name: string;
   enabled: boolean;
-  primaryCandidates: string[];
-  trayLines: string[];
 }
 
 const TRAY_PREVIEW_SIZE_PX = getTrayIconSizePx(1);
@@ -129,7 +123,7 @@ function MenubarIconStylePreview({
     const remainderClass = isActive ? "bg-primary-foreground/20" : "bg-foreground/15";
     const fillClass = isActive ? "bg-primary-foreground" : "bg-foreground";
     const fractions = traySettingsPreview.bars.length > 0
-      ? traySettingsPreview.bars.map((b) => b.items?.[0]?.fraction ?? 0)
+      ? traySettingsPreview.bars.map((b) => b.fraction ?? 0)
       : [0.83, 0.7, 0.56];
 
     return (
@@ -166,7 +160,7 @@ function MenubarIconStylePreview({
   }
 
   if (style === "donut") {
-    const fraction = traySettingsPreview.providerBars[0]?.items?.[0]?.fraction ?? 0;
+    const fraction = traySettingsPreview.providerBars[0]?.fraction ?? 0;
     const clamped = Math.max(0, Math.min(1, fraction));
     return (
       <div className="inline-flex items-center gap-1">
@@ -202,11 +196,9 @@ function MenubarIconStylePreview({
 function SortablePluginItem({
   plugin,
   onToggle,
-  trayLinesContent,
 }: {
   plugin: PluginConfig;
   onToggle: (id: string) => void;
-  trayLinesContent?: ReactNode;
 }) {
   const {
     attributes,
@@ -226,37 +218,36 @@ function SortablePluginItem({
     <div
       ref={setNodeRef}
       style={style}
+      onClick={() => onToggle(plugin.id)}
       className={cn(
-        "flex flex-col gap-1",
-        isDragging && "opacity-50"
+        "flex items-center gap-3 px-3 py-2 rounded-md bg-card cursor-pointer",
+        "border border-transparent",
+        isDragging && "opacity-50 border-border"
       )}
     >
-      <div className={cn("flex items-center gap-3 px-3 py-2 rounded-md bg-card border border-transparent", isDragging && "border-border")}>
-        <button
-          type="button"
-          className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+      <button
+        type="button"
+        onClick={(e) => e.stopPropagation()}
+        className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
 
-        <span
-          className={cn(
-            "flex-1 text-sm",
-            !plugin.enabled && "text-muted-foreground"
-          )}
-        >
-          {plugin.name}
-        </span>
+      <span
+        className={cn(
+          "flex-1 text-sm",
+          !plugin.enabled && "text-muted-foreground"
+        )}
+      >
+        {plugin.name}
+      </span>
 
-        <Checkbox
-          key={`${plugin.id}-${plugin.enabled}`}
-          checked={plugin.enabled}
-          onCheckedChange={() => onToggle(plugin.id)}
-        />
-      </div>
-      {trayLinesContent}
+      <Checkbox
+        key={`${plugin.id}-${plugin.enabled}`}
+        checked={plugin.enabled}
+      />
     </div>
   );
 }
@@ -265,7 +256,6 @@ interface SettingsPageProps {
   plugins: PluginConfig[];
   onReorder: (orderedIds: string[]) => void;
   onToggle: (id: string) => void;
-  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void;
   autoUpdateInterval: AutoUpdateIntervalMinutes;
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void;
   themeMode: ThemeMode;
@@ -281,22 +271,12 @@ interface SettingsPageProps {
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
   startOnLogin: boolean;
   onStartOnLoginChange: (value: boolean) => void;
-
-  uiScale: UIScale;
-  onUIScaleChange: (value: UIScale) => void;
-
-  showTrayIcon: boolean;
-  onShowTrayIconChange: (value: boolean) => void;
-
-  /** From Cursor probe: false = no Requests line in API (e.g. Pro); null = loading/unknown; true = Enterprise/Team-style */
-  cursorRequestsLineAvailable: boolean | null;
 }
 
 export function SettingsPage({
   plugins,
   onReorder,
   onToggle,
-  onTrayLineToggle,
   autoUpdateInterval,
   onAutoUpdateIntervalChange,
   themeMode,
@@ -312,20 +292,9 @@ export function SettingsPage({
   onGlobalShortcutChange,
   startOnLogin,
   onStartOnLoginChange,
-
-  uiScale,
-  onUIScaleChange,
-
-  showTrayIcon,
-  onShowTrayIconChange,
-
-  cursorRequestsLineAvailable,
-
 }: SettingsPageProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
+    useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -503,23 +472,9 @@ export function SettingsPage({
         onGlobalShortcutChange={onGlobalShortcutChange}
       />
       <section>
-        <h3 className="text-lg font-semibold mb-0">System Tray</h3>
-        <p className="text-sm text-muted-foreground mb-2">
-          Visibility of the menu bar provider icon
-        </p>
-        <label className="flex items-center gap-2 text-sm select-none text-foreground">
-          <Checkbox
-            key={`show-tray-icon-${showTrayIcon}`}
-            checked={showTrayIcon}
-            onCheckedChange={(checked) => onShowTrayIconChange(checked === true)}
-          />
-          Show tray icon
-        </label>
-      </section>
-      <section>
         <h3 className="text-lg font-semibold mb-0">Start on Login</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          CrossUsage starts when you sign in
+          OpenUsage starts when you sign in
         </p>
         <label className="flex items-center gap-2 text-sm select-none text-foreground">
           <Checkbox
@@ -529,33 +484,6 @@ export function SettingsPage({
           />
           Start on login
         </label>
-      </section>
-      <section>
-        <h3 className="text-lg font-semibold mb-0">UI Scale</h3>
-        <p className="text-sm text-muted-foreground mb-2">
-          Adjust text size and spacing
-        </p>
-        <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="UI scale">
-            {UI_SCALE_OPTIONS.map((option) => {
-              const isActive = option.value === uiScale;
-              return (
-                <Button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => onUIScaleChange(option.value)}
-                >
-                  {option.label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
       </section>
       <section>
         <h3 className="text-lg font-semibold mb-0">Plugins</h3>
@@ -577,62 +505,6 @@ export function SettingsPage({
                   key={plugin.id}
                   plugin={plugin}
                   onToggle={onToggle}
-                  trayLinesContent={
-                    plugin.enabled && plugin.primaryCandidates.length > 0 ? (
-                      <div className="bg-card/50 rounded-b-md border-t border-transparent text-sm">
-                        <div className="grid grid-cols-2 gap-y-2 gap-x-4 px-3 py-2">
-                          {plugin.primaryCandidates.map((candidateLabel) => {
-                            const isSelected = plugin.trayLines.includes(candidateLabel);
-                            const requestsLocked =
-                              plugin.id === "cursor" &&
-                              candidateLabel === "Requests" &&
-                              cursorRequestsLineAvailable === false;
-                            const checked = requestsLocked ? false : isSelected;
-                            const row = (
-                              <label
-                                className={`flex items-center gap-1.5 select-none truncate ${requestsLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-                              >
-                                <Checkbox
-                                  className="h-3.5 w-3.5 shrink-0"
-                                  disabled={requestsLocked}
-                                  checked={checked}
-                                  onCheckedChange={(next) => {
-                                    if (requestsLocked) return;
-                                    onTrayLineToggle(plugin.id, candidateLabel, next === true);
-                                  }}
-                                />
-                                <span className="truncate">{candidateLabel}</span>
-                              </label>
-                            );
-                            if (requestsLocked) {
-                              return (
-                                <Tooltip key={candidateLabel}>
-                                  <TooltipTrigger
-                                    render={(props) => (
-                                      <span {...props} className={`block min-w-0 ${props.className ?? ""}`}>
-                                        {row}
-                                      </span>
-                                    )}
-                                  />
-                                  <TooltipContent side="top" className="text-xs max-w-[260px]">
-                                    Requests only applies to Enterprise/Team request-based accounts when the API returns usage. Pro and similar plans don&apos;t expose this line.
-                                  </TooltipContent>
-                                </Tooltip>
-                              );
-                            }
-                            return <Fragment key={candidateLabel}>{row}</Fragment>;
-                          })}
-                        </div>
-                        {plugin.id === "cursor" && (
-                          <p className="px-3 pb-2 text-[11px] text-muted-foreground leading-snug border-t border-transparent">
-                            {cursorRequestsLineAvailable === false
-                              ? "Requests is unavailable for your current plan — it stays off until the API returns request-based usage (Enterprise/Team)."
-                              : "\"Requests\" appears only when your account returns request-based usage (Enterprise/Team)."}
-                          </p>
-                        )}
-                      </div>
-                    ) : undefined
-                  }
                 />
               ))}
             </SortableContext>

@@ -71,9 +71,13 @@ export function AppShell({
   const { updateStatus, triggerInstall, checkForUpdates } = useAppUpdate()
 
   return (
-    <div ref={containerRef} className="w-full bg-transparent">
-      {/* SVG filter definitions for the liquid-distort effect; rendered off-screen */}
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      className="flex w-full flex-col items-center bg-transparent p-6 pt-1.5 outline-none"
+    >
       <LiquidGlassFilter active={themeMode === "glass"} />
+      <div className="tray-arrow" />
       <div
         className="app-panel-surface relative rounded-[22px] overflow-hidden select-none w-full flex flex-col"
         style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx}px` } : undefined}

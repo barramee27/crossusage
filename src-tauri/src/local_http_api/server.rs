@@ -67,6 +67,7 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn route(method: &str, path: &str) -> String {
+    // Match routes
     if path == "/v1/usage" {
         return match method {
             "GET" => handle_get_usage_collection(),
@@ -100,6 +101,7 @@ fn handle_get_usage_collection() -> String {
 fn handle_get_usage_single(provider_id: &str) -> String {
     let state = cache_state().lock().expect("cache state poisoned");
 
+    // Check if provider is known at all
     let is_known = state.known_plugin_ids.iter().any(|id| id == provider_id);
     if !is_known {
         return response_not_found("provider_not_found");

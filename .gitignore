@@ -43,6 +43,7 @@ tmpcov-gem
 # Agent working files
 docs/choices.md
 docs/breadcrumbs.md
+docs/superpowers/
 docs/specs/*
 plans/*
 package-lock.json

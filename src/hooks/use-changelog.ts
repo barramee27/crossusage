@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react"
-import { FORK_GITHUB_REPO } from "@/lib/fork-meta"
 
 export interface Release {
   id: number
@@ -11,25 +10,9 @@ export interface Release {
 }
 
 async function fetchReleaseByTag(tag: string): Promise<Release | null> {
-  const url = `https://api.github.com/repos/${FORK_GITHUB_REPO}/releases/tags/${encodeURIComponent(
+  const url = `https://api.github.com/repos/robinebers/openusage/releases/tags/${encodeURIComponent(
     tag,
   )}`
-  const res = await fetch(url)
-
-  if (res.status === 404) {
-    return null
-  }
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch releases")
-  }
-
-  const data = (await res.json()) as Release
-  return data
-}
-
-async function fetchLatestRelease(): Promise<Release | null> {
-  const url = `https://api.github.com/repos/${FORK_GITHUB_REPO}/releases/latest`
   const res = await fetch(url)
 
   if (res.status === 404) {
@@ -67,10 +50,6 @@ export function useChangelog(currentVersion: string) {
           release =
             (await fetchReleaseByTag(`v${currentVersion}`) ??
             (await fetchReleaseByTag(currentVersion)))
-        }
-
-        if (!release) {
-          release = await fetchLatestRelease()
         }
 
         if (mounted) {

@@ -34,47 +34,33 @@ describe("tray-tooltip", () => {
     ]
 
     it("should show app name when no bars", () => {
-      expect(formatTrayTooltip([], mockMeta)).toBe("CrossUsage")
+      expect(formatTrayTooltip([], mockMeta)).toBe("OpenUsage")
     })
 
     it("should list enabled plugins with percentages", () => {
       const bars: TrayPrimaryBar[] = [
-        { id: "p1", items: [{ label: "Session", fraction: 0.45 }] },
-        { id: "p2", items: [{ label: "Session", fraction: 0.12 }] },
+        { id: "p1", fraction: 0.45 },
+        { id: "p2", fraction: 0.12 },
       ]
       const tooltip = formatTrayTooltip(bars, mockMeta)
-      expect(tooltip).toBe("CrossUsage\nPlugin 1: 45%\nPlugin 2: 12%")
+      expect(tooltip).toBe("OpenUsage\nPlugin 1: 45%\nPlugin 2: 12%")
     })
 
     it("should handle missing plugin metadata gracefully", () => {
       const bars: TrayPrimaryBar[] = [
-        { id: "p1", items: [{ label: "Session", fraction: 0.45 }] },
-        { id: "unknown", items: [{ label: "Session", fraction: 0.5 }] },
+        { id: "p1", fraction: 0.45 },
+        { id: "unknown", fraction: 0.5 },
       ]
       const tooltip = formatTrayTooltip(bars, mockMeta)
-      expect(tooltip).toBe("CrossUsage\nPlugin 1: 45%")
+      expect(tooltip).toBe("OpenUsage\nPlugin 1: 45%")
     })
 
     it("should show --% for missing fractions", () => {
       const bars: TrayPrimaryBar[] = [
-        { id: "p1", items: [{ label: "Session", fraction: undefined }] },
+        { id: "p1", fraction: undefined },
       ]
       const tooltip = formatTrayTooltip(bars, mockMeta)
-      expect(tooltip).toBe("CrossUsage\nPlugin 1: --%")
-    })
-
-    it("should expand multiple primary lines per plugin", () => {
-      const bars: TrayPrimaryBar[] = [
-        {
-          id: "p1",
-          items: [
-            { label: "A", fraction: 0.5 },
-            { label: "B", fraction: 0.25 },
-          ],
-        },
-      ]
-      const tooltip = formatTrayTooltip(bars, mockMeta)
-      expect(tooltip).toBe("CrossUsage\nPlugin 1 · A: 50%\nPlugin 1 · B: 25%")
+      expect(tooltip).toBe("OpenUsage\nPlugin 1: --%")
     })
   })
 })

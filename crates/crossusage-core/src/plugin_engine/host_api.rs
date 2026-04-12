@@ -62,6 +62,72 @@ fn read_env_value_via_command(program: &str, args: &[&str]) -> Option<String> {
     last_non_empty_trimmed_line(&stdout)
 }
 
+fn current_macos_keychain_account_from_user_env(user_env: Option<String>) -> String {
+    user_env
+        .and_then(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
+        .or_else(|| read_env_value_via_command("id", &["-un"]))
+        .unwrap_or_else(|| "crossusage-user".to_string())
+}
+
+fn current_macos_keychain_account() -> String {
+    current_macos_keychain_account_from_user_env(read_env_from_process("USER"))
+}
+
+fn keychain_find_generic_password_args(service: &str) -> Vec<OsString> {
+    vec![
+        OsString::from("find-generic-password"),
+        OsString::from("-s"),
+        OsString::from(service),
+        OsString::from("-w"),
+    ]
+}
+
+fn keychain_find_generic_password_args_for_account(service: &str, account: &str) -> Vec<OsString> {
+    vec![
+        OsString::from("find-generic-password"),
+        OsString::from("-a"),
+        OsString::from(account),
+        OsString::from("-s"),
+        OsString::from(service),
+        OsString::from("-w"),
+    ]
+}
+
+fn keychain_add_generic_password_args(service: &str, value: &str) -> Vec<OsString> {
+    vec![
+        OsString::from("add-generic-password"),
+        OsString::from("-U"),
+        OsString::from("-s"),
+        OsString::from(service),
+        OsString::from("-w"),
+        OsString::from(value),
+    ]
+}
+
+fn keychain_add_generic_password_args_for_account(
+    service: &str,
+    account: &str,
+    value: &str,
+) -> Vec<OsString> {
+    vec![
+        OsString::from("add-generic-password"),
+        OsString::from("-U"),
+        OsString::from("-a"),
+        OsString::from(account),
+        OsString::from("-s"),
+        OsString::from(service),
+        OsString::from("-w"),
+        OsString::from(value),
+    ]
+}
+
 fn terminal_env_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
@@ -132,72 +198,6 @@ fn resolve_env_value(name: &str) -> Option<String> {
         cache.insert(name.to_string(), resolved.clone());
     }
     resolved
-}
-
-fn current_macos_keychain_account_from_user_env(user_env: Option<String>) -> String {
-    user_env
-        .and_then(|value| {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        })
-        .or_else(|| read_env_value_via_command("id", &["-un"]))
-        .unwrap_or_else(|| "crossusage-user".to_string())
-}
-
-fn current_macos_keychain_account() -> String {
-    current_macos_keychain_account_from_user_env(read_env_from_process("USER"))
-}
-
-fn keychain_find_generic_password_args(service: &str) -> Vec<OsString> {
-    vec![
-        OsString::from("find-generic-password"),
-        OsString::from("-s"),
-        OsString::from(service),
-        OsString::from("-w"),
-    ]
-}
-
-fn keychain_find_generic_password_args_for_account(service: &str, account: &str) -> Vec<OsString> {
-    vec![
-        OsString::from("find-generic-password"),
-        OsString::from("-a"),
-        OsString::from(account),
-        OsString::from("-s"),
-        OsString::from(service),
-        OsString::from("-w"),
-    ]
-}
-
-fn keychain_add_generic_password_args(service: &str, value: &str) -> Vec<OsString> {
-    vec![
-        OsString::from("add-generic-password"),
-        OsString::from("-U"),
-        OsString::from("-s"),
-        OsString::from(service),
-        OsString::from("-w"),
-        OsString::from(value),
-    ]
-}
-
-fn keychain_add_generic_password_args_for_account(
-    service: &str,
-    account: &str,
-    value: &str,
-) -> Vec<OsString> {
-    vec![
-        OsString::from("add-generic-password"),
-        OsString::from("-U"),
-        OsString::from("-a"),
-        OsString::from(account),
-        OsString::from("-s"),
-        OsString::from(service),
-        OsString::from("-w"),
-        OsString::from(value),
-    ]
 }
 
 /// Redact sensitive value to first4...last4 format (UTF-8 safe)
@@ -319,6 +319,10 @@ fn redact_body(body: &str) -> String {
         "userId",
         "account_id",
         "accountId",
+        "team_id",
+        "teamId",
+        "payment_id",
+        "paymentId",
         "profile_arn",
         "profileArn",
         "email",
@@ -338,11 +342,17 @@ fn redact_body(body: &str) -> String {
         }
     }
 
+    if let Ok(path_re) =
+        regex_lite::Regex::new(r#"(/(?:Users|home|opt|private|var|tmp|Applications)/[^\s"')]+)"#)
+    {
+        result = path_re.replace_all(&result, "[PATH]").to_string();
+    }
+
     result
 }
 
-/// Lightweight redaction for plugin log messages (JWT + API key patterns only).
-fn redact_log_message(msg: &str) -> String {
+/// Lightweight redaction for log messages.
+pub fn redact_log_message(msg: &str) -> String {
     let mut result = msg.to_string();
     if let Ok(jwt_re) = regex_lite::Regex::new(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
     {
@@ -358,6 +368,18 @@ fn redact_log_message(msg: &str) -> String {
                 redact_value(&caps[0])
             })
             .to_string();
+    }
+    if let Ok(account_re) = regex_lite::Regex::new(r#"(account=)([^,\s]+)"#) {
+        result = account_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                format!("{}{}", &caps[1], redact_value(&caps[2]))
+            })
+            .to_string();
+    }
+    if let Ok(path_re) =
+        regex_lite::Regex::new(r#"(/(?:Users|home|opt|private|var|tmp|Applications)/[^\s"')]+)"#)
+    {
+        result = path_re.replace_all(&result, "[PATH]").to_string();
     }
     result
 }
@@ -711,9 +733,13 @@ fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rqui
                 let timeout_ms = req.timeout_ms.unwrap_or(10_000);
                 let mut builder = reqwest::blocking::Client::builder()
                     .timeout(std::time::Duration::from_millis(timeout_ms))
+                    .connect_timeout(std::time::Duration::from_millis(timeout_ms))
                     .redirect(reqwest::redirect::Policy::none());
                 if let Some(resolved) = crate::proxy_config::get_resolved_proxy() {
                     builder = builder.proxy(resolved.proxy.clone());
+                    log::debug!("[http] proxy active");
+                } else {
+                    log::debug!("[http] proxy not used");
                 }
                 if req.dangerously_ignore_tls.unwrap_or(false) {
                     builder = builder.danger_accept_invalid_certs(true);
@@ -1815,14 +1841,16 @@ fn run_ccusage_with_runner(
 
     if let Some(home_path) = ccusage_home_override(opts, provider) {
         let config = ccusage_provider_config(provider);
-        command.env(config.home_env_var, home_path);
+        command.env(config.home_env_var, expand_path(&home_path));
     }
+
+    let redacted_program = redact_log_message(program);
 
     log::info!(
         "[plugin:{}] ccusage query via {} ({})",
         plugin_id,
         ccusage_runner_label(kind),
-        program
+        redacted_program
     );
 
     let mut child = match command.spawn() {
@@ -2187,6 +2215,65 @@ fn inject_keychain<'js>(
         )?,
     )?;
 
+    let pid_write_current_user = plugin_id.to_string();
+    keychain_obj.set(
+        "writeGenericPasswordForCurrentUser",
+        Function::new(
+            ctx.clone(),
+            move |ctx_inner: Ctx<'_>, service: String, value: String| -> rquickjs::Result<()> {
+                if !cfg!(target_os = "macos") {
+                    return Err(Exception::throw_message(
+                        &ctx_inner,
+                        "keychain API is only supported on macOS",
+                    ));
+                }
+                let account = current_macos_keychain_account();
+                let args =
+                    keychain_add_generic_password_args_for_account(&service, &account, &value);
+                let redacted_account = redact_value(&account);
+                log::info!(
+                    "[plugin:{}] keychain write: service={}, account={}",
+                    pid_write_current_user,
+                    service,
+                    redacted_account
+                );
+                let output = std::process::Command::new("security")
+                    .args(&args)
+                    .output()
+                    .map_err(|e| {
+                        Exception::throw_message(
+                            &ctx_inner,
+                            &format!("keychain write failed: {}", e),
+                        )
+                    })?;
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let first_line = stderr.lines().next().unwrap_or("").trim();
+                    log::warn!(
+                        "[plugin:{}] keychain write failed: service={}, account={}, error={}",
+                        pid_write_current_user,
+                        service,
+                        redacted_account,
+                        first_line
+                    );
+                    return Err(Exception::throw_message(
+                        &ctx_inner,
+                        &format!("keychain write failed: {}", first_line),
+                    ));
+                }
+
+                log::info!(
+                    "[plugin:{}] keychain write succeeded: service={}, account={}",
+                    pid_write_current_user,
+                    service,
+                    redacted_account
+                );
+                Ok(())
+            },
+        )?,
+    )?;
+
     host.set("keychain", keychain_obj)?;
     Ok(())
 }
@@ -2330,6 +2417,14 @@ mod tests {
         )
     }
 
+    fn node_generated_aes_256_gcm_vector_for_test() -> (&'static str, &'static str, &'static str) {
+        (
+            "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCws=",
+            "BwcHBwcHBwcHBwcHBwcHBw==:yFbCs4LOJ0aj9NPNf5pfVA==:7PKjtOdATLClvaWrMw0b0M8Nov4KPhxwQX4hdczqQlcZi9Zhi6DjAoK+WolvMwuhPIk=",
+            r#"{"access_token":"token","refresh_token":"refresh"}"#,
+        )
+    }
+
     #[test]
     fn last_non_empty_trimmed_line_uses_final_value_when_stdout_is_noisy() {
         let stdout = "banner line\nanother message\n  sk-test-key-12345  \n";
@@ -2420,7 +2515,24 @@ mod tests {
     }
 
     #[test]
-    fn keychain_api_exposes_write() {
+    fn crypto_api_decrypts_node_generated_envelope_from_js() {
+        let (key_b64, envelope, expected_plaintext) = node_generated_aes_256_gcm_vector_for_test();
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            let js_expr = format!(
+                r#"__openusage_ctx.host.crypto.decryptAes256Gcm("{}", "{}")"#,
+                envelope, key_b64
+            );
+            let decrypted: String = ctx.eval(js_expr).expect("js decrypt");
+            assert_eq!(decrypted, expected_plaintext);
+        });
+    }
+
+    #[test]
+    fn keychain_api_exposes_write_variants() {
         let rt = Runtime::new().expect("runtime");
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
@@ -2433,14 +2545,38 @@ mod tests {
             let _read: Function = keychain
                 .get("readGenericPassword")
                 .expect("readGenericPassword");
+            let _read_current_user: Function = keychain
+                .get("readGenericPasswordForCurrentUser")
+                .expect("readGenericPasswordForCurrentUser");
             let _write: Function = keychain
                 .get("writeGenericPassword")
                 .expect("writeGenericPassword");
+            let _write_current_user: Function = keychain
+                .get("writeGenericPasswordForCurrentUser")
+                .expect("writeGenericPasswordForCurrentUser");
         });
     }
 
     #[test]
     fn env_api_respects_allowlist_in_host_and_js() {
+        let claude_env_vars = [
+            "CLAUDE_CONFIG_DIR",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "USER_TYPE",
+            "USE_STAGING_OAUTH",
+            "USE_LOCAL_OAUTH",
+            "CLAUDE_CODE_CUSTOM_OAUTH_URL",
+            "CLAUDE_CODE_OAUTH_CLIENT_ID",
+            "CLAUDE_LOCAL_OAUTH_API_BASE",
+        ];
+
+        for name in claude_env_vars {
+            assert!(
+                WHITELISTED_ENV_VARS.contains(&name),
+                "{name} must be whitelisted for Claude auth compatibility"
+            );
+        }
+
         let rt = Runtime::new().expect("runtime");
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
@@ -2536,6 +2672,113 @@ mod tests {
                 "process env should be preferred from JS"
             );
         });
+    }
+
+    #[test]
+    fn current_macos_keychain_account_prefers_explicit_user_value() {
+        assert_eq!(
+            current_macos_keychain_account_from_user_env(Some("openusage-test-user".to_string())),
+            "openusage-test-user"
+        );
+    }
+
+    #[test]
+    fn expand_path_expands_tilde_prefix() {
+        let home = dirs::home_dir().expect("home dir");
+        let expected = home.join(".claude-custom").to_string_lossy().to_string();
+
+        assert_eq!(expand_path("~/.claude-custom"), expected);
+    }
+
+    #[test]
+    fn keychain_find_generic_password_args_include_service_only_lookup() {
+        let args = keychain_find_generic_password_args("Claude Code-credentials");
+        let rendered: Vec<String> = args
+            .into_iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            rendered,
+            vec![
+                "find-generic-password",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+            ]
+        );
+    }
+
+    #[test]
+    fn keychain_find_generic_password_args_for_account_include_account_and_service() {
+        let args = keychain_find_generic_password_args_for_account(
+            "Claude Code-credentials",
+            "openusage-test-user",
+        );
+        let rendered: Vec<String> = args
+            .into_iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            rendered,
+            vec![
+                "find-generic-password",
+                "-a",
+                "openusage-test-user",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+            ]
+        );
+    }
+
+    #[test]
+    fn keychain_add_generic_password_args_include_service_only_write() {
+        let args = keychain_add_generic_password_args("Claude Code-credentials", "secret-value");
+        let rendered: Vec<String> = args
+            .into_iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            rendered,
+            vec![
+                "add-generic-password",
+                "-U",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+                "secret-value",
+            ]
+        );
+    }
+
+    #[test]
+    fn keychain_add_generic_password_args_for_account_include_update_account_service_and_value() {
+        let args = keychain_add_generic_password_args_for_account(
+            "Claude Code-credentials",
+            "openusage-test-user",
+            "secret-value",
+        );
+        let rendered: Vec<String> = args
+            .into_iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            rendered,
+            vec![
+                "add-generic-password",
+                "-U",
+                "-a",
+                "openusage-test-user",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+                "secret-value",
+            ]
+        );
     }
 
     #[test]
@@ -2690,6 +2933,37 @@ mod tests {
     }
 
     #[test]
+    fn redact_body_redacts_team_id_payment_id_and_paths() {
+        let body = r#"{"teamId":"cc1ac023-9ff5-4c1f-a5a4-ae2a82df4243","paymentId":"cus_S5m1PGxjLWoc1c","binaryPath":"/opt/homebrew/bin/bunx","homePath":"/Users/rebers/.claude"}"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("cc1ac023-9ff5-4c1f-a5a4-ae2a82df4243"),
+            "teamId should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("cus_S5m1PGxjLWoc1c"),
+            "paymentId should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/opt/homebrew/bin/bunx"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/Users/rebers/.claude"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("[PATH]"),
+            "expected path marker, got: {}",
+            redacted
+        );
+    }
+
+    #[test]
     fn redact_log_message_redacts_jwt_and_api_key() {
         let msg = "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U key=sk-1234567890abcdef";
         let redacted = redact_log_message(msg);
@@ -2700,6 +2974,37 @@ mod tests {
         assert!(
             !redacted.contains("sk-1234567890abcdef"),
             "API key should be redacted"
+        );
+    }
+
+    #[test]
+    fn redact_log_message_redacts_account_and_paths() {
+        let msg = "keychain read: service=Claude Code-credentials, account=rebers path=/opt/homebrew/bin/bunx home=/Users/rebers/.claude";
+        let redacted = redact_log_message(msg);
+        assert!(
+            !redacted.contains("account=rebers"),
+            "account should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/opt/homebrew/bin/bunx"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/Users/rebers/.claude"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("account=[REDACTED]"),
+            "expected redacted account, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("[PATH]"),
+            "expected redacted path, got: {}",
+            redacted
         );
     }
 

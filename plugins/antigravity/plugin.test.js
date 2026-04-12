@@ -49,17 +49,17 @@ function makeUserStatusResponse(overrides) {
           {
             label: "Claude Sonnet 4.6 (Thinking)",
             modelOrAlias: { model: "MODEL_PLACEHOLDER_M35" },
-            quotaInfo: { remainingFraction: 0.62, resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
           },
           {
             label: "Claude Opus 4.6 (Thinking)",
             modelOrAlias: { model: "MODEL_PLACEHOLDER_M26" },
-            quotaInfo: { remainingFraction: 0.55, resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
           },
           {
             label: "GPT-OSS 120B (Medium)",
             modelOrAlias: { model: "MODEL_OPENAI_GPT_OSS_120B_MEDIUM" },
-            quotaInfo: { remainingFraction: 0.78, resetTime: "2026-02-26T15:23:41Z" },
+            quotaInfo: { resetTime: "2026-02-26T15:23:41Z" },
           },
         ],
       },
@@ -69,6 +69,7 @@ function makeUserStatusResponse(overrides) {
     if (overrides.planName !== undefined) base.userStatus.planStatus.planInfo.planName = overrides.planName
     if (overrides.configs !== undefined) base.userStatus.cascadeModelConfigData.clientModelConfigs = overrides.configs
     if (overrides.planStatus !== undefined) base.userStatus.planStatus = overrides.planStatus
+    if (overrides.userTier !== undefined) base.userStatus.userTier = overrides.userTier
   }
   return base
 }
@@ -91,25 +92,6 @@ function makeCloudCodeResponse(overrides) {
     },
     overrides
   )
-}
-
-function makeLoadCodeAssistResponse(overrides) {
-  return Object.assign(
-    {
-      currentTier: { id: "free-tier" },
-      paidTier: null,
-    },
-    overrides
-  )
-}
-
-function writePlanCache(ctx, plan, updatedAtMs, accountId) {
-  const cachePath = ctx.app.pluginDataDir + "/plan.json"
-  ctx.host.fs.writeText(cachePath, JSON.stringify({
-    plan,
-    accountId: accountId ?? "user@example.com",
-    updatedAtMs: updatedAtMs ?? Date.now(),
-  }))
 }
 
 function makeAuthStatusJson(overrides) {
@@ -214,221 +196,12 @@ describe("antigravity plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
+    // No userTier in default fixture → falls back to planInfo.planName
     expect(result.plan).toBe("Pro")
 
-    // Gemini Pro/Flash pooled; Claude Sonnet, Claude Opus, GPT-OSS each get a line
+    // Model lines exist — 3 pool lines
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual([
-      "Gemini Pro",
-      "Gemini Flash",
-      "Claude Opus 4.6",
-      "Claude Sonnet 4.6",
-      "GPT-OSS 120B",
-    ])
-  })
-
-  it("prefers cached Cloud tier over stale LS plan without calling Cloud in LS fast path", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    let loadCodeAssistCalls = 0
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        loadCodeAssistCalls += 1
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { id: "free-tier" },
-            paidTier: { id: "ultra" },
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const cloudFallbackResult = plugin.probe(ctx)
-
-    expect(cloudFallbackResult.plan).toBe("Ultra")
-    expect(loadCodeAssistCalls).toBe(1)
-
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Pro" })
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        throw new Error("should not call Cloud tier lookup from LS fast path")
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Ultra")
-    expect(result.lines.map((l) => l.label)).toEqual([
-      "Gemini Pro",
-      "Gemini Flash",
-      "Claude Opus 4.6",
-      "Claude Sonnet 4.6",
-      "GPT-OSS 120B",
-    ])
-  })
-
-  it("keeps LS plan when no cached override exists", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Pro" })
-
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        throw new Error("should not call Cloud tier lookup from LS fast path")
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-  })
-
-  it("ignores stale cached override on LS fast path", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    writePlanCache(ctx, "Ultra", Date.now() - (31 * 60 * 1000))
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Pro" })
-
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        throw new Error("should not call Cloud tier lookup from LS fast path")
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-  })
-
-  it("ignores cached override from a different account on LS fast path", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(
-      ctx,
-      makeAuthStatusJson({ email: "current@example.com" }),
-      makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry)
-    )
-    writePlanCache(ctx, "Ultra", Date.now(), "other@example.com")
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Pro" })
-
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-  })
-
-  it("ignores cached plan with non-numeric updatedAtMs", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    const cachePath = ctx.app.pluginDataDir + "/plan.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      plan: "Ultra",
-      accountId: "user@example.com",
-      updatedAtMs: "not-a-number",
-    }))
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Pro" })
-
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-  })
-
-  it("prefers cached Ultra over longer LS Pro labels", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    writePlanCache(ctx, "Ultra", Date.now(), "user@example.com")
-    const discovery = makeDiscovery()
-    const response = makeUserStatusResponse({ planName: "Google AI Pro" })
-
-    ctx.host.ls.discover.mockReturnValue(discovery)
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 200, bodyText: JSON.stringify(response) }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Ultra")
+    expect(labels).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
   })
 
   it("deduplicates models by normalized label (keeps worst-case fraction)", async () => {
@@ -457,13 +230,7 @@ describe("antigravity plugin", () => {
 
     const labels = result.lines.map((l) => l.label)
 
-    expect(labels).toEqual([
-      "Gemini Pro",
-      "Gemini Flash",
-      "Claude Opus 4.6",
-      "Claude Sonnet 4.6",
-      "GPT-OSS 120B",
-    ])
+    expect(labels).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
   })
 
   it("falls back to GetCommandModelConfigs when GetUserStatus fails", async () => {
@@ -543,7 +310,7 @@ describe("antigravity plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const claude = result.lines.find((l) => l.label === "Claude Opus 4.6")
+    const claude = result.lines.find((l) => l.label === "Claude")
     expect(claude).toBeTruthy()
     expect(claude.used).toBe(100)
     expect(claude.limit).toBe(100)
@@ -585,7 +352,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
     expect(result).toBeTruthy()
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6"])
+    expect(labels).toEqual(["Gemini Pro", "Claude"])
     expect(result.lines.every((l) => l.used === 100)).toBe(true)
   })
 
@@ -760,7 +527,7 @@ describe("antigravity plugin", () => {
     expect(result.plan).toBeNull()
     const labels = result.lines.map((l) => l.label)
     expect(labels).toContain("Gemini Pro")
-    expect(labels).toContain("Claude Sonnet 4.5")
+    expect(labels).toContain("Claude")
   })
 
   it("Cloud Code sends correct Authorization header with proto token", async () => {
@@ -889,104 +656,11 @@ describe("antigravity plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
+    // No userTier in default fixture → falls back to planInfo.planName
     expect(result.plan).toBe("Pro")
     const calls = ctx.host.http.request.mock.calls.map((c) => String(c[0].url))
     const ccCalls = calls.filter((u) => u.includes("fetchAvailableModels"))
     expect(ccCalls.length).toBe(0)
-  })
-
-  it("fills plan from loadCodeAssist when LS falls back to GetCommandModelConfigs", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(makeDiscovery())
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        return { status: 500, bodyText: "" }
-      }
-      if (url.includes("GetCommandModelConfigs")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify({
-            clientModelConfigs: [
-              {
-                label: "Gemini 3 Pro (High)",
-                modelOrAlias: { model: "MODEL_PLACEHOLDER_M8" },
-                quotaInfo: { remainingFraction: 0.7, resetTime: "2026-02-08T09:10:56Z" },
-              },
-            ],
-          }),
-        }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { id: "free-tier" },
-            paidTier: { id: "ultra" },
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Ultra")
-    expect(result.lines.map((l) => l.label)).toEqual(["Gemini Pro"])
-  })
-
-  it("handles GetUserStatus throw and still resolves plan from loadCodeAssist fallback", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-token", "1//refresh", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(makeDiscovery())
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("GetUnleashData")) {
-        return { status: 200, bodyText: "{}" }
-      }
-      if (url.includes("GetUserStatus")) {
-        throw new Error("boom")
-      }
-      if (url.includes("GetCommandModelConfigs")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify({
-            clientModelConfigs: [
-              {
-                label: "Gemini 3 Flash",
-                modelOrAlias: { model: "MODEL_PLACEHOLDER_M18" },
-                quotaInfo: { remainingFraction: 0.9, resetTime: "2026-02-08T09:10:56Z" },
-              },
-            ],
-          }),
-        }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { name: "Google AI Pro" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-    expect(result.lines.map((l) => l.label)).toEqual(["Gemini Flash"])
   })
 
   it("Cloud Code treats models without quotaInfo as depleted (100% used)", async () => {
@@ -1048,195 +722,6 @@ describe("antigravity plugin", () => {
 
     expect(capturedAuth).toBe("Bearer ya29.test-access")
     expect(result.lines.length).toBeGreaterThan(0)
-  })
-
-  it("fills plan from loadCodeAssist during Cloud Code fallback", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { name: "Google AI Pro" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Pro")
-    expect(result.lines.length).toBeGreaterThan(0)
-  })
-
-  it("maps standard-tier to Paid during Cloud Code fallback", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { id: "standard-tier" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Paid")
-  })
-
-  it("maps legacy-tier to Legacy during Cloud Code fallback", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { id: "legacy-tier" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Legacy")
-  })
-
-  it("maps workspace tier during Cloud Code fallback", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { name: "Workspace" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Workspace")
-  })
-
-  it("leaves plan empty for unsupported Cloud tier labels", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      if (url.includes("fetchAvailableModels")) {
-        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-      }
-      if (url.includes("loadCodeAssist")) {
-        return {
-          status: 200,
-          bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-            currentTier: { id: "mystery-tier" },
-            paidTier: null,
-          })),
-        }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBeNull()
-    expect(result.lines.length).toBeGreaterThan(0)
-  })
-
-  it("refreshes token to recover Cloud tier after loadCodeAssist auth failure", async () => {
-    const ctx = makeCtx()
-    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
-    setupSqliteMock(ctx, makeAuthStatusJson(), makeProtobufBase64(ctx, "ya29.test-access", "1//refresh-token", futureExpiry))
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    ctx.host.http.request.mockImplementation((opts) => {
-      const url = String(opts.url)
-      const auth = opts.headers && opts.headers.Authorization
-      if (url.includes("fetchAvailableModels")) {
-        if (auth === "Bearer ya29.test-access") {
-          return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
-        }
-        return { status: 500, bodyText: "" }
-      }
-      if (url.includes("loadCodeAssist")) {
-        if (auth === "Bearer ya29.test-access") {
-          return { status: 401, bodyText: '{"error":"unauthorized"}' }
-        }
-        if (auth === "Bearer ya29.plan-refreshed") {
-          return {
-            status: 200,
-            bodyText: JSON.stringify(makeLoadCodeAssistResponse({
-              currentTier: { id: "free-tier" },
-              paidTier: { id: "ultra" },
-            })),
-          }
-        }
-        return { status: 500, bodyText: "" }
-      }
-      if (url.includes("oauth2.googleapis.com")) {
-        return { status: 200, bodyText: JSON.stringify({ access_token: "ya29.plan-refreshed", expires_in: 3600 }) }
-      }
-      return { status: 500, bodyText: "" }
-    })
-
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(result.plan).toBe("Ultra")
   })
 
   it("handles missing protobuf data gracefully (falls back to apiKey)", async () => {
@@ -1716,7 +1201,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Claude Sonnet 4.5"])
+    expect(labels).toEqual(["Claude"])
   })
 
   it("Cloud Code keeps non-blacklisted models with valid displayName", async () => {
@@ -1757,7 +1242,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6", "GPT-OSS 120B"])
+    expect(labels).toEqual(["Gemini Pro", "Claude"])
   })
 
   it("LS filters out blacklisted model IDs (Claude Opus 4.5)", async () => {
@@ -1788,7 +1273,7 @@ describe("antigravity plugin", () => {
     const result = plugin.probe(ctx)
 
     const labels = result.lines.map((l) => l.label)
-    expect(labels).toEqual(["Gemini Pro", "Claude Opus 4.6"])
+    expect(labels).toEqual(["Gemini Pro", "Claude"])
   })
 
   it("LS still takes priority over Cloud Code with proto tokens (no regression)", async () => {
@@ -1804,6 +1289,7 @@ describe("antigravity plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
+    // No userTier in default fixture → falls back to planInfo.planName
     expect(result.plan).toBe("Pro")
     const calls = ctx.host.http.request.mock.calls.map((c) => String(c[0].url))
     expect(calls.filter((u) => u.includes("fetchAvailableModels")).length).toBe(0)
@@ -1872,22 +1358,50 @@ describe("antigravity plugin", () => {
     expect(ccCalls).toBe(2)
   })
 
-  it("throws when every Cloud Code base URL returns non-2xx and no refresh token is available", async () => {
+  it("prefers userTier.name over legacy planInfo.planName for Ultra subscribers", async () => {
     const ctx = makeCtx()
-    setupSqliteMock(ctx, makeAuthStatusJson())
-    ctx.host.ls.discover.mockReturnValue(null)
-
-    let ccCalls = 0
-    ctx.host.http.request.mockImplementation((opts) => {
-      if (String(opts.url).includes("fetchAvailableModels")) {
-        ccCalls += 1
-        return { status: 500, bodyText: "{}" }
-      }
-      return { status: 500, bodyText: "" }
+    const discovery = makeDiscovery()
+    const response = makeUserStatusResponse({
+      userTier: {
+        id: "g1-ultra-tier",
+        name: "Google AI Ultra",
+        description: "Google AI Ultra",
+        upgradeSubscriptionText: "You are subscribed to the best plan.",
+      },
     })
+    setupLsMock(ctx, discovery, response)
 
     const plugin = await loadPlugin()
-    expect(() => plugin.probe(ctx)).toThrow("Start Antigravity and try again.")
-    expect(ccCalls).toBe(2)
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Google AI Ultra")
+    const labels = result.lines.map((l) => l.label)
+    expect(labels).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
+  })
+
+  it("falls back to planInfo.planName when userTier is absent", async () => {
+    const ctx = makeCtx()
+    const discovery = makeDiscovery()
+    const response = makeUserStatusResponse()  // no userTier override
+    setupLsMock(ctx, discovery, response)
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Pro")
+  })
+
+  it("falls back to planInfo.planName when userTier.name is empty", async () => {
+    const ctx = makeCtx()
+    const discovery = makeDiscovery()
+    const response = makeUserStatusResponse({
+      userTier: { id: "g1-pro-tier", name: "" },
+    })
+    setupLsMock(ctx, discovery, response)
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Pro")
   })
 })
