@@ -59,8 +59,8 @@ const defaultProps = {
   menubarIconStyle: "provider" as const,
   onMenubarIconStyleChange: vi.fn(),
   traySettingsPreview: {
-    bars: [{ id: "a", fraction: 0.7 }],
-    providerBars: [{ id: "a", fraction: 0.7 }],
+    bars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
+    providerBars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
     providerIconUrl: "icon-a",
     providerPercentText: "70%",
   },
@@ -212,8 +212,10 @@ describe("SettingsPage", () => {
 
   it("renders menubar icon section", () => {
     render(<SettingsPage {...defaultProps} />)
-    expect(screen.getByText("Menubar Icon")).toBeInTheDocument()
-    expect(screen.getByText("What shows in the menu bar")).toBeInTheDocument()
+    expect(screen.getByText("Tray / menu bar icon")).toBeInTheDocument()
+    expect(
+      screen.getByText(/What shows next to the clock/i),
+    ).toBeInTheDocument()
   })
 
   it("clicking Bars triggers onMenubarIconStyleChange(\"bars\")", async () => {

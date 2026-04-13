@@ -1,4 +1,4 @@
-use crate::plugin_engine::runtime::{MetricLine, PluginOutput};
+use crossusage_core::plugin_engine::runtime::{MetricLine, PluginOutput};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -200,7 +200,7 @@ pub(super) fn enabled_snapshots_ordered(state: &CacheState) -> Vec<CachedPluginS
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugin_engine::runtime::ProgressFormat;
+    use crossusage_core::plugin_engine::runtime::ProgressFormat;
 
     fn make_snapshot(id: &str, name: &str) -> CachedPluginSnapshot {
         CachedPluginSnapshot {
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn cache_file_round_trip() {
         let dir = std::env::temp_dir().join(format!(
-            "openusage-test-cache-{}",
+            "crossusage-test-cache-{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn load_cache_returns_empty_on_missing_file() {
         let dir = std::env::temp_dir().join(format!(
-            "openusage-test-no-cache-{}",
+            "crossusage-test-no-cache-{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn load_cache_returns_empty_on_invalid_json() {
         let dir = std::env::temp_dir().join(format!(
-            "openusage-test-bad-cache-{}",
+            "crossusage-test-bad-cache-{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -282,7 +282,7 @@ mod tests {
             provider_id: "claude".to_string(),
             display_name: "Claude".to_string(),
             plan: Some("Max 20x".to_string()),
-            lines: vec![crate::plugin_engine::runtime::MetricLine::Progress {
+            lines: vec![MetricLine::Progress {
                 label: "Session".to_string(),
                 used: 42.0,
                 limit: 100.0,

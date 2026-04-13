@@ -1,10 +1,26 @@
 # Local HTTP API
 
-OpenUsage exposes a read-only HTTP API on the loopback interface so other local apps can consume the same usage data shown in the menu bar.
+CrossUsage exposes a read-only HTTP API on the loopback interface so other local apps can consume the same usage data shown in the tray and panel.
 
 **Base URL:** `http://127.0.0.1:6736`
 
 The server starts automatically with the app. If the port is already in use, the feature is silently disabled for that session.
+
+## Manual smoke test (curl)
+
+With **CrossUsage running** (tray app started and at least one successful probe has cached data):
+
+```bash
+curl -sS http://127.0.0.1:6736/v1/usage
+```
+
+You should see **HTTP 200** and a JSON array (possibly empty `[]` before the first successful probe). For one provider:
+
+```bash
+curl -sS -i http://127.0.0.1:6736/v1/usage/cursor
+```
+
+If nothing listens, check logs for `failed to bind local HTTP API` (port **6736** in use) or confirm the app is actually running.
 
 ## Routes
 
@@ -49,7 +65,7 @@ Unknown routes return **404 Not Found**.
     {
       "type": "text",
       "label": "Today",
-      "value": "$5.17 \u00b7 9.2M tokens",
+      "value": "$5.17 · 9.2M tokens",
       "color": null,
       "subtitle": null
     }

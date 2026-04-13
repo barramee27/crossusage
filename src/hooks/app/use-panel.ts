@@ -5,9 +5,9 @@ import { getCurrentWindow, PhysicalSize, currentMonitor } from "@tauri-apps/api/
 import type { ActiveView } from "@/components/side-nav"
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 
-const PANEL_WIDTH = 400
-const MAX_HEIGHT_FALLBACK_PX = 600
-const MAX_HEIGHT_FRACTION_OF_MONITOR = 0.8
+const PANEL_WIDTH = 380
+const MAX_HEIGHT_FALLBACK_PX = 560
+const MAX_HEIGHT_FRACTION_OF_MONITOR = 0.76
 
 type UsePanelArgs = {
   activeView: ActiveView

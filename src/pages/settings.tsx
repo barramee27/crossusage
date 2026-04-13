@@ -26,20 +26,23 @@ import {
   MENUBAR_ICON_STYLE_OPTIONS,
   RESET_TIMER_DISPLAY_OPTIONS,
   THEME_OPTIONS,
+  UI_SCALE_OPTIONS,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type UIScale,
 } from "@/lib/settings";
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon";
+import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list";
+import type { TrayPrimaryBar } from "@/lib/tray-primary-progress";
 import { cn } from "@/lib/utils";
 
-interface PluginConfig {
-  id: string;
-  name: string;
-  enabled: boolean;
+/** Primary progress fraction for tray preview (bars store values under `items[].fraction`). */
+function trayBarPrimaryFraction(bar: TrayPrimaryBar | undefined): number {
+  return bar?.items[0]?.fraction ?? 0;
 }
 
 const TRAY_PREVIEW_SIZE_PX = getTrayIconSizePx(1);
@@ -123,7 +126,7 @@ function MenubarIconStylePreview({
     const remainderClass = isActive ? "bg-primary-foreground/20" : "bg-foreground/15";
     const fillClass = isActive ? "bg-primary-foreground" : "bg-foreground";
     const fractions = traySettingsPreview.bars.length > 0
-      ? traySettingsPreview.bars.map((b) => b.fraction ?? 0)
+      ? traySettingsPreview.bars.map((b) => trayBarPrimaryFraction(b))
       : [0.83, 0.7, 0.56];
 
     return (
@@ -160,7 +163,7 @@ function MenubarIconStylePreview({
   }
 
   if (style === "donut") {
-    const fraction = traySettingsPreview.providerBars[0]?.fraction ?? 0;
+    const fraction = trayBarPrimaryFraction(traySettingsPreview.providerBars[0]);
     const clamped = Math.max(0, Math.min(1, fraction));
     return (
       <div className="inline-flex items-center gap-1">
@@ -196,9 +199,14 @@ function MenubarIconStylePreview({
 function SortablePluginItem({
   plugin,
   onToggle,
+  onTrayLineToggle,
+  cursorRequestsLineAvailable,
 }: {
-  plugin: PluginConfig;
+  plugin: SettingsPluginState;
   onToggle: (id: string) => void;
+  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void;
+  /** When `plugin.id === "cursor"`, gates the Requests tray line (API may not expose it). */
+  cursorRequestsLineAvailable: boolean | null;
 }) {
   const {
     attributes,
@@ -218,44 +226,87 @@ function SortablePluginItem({
     <div
       ref={setNodeRef}
       style={style}
-      onClick={() => onToggle(plugin.id)}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md bg-card cursor-pointer",
+        "flex gap-3 px-3 py-2 rounded-md bg-card",
         "border border-transparent",
         isDragging && "opacity-50 border-border"
       )}
     >
       <button
         type="button"
-        onClick={(e) => e.stopPropagation()}
-        className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+        className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-4 w-4" />
       </button>
 
-      <span
-        className={cn(
-          "flex-1 text-sm",
-          !plugin.enabled && "text-muted-foreground"
+      <div className="flex-1 min-w-0 space-y-2">
+        {plugin.primaryCandidates.length > 0 && (
+          <div
+            className="space-y-1.5 pl-0.5"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {plugin.primaryCandidates.map((label) => {
+              const checked = plugin.trayLines.includes(label);
+              const isCursorRequests =
+                plugin.id === "cursor" && label === "Requests";
+              const disabled =
+                isCursorRequests && cursorRequestsLineAvailable === false;
+              const title =
+                isCursorRequests && cursorRequestsLineAvailable === false
+                  ? "Requests usage is not available for this Cursor account (e.g. some Pro plans)."
+                  : isCursorRequests && cursorRequestsLineAvailable === null
+                    ? "Still loading Cursor usage…"
+                    : undefined;
+              return (
+                <label
+                  key={`${plugin.id}-${label}`}
+                  className={cn(
+                    "flex items-center gap-2 text-xs text-muted-foreground select-none",
+                    disabled && "opacity-50 cursor-not-allowed"
+                  )}
+                  title={title}
+                >
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={(v) =>
+                      onTrayLineToggle(plugin.id, label, v === true)
+                    }
+                  />
+                  <span className="text-foreground">{label}</span>
+                </label>
+              );
+            })}
+          </div>
         )}
-      >
-        {plugin.name}
-      </span>
-
-      <Checkbox
-        key={`${plugin.id}-${plugin.enabled}`}
-        checked={plugin.enabled}
-      />
+        <div className="flex items-center gap-2 justify-between">
+          <span
+            className={cn(
+              "text-sm truncate",
+              !plugin.enabled && "text-muted-foreground"
+            )}
+          >
+            {plugin.name}
+          </span>
+          <Checkbox
+            key={`${plugin.id}-${plugin.enabled}`}
+            checked={plugin.enabled}
+            onCheckedChange={() => onToggle(plugin.id)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
 interface SettingsPageProps {
-  plugins: PluginConfig[];
+  plugins: SettingsPluginState[];
   onReorder: (orderedIds: string[]) => void;
   onToggle: (id: string) => void;
+  onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void;
   autoUpdateInterval: AutoUpdateIntervalMinutes;
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void;
   themeMode: ThemeMode;
@@ -271,12 +322,19 @@ interface SettingsPageProps {
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
   startOnLogin: boolean;
   onStartOnLoginChange: (value: boolean) => void;
+  uiScale: UIScale;
+  onUIScaleChange: (value: UIScale) => void;
+  showTrayIcon: boolean;
+  onShowTrayIconChange: (value: boolean) => void;
+  /** Cursor-only: whether the Requests line exists in probe data (null = loading). */
+  cursorRequestsLineAvailable: boolean | null;
 }
 
 export function SettingsPage({
   plugins,
   onReorder,
   onToggle,
+  onTrayLineToggle,
   autoUpdateInterval,
   onAutoUpdateIntervalChange,
   themeMode,
@@ -292,6 +350,11 @@ export function SettingsPage({
   onGlobalShortcutChange,
   startOnLogin,
   onStartOnLoginChange,
+  uiScale,
+  onUIScaleChange,
+  showTrayIcon,
+  onShowTrayIconChange,
+  cursorRequestsLineAvailable,
 }: SettingsPageProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -409,9 +472,9 @@ export function SettingsPage({
         </div>
       </section>
       <section>
-        <h3 className="text-lg font-semibold mb-0">Menubar Icon</h3>
+        <h3 className="text-lg font-semibold mb-0">Tray / menu bar icon</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          What shows in the menu bar
+          What shows next to the clock (Linux/Windows) or in the menu bar (macOS)
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
           <div className="flex gap-1" role="radiogroup" aria-label="Menubar icon style">
@@ -467,6 +530,47 @@ export function SettingsPage({
           </div>
         </div>
       </section>
+      <section>
+        <h3 className="text-lg font-semibold mb-0">Interface scale</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          Text and spacing density in the main window
+        </p>
+        <div className="bg-muted/50 rounded-lg p-1">
+          <div className="flex gap-1" role="radiogroup" aria-label="Interface scale">
+            {UI_SCALE_OPTIONS.map((option) => {
+              const isActive = option.value === uiScale;
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => onUIScaleChange(option.value)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+      <section>
+        <h3 className="text-lg font-semibold mb-0">Tray icon</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          When off, the app keeps running in the background without a status icon (Linux/Windows/macOS)
+        </p>
+        <label className="flex items-center gap-2 text-sm select-none text-foreground">
+          <Checkbox
+            key={`show-tray-${showTrayIcon}`}
+            checked={showTrayIcon}
+            onCheckedChange={(checked) => onShowTrayIconChange(checked === true)}
+          />
+          Show tray / menu bar icon
+        </label>
+      </section>
       <GlobalShortcutSection
         globalShortcut={globalShortcut}
         onGlobalShortcutChange={onGlobalShortcutChange}
@@ -474,7 +578,7 @@ export function SettingsPage({
       <section>
         <h3 className="text-lg font-semibold mb-0">Start on Login</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          OpenUsage starts when you sign in
+          CrossUsage starts when you sign in
         </p>
         <label className="flex items-center gap-2 text-sm select-none text-foreground">
           <Checkbox
@@ -505,6 +609,8 @@ export function SettingsPage({
                   key={plugin.id}
                   plugin={plugin}
                   onToggle={onToggle}
+                  onTrayLineToggle={onTrayLineToggle}
+                  cursorRequestsLineAvailable={cursorRequestsLineAvailable}
                 />
               ))}
             </SortableContext>

@@ -1,4 +1,6 @@
 import { useShallow } from "zustand/react/shallow"
+import { invoke, isTauri } from "@tauri-apps/api/core"
+import { X } from "lucide-react"
 import { AppContent, type AppContentActionProps } from "@/components/app/app-content"
 import { LiquidGlassFilter } from "@/components/liquid-glass-filter"
 import { PanelFooter } from "@/components/panel-footer"
@@ -7,6 +9,7 @@ import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
 import { useAppVersion } from "@/hooks/app/use-app-version"
 import { usePanel } from "@/hooks/app/use-panel"
+import { useTrayRestartBridge } from "@/hooks/app/use-tray-restart-bridge"
 import { useAppUpdate } from "@/hooks/use-app-update"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
@@ -69,17 +72,15 @@ export function AppShell({
 
   const appVersion = useAppVersion()
   const { updateStatus, triggerInstall, checkForUpdates } = useAppUpdate()
+  useTrayRestartBridge(updateStatus, triggerInstall)
 
   return (
-    <div
-      ref={containerRef}
-      tabIndex={-1}
-      className="flex w-full flex-col items-center bg-transparent p-6 pt-1.5 outline-none"
-    >
+    <div ref={containerRef} className="app-popover-shell w-full bg-transparent">
+      {/* SVG filter definitions for the liquid-distort effect; rendered off-screen */}
       <LiquidGlassFilter active={themeMode === "glass"} />
-      <div className="tray-arrow" />
+      {isTauri() ? <div className="tray-arrow" aria-hidden="true" /> : null}
       <div
-        className="app-panel-surface relative rounded-[22px] overflow-hidden select-none w-full flex flex-col"
+        className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col"
         style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx}px` } : undefined}
       >
         <div className="flex flex-1 min-h-0 flex-row">
@@ -91,7 +92,19 @@ export function AppShell({
             isPluginRefreshAvailable={isPluginRefreshAvailable}
             onReorder={onNavReorder}
           />
-          <div className="app-main-pane flex-1 flex flex-col px-3 pt-2 pb-1.5 min-w-0">
+          <div className="app-main-pane relative flex-1 flex flex-col px-3 pt-2 pb-1.5 min-w-0">
+            {isTauri() ? (
+              <button
+                type="button"
+                className="absolute right-2 top-1 z-30 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Hide window"
+                onClick={() => {
+                  void invoke("hide_panel")
+                }}
+              >
+                <X className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            ) : null}
             <div className="relative flex-1 min-h-0">
               <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-none">
                 <AppContent

@@ -1,0 +1,3 @@
+# Install: sudo cp to /etc/sudoers.d/crossusage-deploy-nginx && sudo chmod 440 ...
+# Adjust paths if nginx lives elsewhere.
+crossusage-deploy ALL=(root) NOPASSWD: /usr/local/sbin/crossusage-nginx-reload

@@ -43,7 +43,6 @@ tmpcov-gem
 # Agent working files
 docs/choices.md
 docs/breadcrumbs.md
-docs/superpowers/
 docs/specs/*
 plans/*
 package-lock.json
@@ -54,6 +53,9 @@ src-tauri/resources/bundled_plugins/*
 
 # Local research (wget spider output — may contain huge lists)
 docs/research/crawl-output/
+
+# Tauri updater private key (never commit)
+src-tauri/.tauri/updater.key
 
 # Local scratch
 fix-tray-bars.cjs

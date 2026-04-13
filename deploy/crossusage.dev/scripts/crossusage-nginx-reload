@@ -1,0 +1,4 @@
+#!/bin/sh
+# Installed on the VPS as /usr/local/sbin/crossusage-nginx-reload (root:root, 755).
+set -e
+/usr/sbin/nginx -t && /bin/systemctl reload nginx

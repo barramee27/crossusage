@@ -3,7 +3,7 @@
 **CrossUsage** is a **community fork** of **[OpenUsage](https://github.com/robinebers/openusage)**. **All credit for the original app, product direction, and plugin architecture goes to [Robin Ebers](https://github.com/robinebers)** ([@robinebers](https://github.com/robinebers)) — please star and support **[upstream OpenUsage](https://github.com/robinebers/openusage)**.
 
 - **Upstream (authoritative for the core app):** [github.com/robinebers/openusage](https://github.com/robinebers/openusage) · [releases](https://github.com/robinebers/openusage/releases/latest) · site [openusage.ai](https://www.openusage.ai)
-- **This fork (Linux & Windows builds, cross-platform polish):** [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage) · [releases](https://github.com/barramee27/crossusage/releases/latest)
+- **This fork (Linux & Windows builds, cross-platform polish):** [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage) · [releases](https://github.com/barramee27/crossusage/releases/latest) · marketing site [crossusage.dev](https://crossusage.dev) (source `sites/crossusage-web/`, fork of [openusage-web](https://github.com/robinebers/openusage-web); deploy `deploy/crossusage.dev/`)
 
 If you cite or redistribute builds from this repo, **name OpenUsage and Robin Ebers** as the original authors. This fork exists to ship **native Linux and Windows** installers; for the **macOS-first** experience, use **[upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest)**.
 
@@ -152,14 +152,14 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - **Global shortcut.** Toggle the panel from anywhere with a customizable keyboard shortcut.
 - **Lightweight.** Opens instantly, stays out of your way.
 - **Plugin-based.** New providers get added without updating the whole app.
-- **[Local HTTP API](docs/local-http-api.md).** Other apps can read your usage data from `127.0.0.1:6736` while CrossUsage is running.
-- **[HTTP/SOCKS proxy](docs/proxy.md).** Optional proxy in `~/.crossusage/config.json` (auto-created on first launch; legacy `~/.openusage/config.json` still honored). Route provider HTTP requests through SOCKS5 or HTTP when enabled.
+- **[Local HTTP API](docs/local-http-api.md).** Other apps can read cached usage data from `127.0.0.1:6736` while CrossUsage is running.
+- **[HTTP/SOCKS proxy](docs/proxy.md).** Optional proxy in `~/.crossusage/config.json` (auto-created on first launch; legacy `~/.openusage/config.json` still honored for proxy).
 
 ## Supported Providers
 
 - [**Amp**](docs/providers/amp.md) / free tier, bonus, credits
 - [**Antigravity**](docs/providers/antigravity.md) / all models
-- [**Claude**](docs/providers/claude.md) / session, weekly, peak/off-peak, extra usage, local token usage (ccusage)
+- [**Claude**](docs/providers/claude.md) / session, weekly, extra usage, local token usage (ccusage)
 - [**Codex**](docs/providers/codex.md) / session, weekly, reviews, credits
 - [**Copilot**](docs/providers/copilot.md) / premium, chat, completions
 - [**Cursor**](docs/providers/cursor.md) / credits, total usage, auto usage, API usage, on-demand, CLI auth (the **Requests** tray line appears only for some Enterprise/Team accounts when the API returns request-based usage; Pro accounts typically use the other metrics)

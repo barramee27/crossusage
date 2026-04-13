@@ -17,6 +17,10 @@ export default defineConfig(async () => ({
   },
 
   test: {
+    env: {
+      // `use-app-update` skips network checks in Vite dev unless this is set; keep tests exercising the hook.
+      VITE_UPDATER_IN_DEV: "true",
+    },
     testTimeout: 15_000,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],

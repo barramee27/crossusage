@@ -1166,16 +1166,19 @@ dependencies = [
 
 [[package]]
 name = "crossusage"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "crossusage-core",
  "dirs 6.0.0",
+ "gtk",
+ "gtk-sys",
+ "libappindicator",
+ "libappindicator-sys",
  "log",
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "objc2-web-kit",
- "reqwest 0.13.2",
  "serde",
  "serde_json",
  "serial_test",
@@ -1188,6 +1191,7 @@ dependencies = [
  "tauri-plugin-liquid-glass",
  "tauri-plugin-log",
  "tauri-plugin-opener",
+ "tauri-plugin-positioner",
  "tauri-plugin-process",
  "tauri-plugin-store",
  "tauri-plugin-updater",
@@ -1199,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-cli"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1231,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-core"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -6321,6 +6325,21 @@ dependencies = [
  "url",
  "windows 0.61.3",
  "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-positioner"
+version = "2.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02dcd56dd4797bd4d6c4c658daed40ce563176f92df90fbd2c904ce145de17ef"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

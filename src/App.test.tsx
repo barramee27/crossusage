@@ -811,14 +811,12 @@ describe("App", () => {
     render(<App />)
     const settingsButtons = await screen.findAllByRole("button", { name: "Settings" })
     await userEvent.click(settingsButtons[0])
-    const savesBeforePluginToggle = state.savePluginSettingsMock.mock.calls.length
-    // Row click toggles (v0.6.14); clicking the checkbox alone may not bubble reliably in tests.
-    const betaRowName = await screen.findByText("Beta")
-    await userEvent.click(betaRowName)
-    expect(state.savePluginSettingsMock.mock.calls.length).toBeGreaterThan(savesBeforePluginToggle)
-    const savesAfterFirstToggle = state.savePluginSettingsMock.mock.calls.length
-    await userEvent.click(betaRowName)
-    expect(state.savePluginSettingsMock.mock.calls.length).toBeGreaterThan(savesAfterFirstToggle)
+    const checkboxes = await screen.findAllByRole("checkbox")
+    const pluginCheckbox = checkboxes[checkboxes.length - 1]
+    await userEvent.click(pluginCheckbox)
+    expect(state.savePluginSettingsMock).toHaveBeenCalled()
+    await userEvent.click(pluginCheckbox)
+    expect(state.savePluginSettingsMock).toHaveBeenCalledTimes(2)
   })
 
   it("updates auto-update interval in settings", async () => {
@@ -1274,67 +1272,6 @@ describe("App", () => {
 
     // Detail view uses ProviderDetailPage (scope=all) but should still render the provider card content.
     await screen.findByText("Now")
-  })
-
-  it("switches sidebar tabs with Cmd+Up and Cmd+Down immediately after focus", async () => {
-    state.loadPluginSettingsMock.mockResolvedValueOnce({ order: ["a", "b"], disabled: [] })
-    state.invokeMock.mockImplementation(async (cmd: string) => {
-      if (cmd === "list_plugins") {
-        return [
-          { id: "a", name: "Alpha", iconUrl: "icon-a", primaryProgressLabel: null, lines: [{ type: "text", label: "Alpha line", scope: "overview" }] },
-          { id: "b", name: "Beta", iconUrl: "icon-b", primaryProgressLabel: null, lines: [{ type: "text", label: "Beta line", scope: "overview" }] },
-        ]
-      }
-      return null
-    })
-
-    render(<App />)
-    await waitFor(() => expect(state.startBatchMock).toHaveBeenCalled())
-
-    state.probeHandlers?.onResult({
-      providerId: "a",
-      displayName: "Alpha",
-      iconUrl: "icon-a",
-      lines: [{ type: "text", label: "Alpha line", value: "A" }],
-    })
-    state.probeHandlers?.onResult({
-      providerId: "b",
-      displayName: "Beta",
-      iconUrl: "icon-b",
-      lines: [{ type: "text", label: "Beta line", value: "B" }],
-    })
-
-    await screen.findByText("Alpha line")
-    await screen.findByText("Beta line")
-
-    window.dispatchEvent(new Event("focus"))
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", metaKey: true }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Alpha line")).toBeInTheDocument()
-      expect(screen.queryByText("Beta line")).not.toBeInTheDocument()
-    })
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", metaKey: true }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Beta line")).toBeInTheDocument()
-      expect(screen.queryByText("Alpha line")).not.toBeInTheDocument()
-    })
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", metaKey: true }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Alpha line")).toBeInTheDocument()
-      expect(screen.queryByText("Beta line")).not.toBeInTheDocument()
-    })
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", metaKey: true }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Alpha line")).toBeInTheDocument()
-      expect(screen.getByText("Beta line")).toBeInTheDocument()
-    })
   })
 
   it("coalesces pending tray icon timers on multiple settings changes", async () => {

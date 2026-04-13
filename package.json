@@ -1,7 +1,7 @@
 {
   "name": "crossusage",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,13 +17,13 @@
     "cli": "cargo run -p crossusage-cli --",
     "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "env RUST_LOG=info,ignore=warn,globset=warn,tauri_cli=warn tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage.enabled",
-    "tauri": "tauri"
+    "tauri": "env RUST_LOG=info,ignore=warn,globset=warn,tauri_cli=warn tauri"
   },
   "dependencies": {
     "@aptabase/tauri": "^0.4.1",
@@ -39,10 +39,10 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-store": "^2.4.2",
-    "@tauri-apps/plugin-updater": "^2.10.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "^0.577.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwind-merge": "^3.4.0",
@@ -60,9 +60,9 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "jsdom": "^29.0.1",
+    "jsdom": "^28.0.0",
     "tw-animate-css": "^1.4.0",
-    "typescript": "~6.0.2",
+    "typescript": "~5.9.3",
     "vite": "^8.0.0",
     "vitest": "^4.0.18"
   }

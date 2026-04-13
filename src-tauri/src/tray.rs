@@ -1,17 +1,34 @@
-#[cfg(target_os = "linux")]
 use std::sync::{Mutex, OnceLock};
 
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::path::BaseDirectory;
-use tauri::tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent};
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager};
-#[cfg(target_os = "linux")]
 use tauri::Wry;
 use tauri_plugin_store::StoreExt;
 
 #[cfg(target_os = "linux")]
 static TRAY_USAGE_SUMMARY_ITEM: OnceLock<Mutex<MenuItem<Wry>>> = OnceLock::new();
+
+static TRAY_RESTART_ITEM: OnceLock<Mutex<MenuItem<Wry>>> = OnceLock::new();
+
+fn store_tray_restart_handle(item: MenuItem<Wry>) {
+    let _ = TRAY_RESTART_ITEM.set(Mutex::new(item));
+}
+
+/// Tray "Restart" / "Restart to update" label (set from the webview when an updater bundle is ready).
+pub fn set_tray_restart_menu_text(text: &str) {
+    let Some(lock) = TRAY_RESTART_ITEM.get() else {
+        return;
+    };
+    let Ok(guard) = lock.lock() else {
+        return;
+    };
+    let _ = guard.set_text(text);
+}
 
 /// Cap lines so the tray menu stays readable; mirrors native tooltip truncation intent.
 #[cfg(target_os = "linux")]
@@ -63,7 +80,11 @@ pub fn update_tray_usage_summary(summary: &str) {
     }
 }
 
-use crate::panel::{position_panel_at_tray_icon, show_panel};
+#[cfg(target_os = "macos")]
+use crate::panel::position_panel_at_tray_icon;
+use crate::panel::show_panel;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use crate::panel::toggle_panel;
 
 #[cfg(target_os = "macos")]
 use crate::panel::get_or_init_panel;
@@ -182,6 +203,7 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
 
     let separator = PredefinedMenuItem::separator(app_handle)?;
     let restart = MenuItem::with_id(app_handle, "restart", "Restart", true, None::<&str>)?;
+    store_tray_restart_handle(restart.clone());
     let about = MenuItem::with_id(app_handle, "about", "About CrossUsage", true, None::<&str>)?;
     let quit = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?;
 
@@ -226,10 +248,13 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    let mut builder = TrayIconBuilder::with_id("tray")
-        .icon(icon)
-        .icon_as_template(true)
-        .tooltip("CrossUsage");
+    // Template images are a macOS menu-bar convention (alpha mask + system tint).
+    // On Windows/Linux use the PNG as a normal color icon so the tray looks correct.
+    let mut builder = TrayIconBuilder::with_id("tray").icon(icon).tooltip("CrossUsage");
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.icon_as_template(true);
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -237,16 +262,19 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
     }
     #[cfg(target_os = "linux")]
     {
-        // Linux AppIndicator: left-click typically shows menu. Use "Show Stats" to open window.
+        // Linux (AppIndicator): tray click events are not delivered; the GTK menu is the main
+        // interaction. Use "Show Stats" for the stats window. show_menu_on_left_click is a no-op.
         builder = builder.menu(&menu).show_menu_on_left_click(true);
     }
     #[cfg(target_os = "windows")]
     {
-        // Windows: left-click shows menu, same as Linux.
-        builder = builder.menu(&menu).show_menu_on_left_click(true);
+        // Left click: stats window via on_tray_icon_event. Right click: native context menu.
+        builder = builder.menu(&menu).show_menu_on_left_click(false);
     }
 
-    builder
+    // Linux reads the indicator after build for secondary-activate wiring; other OSes only need the icon to stay alive.
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
+    let tray_icon = builder
         .on_menu_event(move |app_handle, event| {
             log::debug!("tray menu: {}", event.id.as_ref());
             match event.id.as_ref() {
@@ -263,8 +291,8 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                     let _ = app_handle.emit("tray:show-about", ());
                 }
                 "restart" => {
-                    log::info!("restart requested via tray");
-                    let _ = app_handle.restart();
+                    log::info!("restart or apply-update requested via tray");
+                    let _ = app_handle.emit("tray:restart-or-update", ());
                 }
                 "quit" => {
                     log::info!("quit requested via tray");
@@ -289,13 +317,30 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_tray_icon_event(|tray, event| {
-            let app_handle = tray.app_handle();
+            // Record tray icon bounds for `tauri-plugin-positioner` (TrayCenter, etc.).
+            #[cfg(desktop)]
+            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
 
-            if let TrayIconEvent::Click {
-                button_state, rect, ..
-            } = event
+            #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
             {
-                if button_state == MouseButtonState::Up {
+                let app_handle = tray.app_handle();
+
+                if let TrayIconEvent::Click {
+                    button,
+                    button_state,
+                    rect,
+                    ..
+                } = event
+                {
+                    #[cfg(not(target_os = "macos"))]
+                    let _ = rect;
+
+                    // Secondary click opens the tray menu. Primary press toggles the stats UI
+                    // (Down is more reliable than Up on some Windows shells).
+                    if button != MouseButton::Left || button_state != MouseButtonState::Down {
+                        return;
+                    }
+
                     #[cfg(target_os = "macos")]
                     {
                         let Some(panel) = get_or_init_panel!(app_handle) else {
@@ -313,42 +358,33 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                         panel.show_and_make_key();
                         position_panel_at_tray_icon(app_handle, rect.position, rect.size);
                     }
-                    
-                    #[cfg(target_os = "linux")]
-                    {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                log::debug!("tray click: hiding window");
-                                let _ = window.hide();
-                                return;
-                            }
-                            log::debug!("tray click: showing window");
-
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            position_panel_at_tray_icon(app_handle, rect.position, rect.size);
-                        }
-                    }
 
                     #[cfg(target_os = "windows")]
                     {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                log::debug!("tray click: hiding window");
-                                let _ = window.hide();
-                                return;
-                            }
-                            log::debug!("tray click: showing window");
+                        log::debug!("tray click: toggle popover");
+                        toggle_panel(app_handle);
+                    }
 
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            position_panel_at_tray_icon(app_handle, rect.position, rect.size);
-                        }
+                    #[cfg(target_os = "linux")]
+                    {
+                        // AppIndicator click events are DE-dependent. When delivered, treat primary
+                        // click as a direct popover toggle just like other platforms.
+                        log::debug!("tray click: toggle popover (linux)");
+                        toggle_panel(app_handle);
                     }
                 }
             }
+            #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+            {
+                let _ = (tray, event);
+            }
         })
         .build(app_handle)?;
+
+    #[cfg(target_os = "linux")]
+    if let Err(e) = crate::tray_linux::wire_tray_extras(&tray_icon) {
+        log::warn!("Linux tray secondary-activate wiring failed: {}", e);
+    }
 
     Ok(())
 }

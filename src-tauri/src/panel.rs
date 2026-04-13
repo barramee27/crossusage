@@ -2,6 +2,8 @@ use tauri::{AppHandle, Manager, Position, Size};
 use tauri_nspanel::{
     CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt, tauri_panel,
 };
+<<<<<<< HEAD
+=======
 
 fn monitor_contains_physical_point(
     origin_x: f64,
@@ -60,6 +62,7 @@ fn set_panel_top_left_immediately(
         log::warn!("Failed waiting for panel position on main thread");
     }
 }
+>>>>>>> v0.6.14
 
 /// Macro to get existing panel or initialize it if needed.
 /// Returns Option<Panel> - Some if panel is available, None on error.
@@ -232,9 +235,15 @@ pub fn position_panel_at_tray_icon(
         Some(m) => m.clone(),
         None => {
             log::warn!(
+<<<<<<< HEAD
+                "No monitor found for cursor at ({:.0}, {:.0}), using primary",
+                mouse_x,
+                mouse_y
+=======
                 "No monitor found for tray rect center at ({:.0}, {:.0}), using primary",
                 icon_center_x,
                 icon_center_y
+>>>>>>> v0.6.14
             );
             match window.primary_monitor() {
                 Ok(Some(m)) => m,

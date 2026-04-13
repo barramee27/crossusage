@@ -19,6 +19,10 @@
     "global-shortcut:default",
     "autostart:default",
     "liquid-glass:default",
-    "core:menu:default"
+    "core:menu:default",
+    "positioner:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus"
   ]
 }
