@@ -603,6 +603,19 @@ html.tauri-popover body {
   background-color: transparent !important;
 }
 
+/* Shimmer animation for progress bars refreshing with stale data */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 /* Remove focus rings - this is a menu bar app, not keyboard-navigated */
 *:focus,
 *:focus-visible {

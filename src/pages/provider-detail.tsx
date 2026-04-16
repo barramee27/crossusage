@@ -44,6 +44,7 @@ export function ProviderDetailPage({
       lines={plugin.data?.lines ?? []}
       skeletonLines={plugin.meta.lines}
       lastManualRefreshAt={plugin.lastManualRefreshAt}
+      lastUpdatedAt={plugin.lastUpdatedAt ?? null}
       onRetry={onRetry}
       scopeFilter="all"
       allowedLabels={allowedLabels}

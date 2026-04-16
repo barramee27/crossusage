@@ -1,5 +1,5 @@
-import { useMemo } from "react"
-import { ExternalLink, Hourglass, RefreshCw } from "lucide-react"
+import { Fragment, useMemo } from "react"
+import { AlertCircle, ExternalLink, Hourglass, RefreshCw } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,7 @@ interface ProviderCardProps {
   lines?: MetricLine[]
   skeletonLines?: ManifestLine[]
   lastManualRefreshAt?: number | null
+  lastUpdatedAt?: number | null
   onRetry?: () => void
   scopeFilter?: "overview" | "all"
   allowedLabels?: string[] | null
@@ -80,6 +81,17 @@ function PaceIndicator({
   )
 }
 
+function formatRelativeTime(diffMs: number): string {
+  const seconds = Math.floor(Math.max(0, diffMs) / 1000)
+  if (seconds < 60) return "just now"
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export function ProviderCard({
   name,
   plan,
@@ -90,6 +102,7 @@ export function ProviderCard({
   lines = [],
   skeletonLines = [],
   lastManualRefreshAt,
+  lastUpdatedAt,
   onRetry,
   scopeFilter = "all",
   allowedLabels = null,
@@ -131,10 +144,7 @@ export function ProviderCard({
       : lines.filter(line => overviewLabels.has(line.label))
   }, [lines, scopeFilter, overviewLabels])
 
-  // Further filter by user-selected labels (from Settings → tray line checkboxes)
-  // null = never configured → show all
-  // [] = sentinel __NONE__ → show none
-  // non-empty: overview = only those labels; detail = those labels + manifest detail-scope lines
+  // null = never configured → show all; [] = sentinel __NONE__ → show none
   const filteredLines = useMemo(() => {
     if (allowedLabels == null) return scopeFilteredLines
     if (allowedLabels.length === 0) return []
@@ -151,9 +161,16 @@ export function ProviderCard({
     (line) => line.type === "progress" && Boolean(line.resetsAt)
   )
 
+  // "has ever loaded" — true if either we have a prior success timestamp,
+  // or the parent is passing lines directly (tests + legacy state paths).
+  const hasStaleData = lastUpdatedAt != null || filteredLines.length > 0
+  const isRefreshingWithData = loading && hasStaleData
+
+  const tickerIntervalMs = cooldownRemainingMs > 0 ? 1000 : 30_000
+
   const now = useNowTicker({
     enabled: cooldownRemainingMs > 0 || hasResetCountdown,
-    intervalMs: cooldownRemainingMs > 0 ? 1000 : 30_000,
+    intervalMs: tickerIntervalMs,
     stopAfterMs: cooldownRemainingMs > 0 && !hasResetCountdown ? cooldownRemainingMs : null,
   })
 
@@ -231,19 +248,32 @@ export function ProviderCard({
                   </TooltipContent>
                 </Tooltip>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Retry"
-                  onClick={(e) => {
-                    e.currentTarget.blur()
-                    onRetry()
-                  }}
-                  className="ml-1 opacity-0 hover:opacity-100 focus-visible:opacity-100"
-                  style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    className="ml-1"
+                    render={(props) => (
+                      <Button
+                        {...props}
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="Retry"
+                        onClick={(e) => {
+                          e.currentTarget.blur()
+                          onRetry()
+                        }}
+                        className="opacity-0 hover:opacity-100 focus-visible:opacity-100"
+                        style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    )}
+                  />
+                  {lastUpdatedAt != null && (
+                    <TooltipContent side="top">
+                      Updated {formatRelativeTime(Date.now() - lastUpdatedAt)}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
               )
             )}
           </div>
@@ -275,19 +305,32 @@ export function ProviderCard({
             ))}
           </div>
         )}
-        {error && <PluginError message={error} />}
+        {error && !hasStaleData && <PluginError message={error} />}
 
-        {loading && !error && (
+        {error && hasStaleData && (
+          <Tooltip>
+            <TooltipTrigger
+              render={(props) => (
+                <div
+                  {...props}
+                  className="flex items-center gap-1.5 mb-2 text-xs text-destructive"
+                >
+                  <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{error}</span>
+                </div>
+              )}
+            />
+            <TooltipContent side="top" className="max-w-xs break-words text-xs">
+              {error}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {loading && !hasStaleData && !error && (
           <SkeletonLines lines={filteredSkeletonLines} />
         )}
 
-        {!loading && !error && filteredLines.length === 0 && (
-          <p className="text-sm text-muted-foreground py-2">
-            No metrics selected in Settings. Open Settings and choose which lines to show for this provider.
-          </p>
-        )}
-
-        {!loading && !error && filteredLines.length > 0 && (
+        {hasStaleData && (
           <div className="space-y-4">
             {groupLinesByType(filteredLines).map((group, gi) =>
               group.kind === "text" ? (
@@ -300,11 +343,12 @@ export function ProviderCard({
                       resetTimerDisplayMode={resetTimerDisplayMode}
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
+                      refreshing={isRefreshingWithData}
                     />
                   ))}
                 </div>
               ) : (
-                <div key={gi} className="space-y-5">
+                <Fragment key={gi}>
                   {group.lines.map((line, li) => (
                     <MetricLineRenderer
                       key={`${line.label}-${gi}-${li}`}
@@ -313,13 +357,21 @@ export function ProviderCard({
                       resetTimerDisplayMode={resetTimerDisplayMode}
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
+                      refreshing={isRefreshingWithData}
                     />
                   ))}
-                </div>
+                </Fragment>
               )
             )}
           </div>
         )}
+
+        {!loading && !error && filteredLines.length === 0 && !hasStaleData && (
+          <p className="text-sm text-muted-foreground py-2">
+            No metrics selected in Settings. Open Settings and choose which lines to show for this provider.
+          </p>
+        )}
+
       </div>
       {showSeparator && <Separator />}
     </div>
@@ -332,12 +384,14 @@ function MetricLineRenderer({
   resetTimerDisplayMode,
   onResetTimerDisplayModeToggle,
   now,
+  refreshing,
 }: {
   line: MetricLine
   displayMode: DisplayMode
   resetTimerDisplayMode: ResetTimerDisplayMode
   onResetTimerDisplayModeToggle?: () => void
   now: number
+  refreshing?: boolean
 }) {
   if (line.type === "text") {
     return (
@@ -480,6 +534,7 @@ function MetricLineRenderer({
           value={percent}
           indicatorColor={line.color}
           markerValue={paceMarkerValue}
+          refreshing={refreshing}
         />
         <div className="flex justify-between items-center mt-1.5">
           <span className="text-xs text-muted-foreground tabular-nums">

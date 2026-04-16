@@ -50,6 +50,7 @@ export function OverviewPage({
             lines={plugin.data?.lines ?? []}
             skeletonLines={plugin.meta.lines}
             lastManualRefreshAt={plugin.lastManualRefreshAt}
+            lastUpdatedAt={plugin.lastUpdatedAt ?? null}
             onRetry={onRetryPlugin ? () => onRetryPlugin(plugin.meta.id) : undefined}
             scopeFilter="overview"
             allowedLabels={allowedLabels}
