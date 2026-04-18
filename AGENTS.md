@@ -95,3 +95,5 @@ Use below list to store and recall user notes when asked to do so.
 
 - Tauri IPC: JS must use camelCase (`{ batchId, pluginIds }`), Tauri auto-converts to Rust's snake_case. Never send snake_case from JS—params silently won't match.
 - tauri-action `latest.json`: Parallel matrix builds are safe—action fetches existing `latest.json`, merges platform entries, re-uploads. No `max-parallel: 1` needed.
+- **sudo:** use `sudo cursor-sudo <cmd>` (not bare `sudo`) so elevated commands work in this environment.
+- **GitHub CLI:** `gh auth login` is done on the host as `barramee27`; use `gh` for releases/PRs once the keyring session exists.
