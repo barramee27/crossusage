@@ -1430,4 +1430,58 @@ describe("antigravity plugin", () => {
 
     expect(ccCalls).toBe(1)
   })
+
+  it("does not refresh when Cloud Code returns 5xx (transient, not auth)", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.valid", refreshToken: "1//refresh", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    let refreshCalls = 0
+    ctx.host.http.request.mockImplementation((opts) => {
+      const url = String(opts.url)
+      if (url.includes("oauth2.googleapis.com")) {
+        refreshCalls += 1
+        return { status: 200, bodyText: JSON.stringify({ access_token: "ya29.new" }) }
+      }
+      if (url.includes("fetchAvailableModels")) {
+        return { status: 500, bodyText: "" }
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Start Antigravity and try again.")
+    expect(refreshCalls).toBe(0)
+  })
+
+  it("does not refresh when Cloud Code calls all throw (timeouts)", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.valid", refreshToken: "1//refresh", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    const cachePath = ctx.app.pluginDataDir + "/auth.json"
+    ctx.host.fs.writeText(cachePath, JSON.stringify({
+      accessToken: "ya29.cached",
+      expiresAtMs: Date.now() + 3600000,
+    }))
+
+    let refreshCalls = 0
+    ctx.host.http.request.mockImplementation((opts) => {
+      const url = String(opts.url)
+      if (url.includes("oauth2.googleapis.com")) {
+        refreshCalls += 1
+        return { status: 200, bodyText: JSON.stringify({ access_token: "ya29.new" }) }
+      }
+      if (url.includes("fetchAvailableModels")) {
+        throw new Error("timeout")
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Start Antigravity and try again.")
+    expect(refreshCalls).toBe(0)
+  })
 })

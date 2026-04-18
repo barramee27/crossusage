@@ -480,13 +480,22 @@
     }
 
     var ccData = null
+    var sawAuthFailure = false
     for (var i = 0; i < tokens.length; i++) {
-      ccData = probeCloudCode(ctx, tokens[i])
-      if (ccData && !ccData._authFailed) break
-      ccData = null
+      var nextData = probeCloudCode(ctx, tokens[i])
+      if (nextData && !nextData._authFailed) {
+        ccData = nextData
+        break
+      }
+      if (nextData && nextData._authFailed) sawAuthFailure = true
     }
 
-    if ((!ccData || ccData._authFailed) && dbTokens && dbTokens.refreshToken) {
+    // Only refresh on evidence of an auth failure, or when there were no tokens to try.
+    // probeCloudCode returns null for transient failures (5xx/timeouts); without this
+    // guard a Cloud Code incident would trigger a Google OAuth refresh every probe cycle
+    // instead of ~once per token lifetime — risking refresh-token throttling or rotation.
+    if (!ccData && dbTokens && dbTokens.refreshToken &&
+        (sawAuthFailure || tokens.length === 0)) {
       var refreshed = refreshAccessToken(ctx, dbTokens.refreshToken)
       if (refreshed) ccData = probeCloudCode(ctx, refreshed)
     }
