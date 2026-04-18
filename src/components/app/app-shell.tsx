@@ -9,6 +9,7 @@ import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
 import { useAppVersion } from "@/hooks/app/use-app-version"
 import { usePanel } from "@/hooks/app/use-panel"
+import { usePlatform } from "@/hooks/app/use-platform"
 import { useTrayRestartBridge } from "@/hooks/app/use-tray-restart-bridge"
 import { useAppUpdate } from "@/hooks/use-app-update"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
@@ -73,12 +74,14 @@ export function AppShell({
   const appVersion = useAppVersion()
   const { updateStatus, triggerInstall, checkForUpdates } = useAppUpdate()
   useTrayRestartBridge(updateStatus, triggerInstall)
+  const platform = usePlatform()
+  const macPopoverChrome = isTauri() && platform === "macos"
 
   return (
     <div ref={containerRef} className="app-popover-shell w-full bg-transparent">
       {/* SVG filter definitions for the liquid-distort effect; rendered off-screen */}
       <LiquidGlassFilter active={themeMode === "glass"} />
-      {isTauri() ? <div className="tray-arrow" aria-hidden="true" /> : null}
+      {macPopoverChrome ? <div className="tray-arrow" aria-hidden="true" /> : null}
       <div
         className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col"
         style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx}px` } : undefined}
@@ -93,7 +96,7 @@ export function AppShell({
             onReorder={onNavReorder}
           />
           <div className="app-main-pane relative flex-1 flex flex-col px-3 pt-2 pb-1.5 min-w-0">
-            {isTauri() ? (
+            {macPopoverChrome ? (
               <button
                 type="button"
                 className="absolute right-2 top-1 z-30 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"

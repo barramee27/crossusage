@@ -28,9 +28,15 @@ pub fn toggle_panel(app_handle: &AppHandle) {
 
 pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
     if let Some(window) = app_handle.get_webview_window("main") {
-        // Frameless popover: config sets decorations/transparent/skipTaskbar; avoid overriding decorations.
+        // Native window chrome (caption, taskbar, minimize) — not frameless popover.
+        let _ = window.set_decorations(true);
+        let _ = window.set_skip_taskbar(false);
+        let _ = window.set_always_on_top(false);
+        let _ = window.set_shadow(true);
+        let _ = window.set_minimizable(true);
+        let _ = window.set_maximizable(false);
+        let _ = window.set_closable(true);
         let _ = window.set_resizable(false);
-        let _ = window.set_always_on_top(true);
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: 380.0,
             height: 700.0,

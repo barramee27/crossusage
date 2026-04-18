@@ -170,6 +170,11 @@ body,
   padding-top: 10px;
 }
 
+/* Native title bar (Linux/Windows): no arrow spacer above the panel. */
+html:not(.tauri-popover) .app-popover-shell {
+  padding-top: 0;
+}
+
 .tray-arrow {
   position: absolute;
   top: 2px;

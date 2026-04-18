@@ -1,7 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { error as logError, warn as logWarn } from "@tauri-apps/plugin-log";
 import { App } from "./App";
 import "./index.css";
@@ -32,46 +31,15 @@ console.warn = (...args: unknown[]) => {
 };
 
 /**
- * Tray popover: transparent shell + hide when focus leaves (Windows / Linux).
- * GTK tray menus fire `tauri://blur` as the menu closes, before the webview gains focus — debounce
- * and cancel on `tauri://focus` so "Show Stats" does not immediately hide the window.
+ * macOS only: undecorated tray popover look (transparent html/body; see `index.css`).
+ * Linux/Windows use native title bar from Rust `panel_*::init` — no blur-to-hide.
  */
 if (isTauri()) {
-  document.documentElement.classList.add("tauri-popover");
   void (async () => {
     const platform = await invoke<string>("get_platform");
-    if (platform !== "linux" && platform !== "windows") return;
-    const win = getCurrentWebviewWindow();
-    let blurHideTimer: ReturnType<typeof setTimeout> | null = null;
-    let teardown: (() => void)[] = [];
-    const cancelScheduledHide = () => {
-      if (blurHideTimer !== null) {
-        clearTimeout(blurHideTimer);
-        blurHideTimer = null;
-      }
-    };
-    const focusUnlisten = await win.listen("tauri://focus", () => {
-      cancelScheduledHide();
-    });
-    teardown.push(focusUnlisten);
-    const blurUnlisten = await win.listen("tauri://blur", () => {
-      cancelScheduledHide();
-      blurHideTimer = window.setTimeout(() => {
-        blurHideTimer = null;
-        void win.isFocused().then((focused) => {
-          if (!focused) {
-            void win.hide();
-          }
-        });
-      }, 260);
-    });
-    teardown.push(blurUnlisten);
-
-    window.addEventListener("beforeunload", () => {
-      cancelScheduledHide();
-      teardown.forEach((fn) => fn());
-      teardown = [];
-    });
+    if (platform === "macos") {
+      document.documentElement.classList.add("tauri-popover");
+    }
   })();
 }
 
