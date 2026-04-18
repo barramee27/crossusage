@@ -234,6 +234,7 @@ function SortablePluginItem({
     >
       <button
         type="button"
+        onClick={(e) => e.stopPropagation()}
         className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
         {...attributes}
         {...listeners}
@@ -291,11 +292,14 @@ function SortablePluginItem({
           >
             {plugin.name}
           </span>
-          <Checkbox
-            key={`${plugin.id}-${plugin.enabled}`}
-            checked={plugin.enabled}
-            onCheckedChange={() => onToggle(plugin.id)}
-          />
+          {/* Wrap to stop Base UI's internal input.click() from bubbling to the row div */}
+          <span onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              key={`${plugin.id}-${plugin.enabled}`}
+              checked={plugin.enabled}
+              onCheckedChange={() => onToggle(plugin.id)}
+            />
+          </span>
         </div>
       </div>
     </div>

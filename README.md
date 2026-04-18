@@ -174,11 +174,8 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - [**Windsurf**](docs/providers/windsurf.md) / prompt credits, flex credits
 - [**Z.ai**](docs/providers/zai.md) / session, weekly, web searches
 
-### Maybe Soon
-
-- [Vercel AI Gateway](https://github.com/robinebers/openusage/issues/18)
-
 Community contributions welcome.
+
 Want a provider that's not listed? Open an issue on **[this fork](https://github.com/barramee27/crossusage/issues)** or **[upstream](https://github.com/robinebers/openusage/issues/new)** depending on whether the change is fork-specific or general.
 
 ## Open source
@@ -186,6 +183,14 @@ Want a provider that's not listed? Open an issue on **[this fork](https://github
 Upstream **OpenUsage** is built by its users and contributors. This **CrossUsage** fork tracks that codebase and adds cross-platform improvements; issues and PRs for the fork go to **[barramee27/crossusage](https://github.com/barramee27/crossusage)**. Upstream development lives at **[robinebers/openusage](https://github.com/robinebers/openusage)**.
 
 Plugins are bundled with the app today; the plugin API continues to evolve upstream.
+
+<a href="https://www.star-history.com/?repos=robinebers%2Fopenusage&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=robinebers/openusage&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=robinebers/openusage&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=robinebers/openusage&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ### How to Contribute
 

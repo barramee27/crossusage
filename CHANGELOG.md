@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Upstream port (OpenUsage v0.6.15)
+
+Merged changes from [robinebers/openusage v0.6.15](https://github.com/robinebers/openusage/releases/tag/v0.6.15) ([compare v0.6.14…v0.6.15](https://github.com/robinebers/openusage/compare/v0.6.14...v0.6.15)):
+
+- **Claude:** Claude Design weekly detail metric ([#388](https://github.com/robinebers/openusage/pull/388)).
+- **Claude:** graceful HTTP 429 handling with `Retry-After` ([#378](https://github.com/robinebers/openusage/pull/378)).
+- **Codex:** plan labels mapped to **Pro 5x** and **Pro 10x** ([#380](https://github.com/robinebers/openusage/pull/380)).
+- **Settings:** Base UI plugin enable checkbox — stop internal `click()` bubbling (upstream double-toggle fix).
+- **Docs / tooling:** `docs/providers/claude.md`, README star-history chart, `.codex/environments/environment.toml`, `CLAUDE.md`.
+
 ### Install
 
 - **Windows [`scripts/install.ps1`](scripts/install.ps1):** **`INSTALL_MODE=cli`** — prefers the **latest GitHub Release** asset matching `crossusage-cli_*_windows_<arch>.zip` (or `.tar.gz`), then falls back to `releases/` on the branch. Extracts to `%USERPROFILE%\.local\lib\crossusage` and adds `%USERPROFILE%\.local\bin` (with `crossusage-cli.cmd` shim). **[`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1)** builds the zip for publishing.
@@ -9,6 +19,13 @@
 - **Windows GUI builds in CI:** [`.github/workflows/windows-gui.yml`](.github/workflows/windows-gui.yml) — run **Actions → Windows GUI (Tauri) → Run workflow** to download NSIS `*x64-setup.exe`, `crossusage.exe`, and `crossusage-cli.exe` artifacts (no tag required).
 - **Publish workflow:** [`.github/workflows/publish.yml`](.github/workflows/publish.yml) no longer runs on **`v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is **`workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
 - **macOS CLI CI:** [`.github/workflows/macos-cli-tarball.yml`](.github/workflows/macos-cli-tarball.yml) — **`workflow_dispatch`** on **`macos-latest`**: **`bundle:plugins`**, **`build-cli-tarball.sh`**, verify tarball contains **`resources/bundled_plugins/`** (supports **`./resources/...`** from bsdtar), artifact **`crossusage-cli-darwin-arm64-tarball`**. Optional upload to latest GitHub Release. **GUI (.dmg)** is not built in this job (use local `tauri build` or **`publish.yml`** with signing secrets).
+
+## 1.0.5
+
+### App
+
+- Version **1.0.5** (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, and `crossusage-core` Cargo packages).
+- Ports upstream OpenUsage **v0.6.15** (Claude weekly design metric, 429 backoff, Codex plan labels, settings checkbox fix, docs/Codex env). See **Unreleased → Upstream port**.
 
 ## 1.0.4
 
