@@ -154,6 +154,9 @@ export function usePanel({
     const container = containerRef.current
     if (!container) return
 
+    /** Linux/Windows: native resizable window — do not force outer `setSize` (it blocks user resize). */
+    const platformRef = { current: null as string | null }
+
     const resizeWindow = async () => {
       const factor = window.devicePixelRatio
       const width = Math.ceil(PANEL_WIDTH * factor)
@@ -181,6 +184,19 @@ export function usePanel({
       if (maxPanelHeightPxRef.current !== maxHeightLogical) {
         maxPanelHeightPxRef.current = maxHeightLogical
         setMaxPanelHeightPx(maxHeightLogical)
+      }
+
+      if (platformRef.current === null) {
+        try {
+          platformRef.current = await invoke<string>("get_platform")
+        } catch {
+          platformRef.current = ""
+        }
+      }
+
+      // macOS undecorated popover: keep syncing outer window to content height + fixed width.
+      if (platformRef.current !== "macos") {
+        return
       }
 
       const desiredHeightPhysical = Math.ceil(desiredHeightLogical * factor)

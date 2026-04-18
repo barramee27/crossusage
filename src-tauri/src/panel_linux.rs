@@ -35,9 +35,13 @@ pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
         let _ = window.set_always_on_top(false);
         let _ = window.set_shadow(true);
         let _ = window.set_minimizable(true);
-        let _ = window.set_maximizable(false);
+        let _ = window.set_maximizable(true);
         let _ = window.set_closable(true);
-        let _ = window.set_resizable(false);
+        let _ = window.set_resizable(true);
+        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
+            width: 320.0,
+            height: 420.0,
+        })));
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: 380.0,
             height: 700.0,

@@ -344,6 +344,7 @@ describe("App", () => {
     })
     state.resolveResourceMock.mockResolvedValue("/resource/icons/tray-icon.png")
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           { id: "a", name: "Alpha", iconUrl: "icon-a", primaryProgressLabel: null, lines: [{ type: "text", label: "Now", scope: "overview" }] },
@@ -486,6 +487,7 @@ describe("App", () => {
 
   it("updates tray icon on probe results when plugin has a primary progress", async () => {
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           {
@@ -517,6 +519,7 @@ describe("App", () => {
 
   it("renders first provider tray icon on launch before probe data", async () => {
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           {
@@ -551,6 +554,7 @@ describe("App", () => {
   it("bars style path passed to renderTrayBarsIcon when loadMenubarIconStyle returns bars", async () => {
     state.loadMenubarIconStyleMock.mockResolvedValue("bars")
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           {
@@ -587,6 +591,7 @@ describe("App", () => {
   it("donut style path passed to renderTrayBarsIcon and clears tray title", async () => {
     state.loadMenubarIconStyleMock.mockResolvedValue("donut")
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           {
@@ -642,6 +647,7 @@ describe("App", () => {
 
   it("uses selected provider on detail view and keeps it on home/settings", async () => {
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           {
@@ -1149,6 +1155,7 @@ describe("App", () => {
   it("handles plugin list load failure", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { })
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         throw new Error("boom")
       }
@@ -1701,6 +1708,7 @@ describe("App", () => {
     // Start with a shortcut so we can clear it
     state.loadGlobalShortcutMock.mockResolvedValueOnce("CommandOrControl+Shift+U")
     state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
       if (cmd === "list_plugins") {
         return [
           { id: "a", name: "Alpha", iconUrl: "icon-a", primaryProgressLabel: null, lines: [] },
@@ -1737,6 +1745,7 @@ describe("App", () => {
       })
 
       state.invokeMock.mockImplementationOnce(async (cmd: string) => {
+        if (cmd === "get_platform") return "macos"
         if (cmd === "list_plugins") {
           return [
             {
@@ -1807,6 +1816,7 @@ describe("App", () => {
 
     try {
       state.invokeMock.mockImplementationOnce(async (cmd: string) => {
+        if (cmd === "get_platform") return "macos"
         if (cmd === "list_plugins") {
           return [
             {
@@ -1850,6 +1860,7 @@ describe("App", () => {
       window.requestAnimationFrame = rafSpy
 
       state.invokeMock.mockImplementationOnce(async (cmd: string) => {
+        if (cmd === "get_platform") return "macos"
         if (cmd === "list_plugins") {
           return [
             {

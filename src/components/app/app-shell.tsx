@@ -84,7 +84,11 @@ export function AppShell({
       {macPopoverChrome ? <div className="tray-arrow" aria-hidden="true" /> : null}
       <div
         className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col"
-        style={maxPanelHeightPx ? { maxHeight: `${maxPanelHeightPx}px` } : undefined}
+        style={
+          macPopoverChrome && maxPanelHeightPx
+            ? { maxHeight: `${maxPanelHeightPx}px` }
+            : undefined
+        }
       >
         <div className="flex flex-1 min-h-0 flex-row">
           <SideNav
