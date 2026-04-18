@@ -20,6 +20,14 @@ Merged changes from [robinebers/openusage v0.6.15](https://github.com/robinebers
 - **Publish workflow:** [`.github/workflows/publish.yml`](.github/workflows/publish.yml) no longer runs on **`v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is **`workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
 - **macOS CLI CI:** [`.github/workflows/macos-cli-tarball.yml`](.github/workflows/macos-cli-tarball.yml) — **`workflow_dispatch`** on **`macos-latest`**: **`bundle:plugins`**, **`build-cli-tarball.sh`**, verify tarball contains **`resources/bundled_plugins/`** (supports **`./resources/...`** from bsdtar), artifact **`crossusage-cli-darwin-arm64-tarball`**. Optional upload to latest GitHub Release. **GUI (.dmg)** is not built in this job (use local `tauri build` or **`publish.yml`** with signing secrets).
 
+## 1.0.6
+
+### App
+
+- Version **1.0.6** (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, and `crossusage-core` Cargo packages).
+- **Linux / Windows:** native window frame (title bar, taskbar, minimize/maximize); tray arrow and in-window close only on **macOS**; no blur-to-hide on Linux/Windows.
+- **Linux / Windows:** window is **resizable** with a sensible minimum size; frontend no longer forces outer `setSize` on every layout change (that blocked manual resize).
+
 ## 1.0.5
 
 ### App
