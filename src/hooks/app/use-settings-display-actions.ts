@@ -3,6 +3,7 @@ import {
   saveUIScale,
   saveDisplayMode,
   saveMenubarIconStyle,
+  savePreferMenubarWeeklyLimit,
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
   saveThemeMode,
@@ -27,10 +28,7 @@ type UseSettingsDisplayActionsArgs = {
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
-  setUsageAlertEnabled: (value: boolean) => void
-  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
-  setCustomUsageAlertThreshold: (value: number | null) => void
-  setUsageAlertSound: (value: UsageAlertSound) => void
+  setPreferMenubarWeeklyLimit: (value: boolean) => void
   scheduleTrayIconUpdate: ScheduleTrayIconUpdate
 }
 
@@ -41,10 +39,7 @@ export function useSettingsDisplayActions({
   setResetTimerDisplayMode,
   setShowAccountIdentity,
   setMenubarIconStyle,
-  setUsageAlertEnabled,
-  setUsageAlertThreshold,
-  setCustomUsageAlertThreshold,
-  setUsageAlertSound,
+  setPreferMenubarWeeklyLimit,
   scheduleTrayIconUpdate,
 }: UseSettingsDisplayActionsArgs) {
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
@@ -89,36 +84,13 @@ export function useSettingsDisplayActions({
     })
   }, [scheduleTrayIconUpdate, setMenubarIconStyle])
 
-  const handleUsageAlertEnabledChange = useCallback((value: boolean) => {
-    track("setting_changed", { setting: "usage_alert_enabled", value: value ? "true" : "false" })
-    setUsageAlertEnabled(value)
-    void saveUsageAlertEnabled(value).catch((error) => {
-      console.error("Failed to save usage alert enabled:", error)
+  const handlePreferMenubarWeeklyLimitChange = useCallback((value: boolean) => {
+    setPreferMenubarWeeklyLimit(value)
+    scheduleTrayIconUpdate("settings", 0)
+    void savePreferMenubarWeeklyLimit(value).catch((error) => {
+      console.error("Failed to save menubar weekly limit preference:", error)
     })
-  }, [setUsageAlertEnabled])
-
-  const handleUsageAlertThresholdChange = useCallback((value: UsageAlertThreshold) => {
-    track("setting_changed", { setting: "usage_alert_threshold", value: String(value) })
-    setUsageAlertThreshold(value)
-    void saveUsageAlertThreshold(value).catch((error) => {
-      console.error("Failed to save usage alert threshold:", error)
-    })
-  }, [setUsageAlertThreshold])
-
-  const handleUsageAlertCustomThresholdChange = useCallback((value: number | null) => {
-    setCustomUsageAlertThreshold(value)
-    void saveUsageAlertCustomThreshold(value).catch((error) => {
-      console.error("Failed to save usage alert custom threshold:", error)
-    })
-  }, [setCustomUsageAlertThreshold])
-
-  const handleUsageAlertSoundChange = useCallback((value: UsageAlertSound) => {
-    track("setting_changed", { setting: "usage_alert_sound", value })
-    setUsageAlertSound(value)
-    void saveUsageAlertSound(value).catch((error) => {
-      console.error("Failed to save usage alert sound:", error)
-    })
-  }, [setUsageAlertSound])
+  }, [scheduleTrayIconUpdate, setPreferMenubarWeeklyLimit])
 
   return {
     handleThemeModeChange,
@@ -127,9 +99,6 @@ export function useSettingsDisplayActions({
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
     handleMenubarIconStyleChange,
-    handleUsageAlertEnabledChange,
-    handleUsageAlertThresholdChange,
-    handleUsageAlertCustomThresholdChange,
-    handleUsageAlertSoundChange,
+    handlePreferMenubarWeeklyLimitChange,
   }
 }

@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
   saveResetTimerDisplayModeMock: vi.fn(),
   loadMenubarIconStyleMock: vi.fn(),
   saveMenubarIconStyleMock: vi.fn(),
+  loadPreferMenubarWeeklyLimitMock: vi.fn(),
+  savePreferMenubarWeeklyLimitMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
   loadGlobalShortcutMock: vi.fn(),
   saveGlobalShortcutMock: vi.fn(),
@@ -250,6 +252,8 @@ vi.mock("@/lib/settings", async () => {
     saveResetTimerDisplayMode: state.saveResetTimerDisplayModeMock,
     loadMenubarIconStyle: state.loadMenubarIconStyleMock,
     saveMenubarIconStyle: state.saveMenubarIconStyleMock,
+    loadPreferMenubarWeeklyLimit: state.loadPreferMenubarWeeklyLimitMock,
+    savePreferMenubarWeeklyLimit: state.savePreferMenubarWeeklyLimitMock,
     migrateLegacyTraySettings: state.migrateLegacyTraySettingsMock,
     loadGlobalShortcut: state.loadGlobalShortcutMock,
     saveGlobalShortcut: state.saveGlobalShortcutMock,
@@ -290,6 +294,8 @@ describe("App", () => {
     state.saveResetTimerDisplayModeMock.mockReset()
     state.loadMenubarIconStyleMock.mockReset()
     state.saveMenubarIconStyleMock.mockReset()
+    state.loadPreferMenubarWeeklyLimitMock.mockReset()
+    state.savePreferMenubarWeeklyLimitMock.mockReset()
     state.migrateLegacyTraySettingsMock.mockReset()
     state.loadGlobalShortcutMock.mockReset()
     state.saveGlobalShortcutMock.mockReset()
@@ -330,6 +336,8 @@ describe("App", () => {
     state.saveResetTimerDisplayModeMock.mockResolvedValue(undefined)
     state.loadMenubarIconStyleMock.mockResolvedValue("provider")
     state.saveMenubarIconStyleMock.mockResolvedValue(undefined)
+    state.loadPreferMenubarWeeklyLimitMock.mockResolvedValue(false)
+    state.savePreferMenubarWeeklyLimitMock.mockResolvedValue(undefined)
     state.migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     state.loadGlobalShortcutMock.mockResolvedValue(null)
     state.saveGlobalShortcutMock.mockResolvedValue(undefined)

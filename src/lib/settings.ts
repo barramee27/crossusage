@@ -57,6 +57,7 @@ const DISPLAY_MODE_KEY = "displayMode";
 const RESET_TIMER_DISPLAY_MODE_KEY = "resetTimerDisplayMode";
 const TIME_FORMAT_MODE_KEY = "timeFormatMode";
 const MENUBAR_ICON_STYLE_KEY = "menubarIconStyle";
+const PREFER_MENUBAR_WEEKLY_LIMIT_KEY = "preferMenubarWeeklyLimit";
 const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
@@ -73,6 +74,7 @@ export const DEFAULT_RESET_TIMER_DISPLAY_MODE: ResetTimerDisplayMode = "relative
 export const DEFAULT_TIME_FORMAT_MODE: TimeFormatMode = "auto";
 /** Default tray appearance for new installs and store reset (Plugin / provider style). */
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
+export const DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT = false;
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
 export const DEFAULT_USAGE_ALERT_ENABLED = false;
@@ -411,6 +413,17 @@ export async function loadMenubarIconStyle(): Promise<MenubarIconStyle> {
 
 export async function saveMenubarIconStyle(style: MenubarIconStyle): Promise<void> {
   await store.set(MENUBAR_ICON_STYLE_KEY, style);
+  await store.save();
+}
+
+export async function loadPreferMenubarWeeklyLimit(): Promise<boolean> {
+  const stored = await store.get<unknown>(PREFER_MENUBAR_WEEKLY_LIMIT_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT;
+}
+
+export async function savePreferMenubarWeeklyLimit(value: boolean): Promise<void> {
+  await store.set(PREFER_MENUBAR_WEEKLY_LIMIT_KEY, value);
   await store.save();
 }
 

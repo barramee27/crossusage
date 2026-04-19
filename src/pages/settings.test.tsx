@@ -69,6 +69,8 @@ const defaultProps = {
   onTimeFormatModeChange: vi.fn(),
   menubarIconStyle: "provider" as const,
   onMenubarIconStyleChange: vi.fn(),
+  preferMenubarWeeklyLimit: false,
+  onPreferMenubarWeeklyLimitChange: vi.fn(),
   traySettingsPreview: {
     bars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
     providerBars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
@@ -408,6 +410,19 @@ describe("SettingsPage", () => {
     render(<SettingsPage {...defaultProps} />)
     expect(screen.queryByText("Bar Icon")).not.toBeInTheDocument()
     expect(screen.queryByText("Show percentage")).not.toBeInTheDocument()
+  })
+
+  it("toggles menubar weekly limit preference", async () => {
+    const onPreferMenubarWeeklyLimitChange = vi.fn()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        onPreferMenubarWeeklyLimitChange={onPreferMenubarWeeklyLimitChange}
+      />
+    )
+
+    await userEvent.click(screen.getByText("Prefer weekly limits when available"))
+    expect(onPreferMenubarWeeklyLimitChange).toHaveBeenCalledWith(true)
   })
 
   it("toggles start on login checkbox", async () => {

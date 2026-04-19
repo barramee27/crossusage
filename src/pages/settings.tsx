@@ -854,6 +854,8 @@ interface SettingsPageProps {
   onTimeFormatModeChange: (value: TimeFormatMode) => void;
   menubarIconStyle: MenubarIconStyle;
   onMenubarIconStyleChange: (value: MenubarIconStyle) => void;
+  preferMenubarWeeklyLimit: boolean;
+  onPreferMenubarWeeklyLimitChange: (value: boolean) => void;
   traySettingsPreview: TraySettingsPreview;
   globalShortcut: GlobalShortcut;
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
@@ -890,6 +892,8 @@ export function SettingsPage({
   onTimeFormatModeChange,
   menubarIconStyle,
   onMenubarIconStyleChange,
+  preferMenubarWeeklyLimit,
+  onPreferMenubarWeeklyLimitChange,
   traySettingsPreview,
   globalShortcut,
   onGlobalShortcutChange,
@@ -1220,6 +1224,14 @@ export function SettingsPage({
             })}
           </div>
         </div>
+        <label className="mt-3 flex items-center gap-2 text-sm select-none text-foreground">
+          <Checkbox
+            key={`prefer-menubar-weekly-limit-${preferMenubarWeeklyLimit}`}
+            checked={preferMenubarWeeklyLimit}
+            onCheckedChange={(checked) => onPreferMenubarWeeklyLimitChange(checked === true)}
+          />
+          Prefer weekly limits when available
+        </label>
       </section>
       <section>
         <h3 className="text-lg font-semibold mb-0">App Theme</h3>

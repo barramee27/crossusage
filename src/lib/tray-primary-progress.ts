@@ -33,6 +33,15 @@ function isProgressLine(line: PluginOutput["lines"][number]): line is ProgressLi
   return line.type === "progress"
 }
 
+function isWeeklyOverviewLine(meta: PluginMeta, label: string): boolean {
+  return meta.lines.some((line) =>
+    line.type === "progress" &&
+    line.scope === "overview" &&
+    line.label === label &&
+    /weekly/i.test(label)
+  )
+}
+
 export function getTrayPrimaryBars(args: {
   pluginsMeta: PluginMeta[]
   pluginSettings: PluginSettings | null
@@ -40,6 +49,7 @@ export function getTrayPrimaryBars(args: {
   maxBars?: number
   displayMode?: DisplayMode
   pluginId?: string
+  preferWeeklyLimit?: boolean
 }): TrayPrimaryBar[] {
   const {
     pluginsMeta,
@@ -48,6 +58,7 @@ export function getTrayPrimaryBars(args: {
     maxBars = 4,
     displayMode = DEFAULT_DISPLAY_MODE,
     pluginId,
+    preferWeeklyLimit = false,
   } = args
   if (!pluginSettings) return []
 
@@ -70,53 +81,15 @@ export function getTrayPrimaryBars(args: {
 
     let items: TrayPrimaryBarItem[] = []
     if (data) {
-      const configuredLabels = pluginSettings.trayLines?.[id]
-      
-      // ['__NONE__'] = user explicitly wants nothing shown (sentinel value)
-      // undefined = never configured, show first primary as default
-      // [...] = user selection
-      let targetLabels: string[]
-      if (configuredLabels?.[0] === '__NONE__') {
-        targetLabels = [] // User wants nothing
-      } else if (configuredLabels === undefined) {
-        targetLabels = meta.primaryCandidates.length > 0 ? [meta.primaryCandidates[0]] : []
-      } else {
-        targetLabels = configuredLabels
-      }
+      const weeklyLabel = preferWeeklyLimit
+        ? data.lines
+            .filter(isProgressLine)
+            .find((line) => isWeeklyOverviewLine(meta, line.label))
+            ?.label
+        : undefined
 
-      for (const targetLabel of targetLabels) {
-        const line = data.lines.find(
-          (l): l is ProgressLine => isProgressLine(l) && l.label === targetLabel
-        )
-        if (line) {
-          let fraction: number | undefined
-          if (line.limit > 0) {
-            const shownAmount =
-              displayMode === "used"
-                ? line.used
-                : line.limit - line.used
-            fraction = clamp01(shownAmount / line.limit)
-          }
-          if (line.format?.kind === "dollars") {
-            items.push({
-              label: targetLabel,
-              fraction,
-              valueKind: "dollars",
-              used: line.used,
-              limit: line.limit,
-            })
-          } else {
-            items.push({ label: targetLabel, fraction })
-          }
-        }
-      }
-    }
-
-    // fallback to first primary ONLY if user never configured trayLines (undefined)
-    // NOT if they explicitly unchecked everything (empty array)
-    const wasEverConfigured = pluginSettings.trayLines?.[id] !== undefined
-    if (items.length === 0 && data && !wasEverConfigured) {
-      const primaryLabel = meta.primaryCandidates.find((label) =>
+      // Find first candidate that exists in runtime data
+      const primaryLabel = weeklyLabel ?? meta.primaryCandidates.find((label) =>
         data.lines.some((line) => isProgressLine(line) && line.label === label)
       )
       if (primaryLabel) {
@@ -151,4 +124,3 @@ export function getTrayPrimaryBars(args: {
 
   return out
 }
-

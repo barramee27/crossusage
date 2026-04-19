@@ -40,6 +40,7 @@ export type AppContentActionProps = {
   onResetTimerDisplayModeToggle: () => void
   onTimeFormatModeChange: (mode: TimeFormatMode) => void
   onMenubarIconStyleChange: (value: MenubarIconStyle) => void
+  onPreferMenubarWeeklyLimitChange: (value: boolean) => void
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
   onStartOnLoginChange: (value: boolean) => void
@@ -70,6 +71,7 @@ export function AppContent({
   onResetTimerDisplayModeToggle,
   onTimeFormatModeChange,
   onMenubarIconStyleChange,
+  onPreferMenubarWeeklyLimitChange,
   traySettingsPreview,
   onGlobalShortcutChange,
   onStartOnLoginChange,
@@ -89,6 +91,7 @@ export function AppContent({
     resetTimerDisplayMode,
     timeFormatMode,
     menubarIconStyle,
+    preferMenubarWeeklyLimit,
     autoUpdateInterval,
     globalShortcut,
     themeMode,
@@ -103,6 +106,7 @@ export function AppContent({
       resetTimerDisplayMode: state.resetTimerDisplayMode,
       timeFormatMode: state.timeFormatMode,
       menubarIconStyle: state.menubarIconStyle,
+      preferMenubarWeeklyLimit: state.preferMenubarWeeklyLimit,
       autoUpdateInterval: state.autoUpdateInterval,
       globalShortcut: state.globalShortcut,
       themeMode: state.themeMode,
@@ -151,6 +155,8 @@ export function AppContent({
         onTimeFormatModeChange={onTimeFormatModeChange}
         menubarIconStyle={menubarIconStyle}
         onMenubarIconStyleChange={onMenubarIconStyleChange}
+        preferMenubarWeeklyLimit={preferMenubarWeeklyLimit}
+        onPreferMenubarWeeklyLimitChange={onPreferMenubarWeeklyLimitChange}
         traySettingsPreview={traySettingsPreview}
         globalShortcut={globalShortcut}
         onGlobalShortcutChange={onGlobalShortcutChange}

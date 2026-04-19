@@ -5,6 +5,7 @@ import {
   DEFAULT_DISPLAY_MODE,
   DEFAULT_GLOBAL_SHORTCUT,
   DEFAULT_MENUBAR_ICON_STYLE,
+  DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
@@ -35,10 +36,7 @@ type AppPreferencesStore = {
   startOnLogin: boolean
   showAccountIdentity: boolean
   menubarIconStyle: MenubarIconStyle
-  usageAlertEnabled: boolean
-  usageAlertThreshold: UsageAlertThreshold
-  customUsageAlertThreshold: number | null
-  usageAlertSound: UsageAlertSound
+  preferMenubarWeeklyLimit: boolean
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
   setDisplayMode: (value: DisplayMode) => void
@@ -48,10 +46,7 @@ type AppPreferencesStore = {
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
-  setUsageAlertEnabled: (value: boolean) => void
-  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
-  setCustomUsageAlertThreshold: (value: number | null) => void
-  setUsageAlertSound: (value: UsageAlertSound) => void
+  setPreferMenubarWeeklyLimit: (value: boolean) => void
   resetState: () => void
 }
 
@@ -65,10 +60,7 @@ const initialState = {
   startOnLogin: DEFAULT_START_ON_LOGIN,
   showAccountIdentity: DEFAULT_SHOW_ACCOUNT_IDENTITY,
   menubarIconStyle: DEFAULT_MENUBAR_ICON_STYLE,
-  usageAlertEnabled: DEFAULT_USAGE_ALERT_ENABLED,
-  usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
-  customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
-  usageAlertSound: DEFAULT_USAGE_ALERT_SOUND,
+  preferMenubarWeeklyLimit: DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
 }
 
 export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
@@ -82,9 +74,6 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setStartOnLogin: (value) => set({ startOnLogin: value }),
   setShowAccountIdentity: (value) => set({ showAccountIdentity: value }),
   setMenubarIconStyle: (value) => set({ menubarIconStyle: value }),
-  setUsageAlertEnabled: (value) => set({ usageAlertEnabled: value }),
-  setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
-  setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),
-  setUsageAlertSound: (value) => set({ usageAlertSound: value }),
+  setPreferMenubarWeeklyLimit: (value) => set({ preferMenubarWeeklyLimit: value }),
   resetState: () => set(initialState),
 }))

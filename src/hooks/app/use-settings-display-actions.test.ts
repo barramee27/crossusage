@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
   saveDisplayModeMock,
+  savePreferMenubarWeeklyLimitMock,
   saveResetTimerDisplayModeMock,
   saveShowAccountIdentityMock,
   saveThemeModeMock,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   saveThemeModeMock: vi.fn(),
   saveDisplayModeMock: vi.fn(),
+  savePreferMenubarWeeklyLimitMock: vi.fn(),
   saveResetTimerDisplayModeMock: vi.fn(),
   saveShowAccountIdentityMock: vi.fn(),
 }))
@@ -22,6 +24,7 @@ vi.mock("@/lib/analytics", () => ({
 vi.mock("@/lib/settings", () => ({
   saveThemeMode: saveThemeModeMock,
   saveDisplayMode: saveDisplayModeMock,
+  savePreferMenubarWeeklyLimit: savePreferMenubarWeeklyLimitMock,
   saveResetTimerDisplayMode: saveResetTimerDisplayModeMock,
   saveShowAccountIdentity: saveShowAccountIdentityMock,
 }))
@@ -32,10 +35,12 @@ describe("useSettingsDisplayActions", () => {
   beforeEach(() => {
     saveThemeModeMock.mockReset()
     saveDisplayModeMock.mockReset()
+    savePreferMenubarWeeklyLimitMock.mockReset()
     saveResetTimerDisplayModeMock.mockReset()
     saveShowAccountIdentityMock.mockReset()
     saveThemeModeMock.mockResolvedValue(undefined)
     saveDisplayModeMock.mockResolvedValue(undefined)
+    savePreferMenubarWeeklyLimitMock.mockResolvedValue(undefined)
     saveResetTimerDisplayModeMock.mockResolvedValue(undefined)
     saveShowAccountIdentityMock.mockResolvedValue(undefined)
   })
@@ -44,7 +49,7 @@ describe("useSettingsDisplayActions", () => {
     const setThemeMode = vi.fn()
     const setDisplayMode = vi.fn()
     const setResetTimerDisplayMode = vi.fn()
-    const setShowAccountIdentity = vi.fn()
+    const setPreferMenubarWeeklyLimit = vi.fn()
     const scheduleTrayIconUpdate = vi.fn()
 
     const { result } = renderHook(() =>
@@ -53,7 +58,7 @@ describe("useSettingsDisplayActions", () => {
         setDisplayMode,
         resetTimerDisplayMode: "relative",
         setResetTimerDisplayMode,
-        setShowAccountIdentity,
+        setPreferMenubarWeeklyLimit,
         scheduleTrayIconUpdate,
       })
     )
@@ -62,19 +67,19 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleThemeModeChange("glass")
       result.current.handleDisplayModeChange("used")
       result.current.handleResetTimerDisplayModeChange("absolute")
-      result.current.handleShowAccountIdentityChange(false)
+      result.current.handlePreferMenubarWeeklyLimitChange(true)
     })
 
     expect(setThemeMode).toHaveBeenCalledWith("glass")
     expect(setDisplayMode).toHaveBeenCalledWith("used")
     expect(setResetTimerDisplayMode).toHaveBeenCalledWith("absolute")
-    expect(setShowAccountIdentity).toHaveBeenCalledWith(false)
+    expect(setPreferMenubarWeeklyLimit).toHaveBeenCalledWith(true)
     expect(scheduleTrayIconUpdate).toHaveBeenCalledWith("settings", 0)
 
     expect(saveThemeModeMock).toHaveBeenCalledWith("glass")
     expect(saveDisplayModeMock).toHaveBeenCalledWith("used")
     expect(saveResetTimerDisplayModeMock).toHaveBeenCalledWith("absolute")
-    expect(saveShowAccountIdentityMock).toHaveBeenCalledWith(false)
+    expect(savePreferMenubarWeeklyLimitMock).toHaveBeenCalledWith(true)
   })
 
   it("toggles reset timer mode in both directions", () => {
@@ -87,7 +92,7 @@ describe("useSettingsDisplayActions", () => {
           setDisplayMode: vi.fn(),
           resetTimerDisplayMode: mode,
           setResetTimerDisplayMode,
-          setShowAccountIdentity: vi.fn(),
+          setPreferMenubarWeeklyLimit: vi.fn(),
           scheduleTrayIconUpdate: vi.fn(),
         }),
       { initialProps: { mode: "relative" as const } }
@@ -109,15 +114,12 @@ describe("useSettingsDisplayActions", () => {
     const themeError = new Error("theme failed")
     const displayError = new Error("display failed")
     const resetError = new Error("reset failed")
-    const accountError = new Error("account failed")
+    const menubarWeeklyError = new Error("menubar weekly failed")
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     saveThemeModeMock.mockRejectedValueOnce(themeError)
     saveDisplayModeMock.mockRejectedValueOnce(displayError)
     saveResetTimerDisplayModeMock.mockRejectedValueOnce(resetError)
-    saveShowAccountIdentityMock.mockRejectedValueOnce(accountError)
-
-    const timeFormatError = new Error("time format failed")
-    saveTimeFormatModeMock.mockRejectedValueOnce(timeFormatError)
+    savePreferMenubarWeeklyLimitMock.mockRejectedValueOnce(menubarWeeklyError)
 
     const { result } = renderHook(() =>
       useSettingsDisplayActions({
@@ -125,7 +127,7 @@ describe("useSettingsDisplayActions", () => {
         setDisplayMode: vi.fn(),
         resetTimerDisplayMode: "relative",
         setResetTimerDisplayMode: vi.fn(),
-        setShowAccountIdentity: vi.fn(),
+        setPreferMenubarWeeklyLimit: vi.fn(),
         scheduleTrayIconUpdate: vi.fn(),
       })
     )
@@ -134,14 +136,17 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleThemeModeChange("light")
       result.current.handleDisplayModeChange("left")
       result.current.handleResetTimerDisplayModeChange("relative")
-      result.current.handleShowAccountIdentityChange(true)
+      result.current.handlePreferMenubarWeeklyLimitChange(true)
     })
 
     await waitFor(() => {
       expect(errorSpy).toHaveBeenCalledWith("Failed to save theme mode:", themeError)
       expect(errorSpy).toHaveBeenCalledWith("Failed to save display mode:", displayError)
       expect(errorSpy).toHaveBeenCalledWith("Failed to save reset timer display mode:", resetError)
-      expect(errorSpy).toHaveBeenCalledWith("Failed to save account identity visibility:", accountError)
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Failed to save menubar weekly limit preference:",
+        menubarWeeklyError
+      )
     })
 
     errorSpy.mockRestore()
