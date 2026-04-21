@@ -815,6 +815,7 @@ describe("ProviderCard", () => {
         name="SWR"
         displayMode="used"
         loading
+        lastUpdatedAt={Date.now() - 60_000}
         lines={[
           { type: "text", label: "Label", value: "Value" },
           { type: "progress", label: "Session", used: 32, limit: 100, format: { kind: "percent" } },
@@ -830,6 +831,28 @@ describe("ProviderCard", () => {
     expect(screen.getByText("32%")).toBeInTheDocument()
     // Progress bar shows shimmer overlay
     expect(document.querySelector('[data-slot="progress-refreshing"]')).toBeTruthy()
+  })
+
+  it("skips skeleton on refresh when lastUpdatedAt set even if filtered lines are empty", () => {
+    render(
+      <ProviderCard
+        name="FilteredEmpty"
+        displayMode="used"
+        loading
+        lastUpdatedAt={Date.now() - 60_000}
+        scopeFilter="overview"
+        skeletonLines={[
+          { type: "progress", label: "Session", scope: "overview" },
+        ]}
+        lines={[
+          { type: "text", label: "DetailOnly", value: "Hidden" },
+        ]}
+      />
+    )
+    // skeleton label for "Session" should not render because we have prior data (lastUpdatedAt set)
+    expect(screen.queryByText("Session")).toBeNull()
+    // and the detail-scoped line stays filtered out
+    expect(screen.queryByText("DetailOnly")).toBeNull()
   })
 
   it("renders skeleton on first load when no stale data exists", () => {
@@ -851,6 +874,7 @@ describe("ProviderCard", () => {
         name="StaleErr"
         displayMode="used"
         error="Couldn't update data. Try again?"
+        lastUpdatedAt={Date.now() - 60_000}
         lines={[
           { type: "progress", label: "Session", used: 40, limit: 100, format: { kind: "percent" } },
         ]}
@@ -877,7 +901,7 @@ describe("ProviderCard", () => {
     expect(screen.getByText("Nope")).toBeInTheDocument()
   })
 
-  it("shows relative last-updated timestamp", () => {
+  it("shows relative last-updated timestamp in retry tooltip", () => {
     vi.useFakeTimers()
     const now = new Date("2026-02-02T00:05:00.000Z")
     vi.setSystemTime(now)
@@ -885,6 +909,7 @@ describe("ProviderCard", () => {
       <ProviderCard
         name="Updated"
         displayMode="used"
+        onRetry={() => {}}
         lastUpdatedAt={now.getTime() - 120_000}
         lines={[{ type: "text", label: "Label", value: "Value" }]}
       />
@@ -901,6 +926,7 @@ describe("ProviderCard", () => {
       <ProviderCard
         name="Fresh"
         displayMode="used"
+        onRetry={() => {}}
         lastUpdatedAt={now.getTime() - 5_000}
         lines={[{ type: "text", label: "Label", value: "Value" }]}
       />
@@ -917,12 +943,25 @@ describe("ProviderCard", () => {
       <ProviderCard
         name="Skew"
         displayMode="used"
+        onRetry={() => {}}
         lastUpdatedAt={now.getTime() + 60_000}
         lines={[{ type: "text", label: "Label", value: "Value" }]}
       />
     )
     expect(screen.getByText(/Updated just now/)).toBeInTheDocument()
     vi.useRealTimers()
+  })
+
+  it("omits retry tooltip content when lastUpdatedAt is null", () => {
+    render(
+      <ProviderCard
+        name="NoTimestamp"
+        displayMode="used"
+        onRetry={() => {}}
+        lines={[{ type: "text", label: "Label", value: "Value" }]}
+      />
+    )
+    expect(screen.queryByText(/Updated/)).toBeNull()
   })
 })
 
