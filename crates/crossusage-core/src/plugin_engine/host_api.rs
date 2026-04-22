@@ -60,6 +60,23 @@ fn extract_marked_value(text: &str, start_marker: &str, end_marker: &str) -> Opt
     sanitize_env_value(&after_start[..end])
 }
 
+fn parse_interactive_shell_env_output(
+    text: &str,
+    start_marker: &str,
+    end_marker: &str,
+) -> Option<String> {
+    if let Some(marked) = extract_marked_value(text, start_marker, end_marker) {
+        return Some(marked);
+    }
+
+    let has_complete_markers = text.contains(start_marker) && text.contains(end_marker);
+    if has_complete_markers {
+        return None;
+    }
+
+    sanitize_env_value(text)
+}
+
 fn read_env_from_process(name: &str) -> Option<String> {
     let value = std::env::var(name).ok()?;
     sanitize_env_value(&value)
@@ -107,7 +124,7 @@ fn read_env_from_interactive_shell(program: &str, name: &str) -> Option<String> 
         START_MARKER, name, END_MARKER
     );
     let output = read_command_stdout(program, &["-ilc", script.as_str()])?;
-    extract_marked_value(&output, START_MARKER, END_MARKER).or_else(|| sanitize_env_value(&output))
+    parse_interactive_shell_env_output(&output, START_MARKER, END_MARKER)
 }
 
 fn read_env_from_interactive_shells(name: &str) -> Option<String> {
@@ -2467,6 +2484,28 @@ mod tests {
         let value =
             extract_marked_value(stdout, "__OPENUSAGE_ENV_START__", "__OPENUSAGE_ENV_END__");
         assert!(value.is_none());
+    }
+
+    #[test]
+    fn parse_interactive_shell_env_output_does_not_fallback_to_end_marker_for_empty_value() {
+        let stdout = "__OPENUSAGE_ENV_START__\n  \n__OPENUSAGE_ENV_END__\n";
+        let value = parse_interactive_shell_env_output(
+            stdout,
+            "__OPENUSAGE_ENV_START__",
+            "__OPENUSAGE_ENV_END__",
+        );
+        assert!(value.is_none());
+    }
+
+    #[test]
+    fn parse_interactive_shell_env_output_falls_back_without_markers() {
+        let stdout = "\u{1b}[?1000l\n  sk-test-key-12345\u{1b}[?2004h\r\n";
+        let value = parse_interactive_shell_env_output(
+            stdout,
+            "__OPENUSAGE_ENV_START__",
+            "__OPENUSAGE_ENV_END__",
+        );
+        assert_eq!(value.as_deref(), Some("sk-test-key-12345"));
     }
 
     #[test]
