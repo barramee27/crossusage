@@ -148,7 +148,7 @@
         const parsed = parseOauthClientCreds(ctx.host.fs.readText(path))
         if (parsed) return parsed
       } catch (e) {
-        ctx.host.log.warn("failed reading oauth2.js at " + path + ": " + String(e))
+        ctx.host.log.warn("failed reading oauth candidate at " + path + ": " + String(e))
       }
     }
     ctx.host.log.warn("Gemini OAuth client credentials not found in any known install path")
