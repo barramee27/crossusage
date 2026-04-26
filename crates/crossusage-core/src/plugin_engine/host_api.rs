@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
-const WHITELISTED_ENV_VARS: [&str; 23] = [
+const WHITELISTED_ENV_VARS: [&str; 24] = [
     "CODEX_HOME",
     "CLAUDE_CONFIG_DIR",
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -44,6 +44,7 @@ const WHITELISTED_ENV_VARS: [&str; 23] = [
     "OLLAMA_HOST",
     "OLLAMA_SESSION_COOKIE",
     "OLLAMA_COOKIE",
+    "NEURALWATT_API_KEY",
 ];
 
 fn last_non_empty_trimmed_line(text: &str) -> Option<String> {
