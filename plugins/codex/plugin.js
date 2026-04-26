@@ -276,7 +276,7 @@
     const rawPlan = typeof planType === "string" ? planType.trim() : ""
     if (!rawPlan) return null
     if (rawPlan.toLowerCase() === "prolite") return "Pro 5x"
-    if (rawPlan.toLowerCase() === "pro") return "Pro 10x"
+    if (rawPlan.toLowerCase() === "pro") return "Pro 20x"
     return ctx.fmt.planLabel(rawPlan) || null
   }
 
