@@ -27,13 +27,14 @@ copy_glob () {
 }
 
 # Linux (native host build) — workspace uses repo-root target/
-copy_glob "$ROOT/target/release/bundle/deb/"*.deb
-copy_glob "$ROOT/target/release/bundle/rpm/"*.rpm
-copy_glob "$ROOT/target/release/bundle/appimage/"*.AppImage
+# Pin to ${VERSION}: the bundle dirs accumulate older *.deb/*.rpm from past builds.
+copy_glob "$ROOT/target/release/bundle/deb/crossusage_${VERSION}_amd64.deb"
+copy_glob "$ROOT/target/release/bundle/rpm/crossusage-${VERSION}-"*.rpm
+copy_glob "$ROOT/target/release/bundle/appimage/crossusage_${VERSION}_amd64.AppImage"
 
 # Windows (GNU cross-target)
-copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/bundle/nsis/"*.exe
-copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/"crossusage.exe
+copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/bundle/nsis/crossusage_${VERSION}_x64-setup.exe"
+copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/crossusage.exe"
 
 # Portable Linux CLI (optional — run scripts/build-cli-tarball.sh on Linux amd64/arm64 first)
 copy_glob "$ROOT/crossusage-cli_${VERSION}_linux_"*.tar.gz
