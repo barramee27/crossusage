@@ -175,6 +175,29 @@ html:not(.tauri-popover) .app-popover-shell {
   padding-top: 0;
 }
 
+/*
+ * Without macOS maxHeight on `.app-panel-surface`, the flex column height was
+ * content-sized, so `h-full` on the main scroll region matched content height
+ * and wheel scrolling never activated. Fill the webview and let the panel grow
+ * with flex so `overflow-y: auto` has a bounded box.
+ */
+html:not(.tauri-popover) #root {
+  display: flex;
+  flex-direction: column;
+}
+
+html:not(.tauri-popover) .app-popover-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+html:not(.tauri-popover) .app-panel-surface {
+  flex: 1;
+  min-height: 0;
+}
+
 .tray-arrow {
   position: absolute;
   top: 2px;

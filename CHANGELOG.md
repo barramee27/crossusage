@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.6
+
+### App
+
+- Version **1.0.6** (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, `crossusage-core`).
+- **Linux / Windows UI:** Root flex layout so the main provider list **scrolls** under native window chrome (bounded height chain + scroll region `flex-1 min-h-0`).
+- **Upstream port (OpenUsage v0.6.16–v0.6.20):** preserve usage data during refresh (stale-while-revalidate); factory GET retry on HTTP **405**; read OAuth tokens from unified state key; Antigravity OAuth refresh only on auth failure; Z.ai shell/env noise fixes; Gemini OAuth refresh for non-default install layouts; Codex **Pro 20x** label + auth fallback; `uuid` / `tokio` bumps; host API `dbTokens` naming in probe path.
+- **Antigravity (fork):** **Linux + Windows** — discover `state.vscdb` under `%APPDATA%`, `$XDG_CONFIG_HOME`, `~/.config`, and Library-style paths; LS discovery matches **`language_server*`** with Antigravity markers (fixes false “Start Antigravity” on Linux).
+
 ## Unreleased
 
 ### Upstream port (OpenUsage v0.6.15)

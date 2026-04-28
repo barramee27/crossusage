@@ -112,8 +112,11 @@ export function AppShell({
                 <X className="h-4 w-4" strokeWidth={2.5} />
               </button>
             ) : null}
-            <div className="relative flex-1 min-h-0">
-              <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-none">
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div
+                ref={scrollRef}
+                className="min-h-0 flex-1 overflow-y-auto scrollbar-none"
+              >
                 <AppContent
                   {...appContentProps}
                   displayPlugins={displayPlugins}
