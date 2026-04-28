@@ -12,6 +12,31 @@ describe("codex plugin", () => {
     vi.resetModules()
   })
 
+  const expectStaleFileAuthFallsBackToKeychain = async (refreshResponse) => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "old-file-token", refresh_token: "old-file-refresh" },
+      last_refresh: "2000-01-01T00:00:00.000Z",
+    }))
+    ctx.host.keychain.readGenericPassword.mockReturnValue(JSON.stringify({
+      tokens: { access_token: "keychain-token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("oauth/token")) return refreshResponse
+      expect(opts.headers.Authorization).toBe("Bearer keychain-token")
+      return {
+        status: 200,
+        headers: { "x-codex-primary-used-percent": "12" },
+        bodyText: JSON.stringify({}),
+      }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+  }
+
   it("throws when auth missing", async () => {
     const ctx = makeCtx()
     const plugin = await loadPlugin()
@@ -593,6 +618,91 @@ describe("codex plugin", () => {
     })
     const plugin = await loadPlugin()
     expect(() => plugin.probe(ctx)).toThrow("Token conflict")
+  })
+
+  it("falls back to keychain when file refresh token was reused", async () => {
+    await expectStaleFileAuthFallsBackToKeychain({
+      status: 400,
+      headers: {},
+      bodyText: JSON.stringify({ error: { code: "refresh_token_reused" } }),
+    })
+  })
+
+  it("falls back to keychain when file refresh token expired", async () => {
+    await expectStaleFileAuthFallsBackToKeychain({
+      status: 400,
+      headers: {},
+      bodyText: JSON.stringify({ error: { code: "refresh_token_expired" } }),
+    })
+  })
+
+  it("falls back to keychain when file refresh token was revoked", async () => {
+    await expectStaleFileAuthFallsBackToKeychain({
+      status: 400,
+      headers: {},
+      bodyText: JSON.stringify({ error: { code: "refresh_token_invalidated" } }),
+    })
+  })
+
+  it("falls back to keychain when file usage auth fails after refresh attempt", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "old-file-token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.keychain.readGenericPassword.mockReturnValue(JSON.stringify({
+      tokens: { access_token: "keychain-token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.headers.Authorization === "Bearer old-file-token") {
+        return { status: 401, headers: {}, bodyText: "" }
+      }
+      expect(opts.headers.Authorization).toBe("Bearer keychain-token")
+      return {
+        status: 200,
+        headers: { "x-codex-primary-used-percent": "9" },
+        bodyText: JSON.stringify({}),
+      }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+  })
+
+  it("falls back to keychain when file usage request fails", async () => {
+    const runCase = async (fileResp) => {
+      const ctx = makeCtx()
+      ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+        tokens: { access_token: "file-token" },
+        last_refresh: new Date().toISOString(),
+      }))
+      ctx.host.keychain.readGenericPassword.mockReturnValue(JSON.stringify({
+        tokens: { access_token: "keychain-token" },
+        last_refresh: new Date().toISOString(),
+      }))
+      ctx.host.http.request.mockImplementation((opts) => {
+        if (opts.headers.Authorization === "Bearer file-token") {
+          return fileResp
+        }
+        expect(opts.headers.Authorization).toBe("Bearer keychain-token")
+        return {
+          status: 200,
+          headers: { "x-codex-primary-used-percent": "8" },
+          bodyText: JSON.stringify({}),
+        }
+      })
+
+      delete globalThis.__openusage_plugin
+      vi.resetModules()
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+      expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+    }
+
+    await runCase({ status: 500, headers: {}, bodyText: "" })
+    await runCase({ status: 200, headers: {}, bodyText: "bad" })
   })
 
   it("throws for api key auth", async () => {

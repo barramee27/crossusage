@@ -128,8 +128,9 @@
     return false
   }
 
-  function loadAuth(ctx) {
+  function loadAuthCandidates(ctx) {
     const authPaths = resolveAuthPaths(ctx)
+    const candidates = []
     for (const authPath of authPaths) {
       if (!ctx.host.fs.exists(authPath)) continue
       try {
@@ -140,16 +141,16 @@
           continue
         }
         ctx.host.log.info("auth loaded from file: " + authPath)
-        return { auth, authPath, source: "file" }
+        candidates.push({ auth, authPath, source: "file" })
       } catch (e) {
         ctx.host.log.warn("auth file read failed: " + String(e))
       }
     }
 
     const keychainAuth = loadAuthFromKeychain(ctx)
-    if (keychainAuth) return keychainAuth
+    if (keychainAuth) candidates.push(keychainAuth)
 
-    if (authPaths.length > 0) {
+    if (candidates.length === 0 && authPaths.length > 0) {
       for (const authPath of authPaths) {
         if (!ctx.host.fs.exists(authPath)) {
           ctx.host.log.warn("auth file not found: " + authPath)
@@ -157,7 +158,7 @@
       }
     }
 
-    return null
+    return candidates
   }
 
   function needsRefresh(ctx, auth, nowMs) {
@@ -422,12 +423,7 @@
     }))
   }
 
-  function probe(ctx) {
-    const authState = loadAuth(ctx)
-    if (!authState || !authState.auth) {
-      ctx.host.log.error("probe failed: not logged in")
-      throw "Not logged in. Run `codex` to authenticate."
-    }
+  function probeWithAuthState(ctx, authState) {
     const auth = authState.auth
 
     if (auth.tokens && auth.tokens.access_token) {
@@ -680,6 +676,31 @@
     }
 
     throw "Not logged in. Run `codex` to authenticate."
+  }
+
+  function probe(ctx) {
+    const authCandidates = loadAuthCandidates(ctx)
+    if (!authCandidates || authCandidates.length === 0) {
+      ctx.host.log.error("probe failed: not logged in")
+      throw "Not logged in. Run `codex` to authenticate."
+    }
+
+    let lastAuthError = null
+    for (let i = 0; i < authCandidates.length; i++) {
+      const authState = authCandidates[i]
+      try {
+        return probeWithAuthState(ctx, authState)
+      } catch (e) {
+        lastAuthError = e
+        if (i + 1 < authCandidates.length) {
+          ctx.host.log.warn("auth failed for " + authState.source + ", trying next auth source")
+          continue
+        }
+        throw e
+      }
+    }
+
+    throw lastAuthError || "Not logged in. Run `codex` to authenticate."
   }
 
   globalThis.__openusage_plugin = { id: "codex", probe }
