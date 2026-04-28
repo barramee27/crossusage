@@ -9,7 +9,7 @@ Antigravity is essentially a Google-branded fork of [Windsurf](windsurf.md) — 
 - **Vendor:** Google (internal codename "Jetski")
 - **Protocol:** Connect RPC v1 (JSON over HTTP) on local language server
 - **Service:** `exa.language_server_pb.LanguageServerService`
-- **Auth:** CSRF token from process args; Google OAuth tokens from SQLite (fallback)
+- **Auth:** CSRF token from process args; Google OAuth tokens from SQLite (fallback). The plugin tries, in order: `%APPDATA%\Antigravity\User\globalStorage\state.vscdb` (Windows), `$XDG_CONFIG_HOME/Antigravity/...` when set, `~/.config/Antigravity/...` (Linux), then `~/Library/Application Support/Antigravity/...` (macOS).
 - **Quota:** fraction (0.0–1.0, where 1.0 = 100% remaining)
 - **Quota window:** 5 hours
 - **Timestamps:** ISO 8601
@@ -22,7 +22,10 @@ The language server listens on a random localhost port. Three values must be dis
 
 ```bash
 # 1. Find process and extract CSRF token
-ps -ax -o pid=,command= | grep 'language_server_macos.*antigravity'
+# macOS: binary often contains `language_server_macos`; Linux: `language_server_linux` or
+# any `language_server` path with `--ide_name antigravity` / `--app_data_dir antigravity` / `/antigravity/`.
+ps -ax -o pid=,command= | grep 'language_server.*antigravity'   # BSD/mac example
+ps -e -o pid=,args= | grep 'language_server.*antigravity'       # Linux example
 # Match: --app_data_dir antigravity  OR  path contains /antigravity/
 # Extract: --csrf_token <token>
 # Extract: --extension_server_port <port>  (HTTP fallback)

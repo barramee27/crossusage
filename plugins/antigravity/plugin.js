@@ -1,6 +1,5 @@
 (function () {
   var LS_SERVICE = "exa.language_server_pb.LanguageServerService"
-  var STATE_DB = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
   var CLOUD_CODE_URLS = [
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
@@ -72,6 +71,36 @@
 
   // --- SQLite credential reading ---
 
+  /** VS Code-style data dirs: macOS Library, Linux/Unix XDG config, Windows %APPDATA%. */
+  function antigravityStateDbPaths(ctx) {
+    var paths = []
+    var seen = {}
+    function add(p) {
+      if (!p || typeof p !== "string") return
+      var norm = p.replace(/\\/g, "/")
+      if (seen[norm]) return
+      seen[norm] = true
+      paths.push(p)
+    }
+    try {
+      if (ctx.host.env && typeof ctx.host.env.get === "function") {
+        var ap = ctx.host.env.get("APPDATA")
+        if (ap && String(ap).trim()) {
+          add(String(ap).replace(/\\/g, "/") + "/Antigravity/User/globalStorage/state.vscdb")
+        }
+        var xdg = ctx.host.env.get("XDG_CONFIG_HOME")
+        if (xdg && String(xdg).trim()) {
+          add(String(xdg).replace(/\\/g, "/") + "/Antigravity/User/globalStorage/state.vscdb")
+        }
+      }
+    } catch (e) {
+      /* ignore missing env API */
+    }
+    add("~/.config/Antigravity/User/globalStorage/state.vscdb")
+    add("~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
+    return paths
+  }
+
   // Antigravity wraps OAuth state in a double-base64 envelope:
   //   b64(outer.f1 = wrapper{ f1=sentinel, f2=payload{ f1=b64(inner proto) } }).
   // The inner base64 layer is the unusual part — it's a UTF-8 string field, not raw bytes.
@@ -93,29 +122,33 @@
   }
 
   function loadOAuthTokens(ctx) {
-    try {
-      var rows = ctx.host.sqlite.query(
-        STATE_DB,
-        "SELECT value FROM ItemTable WHERE key = '" + OAUTH_TOKEN_KEY + "' LIMIT 1"
-      )
-      var parsed = ctx.util.tryParseJson(rows)
-      if (!parsed || !parsed.length || !parsed[0].value) return null
-      var inner = unwrapOAuthSentinel(ctx, parsed[0].value)
-      if (!inner) return null
-      var fields = readFields(inner)
-      var accessToken = (fields[1] && fields[1].type === 2) ? fields[1].data : null
-      var refreshToken = (fields[3] && fields[3].type === 2) ? fields[3].data : null
-      var expirySeconds = null
-      if (fields[4] && fields[4].type === 2) {
-        var ts = readFields(fields[4].data)
-        if (ts[1] && ts[1].type === 0) expirySeconds = ts[1].value
+    var paths = antigravityStateDbPaths(ctx)
+    for (var pi = 0; pi < paths.length; pi++) {
+      var dbPath = paths[pi]
+      try {
+        var rows = ctx.host.sqlite.query(
+          dbPath,
+          "SELECT value FROM ItemTable WHERE key = '" + OAUTH_TOKEN_KEY + "' LIMIT 1"
+        )
+        var parsed = ctx.util.tryParseJson(rows)
+        if (!parsed || !parsed.length || !parsed[0].value) continue
+        var inner = unwrapOAuthSentinel(ctx, parsed[0].value)
+        if (!inner) continue
+        var fields = readFields(inner)
+        var accessToken = (fields[1] && fields[1].type === 2) ? fields[1].data : null
+        var refreshToken = (fields[3] && fields[3].type === 2) ? fields[3].data : null
+        var expirySeconds = null
+        if (fields[4] && fields[4].type === 2) {
+          var ts = readFields(fields[4].data)
+          if (ts[1] && ts[1].type === 0) expirySeconds = ts[1].value
+        }
+        if (!accessToken && !refreshToken) continue
+        return { accessToken: accessToken, refreshToken: refreshToken, expirySeconds: expirySeconds }
+      } catch (e) {
+        ctx.host.log.warn("failed to read antigravity state db at " + dbPath + ": " + String(e))
       }
-      if (!accessToken && !refreshToken) return null
-      return { accessToken: accessToken, refreshToken: refreshToken, expirySeconds: expirySeconds }
-    } catch (e) {
-      ctx.host.log.warn("failed to read unified oauth token: " + String(e))
-      return null
     }
+    return null
   }
 
   // --- Google OAuth token refresh ---
@@ -187,8 +220,10 @@
   // --- LS discovery ---
 
   function discoverLs(ctx) {
+    // macOS ships `language_server_macos`; Linux typically `language_server_linux` or
+    // a path containing `language_server`. Marker `--ide_name` / path disambiguates.
     return ctx.host.ls.discover({
-      processName: "language_server_macos",
+      processName: "language_server",
       markers: ["antigravity"],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",
