@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SkeletonLines } from "@/components/skeleton-lines"
 import { PluginError } from "@/components/plugin-error"
 import { useNowTicker } from "@/hooks/use-now-ticker"
-import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode } from "@/lib/settings"
+import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode, type TimeFormatMode } from "@/lib/settings"
 import type { ManifestLine, MetricLine, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
 import { clamp01, cn, formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
@@ -33,6 +33,7 @@ interface ProviderCardProps {
   allowedLabels?: string[] | null
   displayMode: DisplayMode
   resetTimerDisplayMode?: ResetTimerDisplayMode
+  timeFormatMode?: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
   /** Detail view: stretch the card to fill the scroll viewport height. */
   layout?: "default" | "detailFill"
@@ -110,6 +111,7 @@ export function ProviderCard({
   allowedLabels = null,
   displayMode,
   resetTimerDisplayMode = "relative",
+  timeFormatMode = "auto",
   onResetTimerDisplayModeToggle,
   layout = "default",
 }: ProviderCardProps) {
@@ -353,6 +355,7 @@ export function ProviderCard({
                       line={line}
                       displayMode={displayMode}
                       resetTimerDisplayMode={resetTimerDisplayMode}
+                      timeFormatMode={timeFormatMode}
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
                       refreshing={isRefreshingWithData}
@@ -367,6 +370,7 @@ export function ProviderCard({
                       line={line}
                       displayMode={displayMode}
                       resetTimerDisplayMode={resetTimerDisplayMode}
+                      timeFormatMode={timeFormatMode}
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
                       refreshing={isRefreshingWithData}
@@ -396,6 +400,7 @@ function MetricLineRenderer({
   line,
   displayMode,
   resetTimerDisplayMode,
+  timeFormatMode,
   onResetTimerDisplayModeToggle,
   now,
   refreshing,
@@ -403,6 +408,7 @@ function MetricLineRenderer({
   line: MetricLine
   displayMode: DisplayMode
   resetTimerDisplayMode: ResetTimerDisplayMode
+  timeFormatMode: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
   now: number
   refreshing?: boolean
@@ -473,7 +479,7 @@ function MetricLineRenderer({
 
     const resetLabel = line.resetsAt
       ? resetTimerDisplayMode === "absolute"
-        ? formatResetAbsoluteLabel(now, line.resetsAt)
+        ? formatResetAbsoluteLabel(now, line.resetsAt, timeFormatMode)
         : formatResetRelativeLabel(now, line.resetsAt)
       : null
     const resetTooltipText = line.resetsAt
@@ -481,6 +487,7 @@ function MetricLineRenderer({
           nowMs: now,
           resetsAtIso: line.resetsAt,
           visibleMode: resetTimerDisplayMode,
+          timeFormat: timeFormatMode,
         })
       : null
 

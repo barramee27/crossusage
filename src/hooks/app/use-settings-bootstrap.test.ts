@@ -19,6 +19,7 @@ const {
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUIScaleMock,
+  loadTimeFormatModeMock,
   migrateLegacyTraySettingsMock,
   normalizePluginSettingsMock,
   savePluginSettingsMock,
@@ -41,6 +42,7 @@ const {
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
+  loadTimeFormatModeMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
   normalizePluginSettingsMock: vi.fn(),
   savePluginSettingsMock: vi.fn(),
@@ -69,6 +71,7 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_SCALE: "normal",
+  DEFAULT_TIME_FORMAT_MODE: "auto",
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: loadShowTrayIconMock,
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
@@ -80,6 +83,7 @@ vi.mock("@/lib/settings", () => ({
   loadStartOnLogin: loadStartOnLoginMock,
   loadThemeMode: loadThemeModeMock,
   loadUIScale: loadUIScaleMock,
+  loadTimeFormatMode: loadTimeFormatModeMock,
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
   normalizePluginSettings: normalizePluginSettingsMock,
   savePluginSettings: savePluginSettingsMock,
@@ -96,6 +100,7 @@ function createArgs() {
     setThemeMode: vi.fn(),
     setDisplayMode: vi.fn(),
     setResetTimerDisplayMode: vi.fn(),
+    setTimeFormatMode: vi.fn(),
     setGlobalShortcut: vi.fn(),
     setStartOnLogin: vi.fn(),
     setMenubarIconStyle: vi.fn(),
@@ -127,6 +132,7 @@ describe("useSettingsBootstrap", () => {
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUIScaleMock.mockReset()
+    loadTimeFormatModeMock.mockReset()
     migrateLegacyTraySettingsMock.mockReset()
     normalizePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockReset()
@@ -151,6 +157,7 @@ describe("useSettingsBootstrap", () => {
     loadThemeModeMock.mockResolvedValue("dark")
     loadDisplayModeMock.mockResolvedValue("used")
     loadResetTimerDisplayModeMock.mockResolvedValue("relative")
+    loadTimeFormatModeMock.mockResolvedValue("auto")
     loadGlobalShortcutMock.mockResolvedValue("CommandOrControl+Shift+O")
     loadMenubarIconStyleMock.mockResolvedValue("provider")
     loadStartOnLoginMock.mockResolvedValue(true)

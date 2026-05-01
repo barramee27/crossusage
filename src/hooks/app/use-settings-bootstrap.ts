@@ -17,6 +17,7 @@ import {
   DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
+  DEFAULT_TIME_FORMAT_MODE,
   getEnabledPluginIds,
   loadAutoUpdateInterval,
   loadUIScale,
@@ -29,6 +30,7 @@ import {
   loadShowTrayIcon,
   loadStartOnLogin,
   loadThemeMode,
+  loadTimeFormatMode,
   normalizePluginSettings,
   resolveOnboardingComplete,
   savePluginSettings,
@@ -40,6 +42,7 @@ import {
   type PluginSettings,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type TimeFormatMode,
   type UIScale,
 } from "@/lib/settings"
 
@@ -50,6 +53,7 @@ type UseSettingsBootstrapArgs = {
   setThemeMode: (value: ThemeMode) => void
   setDisplayMode: (value: DisplayMode) => void
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
+  setTimeFormatMode: (value: TimeFormatMode) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
   setStartOnLogin: (value: boolean) => void
 
@@ -72,6 +76,7 @@ export function useSettingsBootstrap({
   setThemeMode,
   setDisplayMode,
   setResetTimerDisplayMode,
+  setTimeFormatMode,
   setGlobalShortcut,
   setStartOnLogin,
 
@@ -150,6 +155,13 @@ export function useSettingsBootstrap({
           console.error("Failed to load reset timer display mode:", error)
         }
 
+        let storedTimeFormatMode = DEFAULT_TIME_FORMAT_MODE
+        try {
+          storedTimeFormatMode = await loadTimeFormatMode()
+        } catch (error) {
+          console.error("Failed to load time format mode:", error)
+        }
+
         let storedGlobalShortcut = DEFAULT_GLOBAL_SHORTCUT
         try {
           storedGlobalShortcut = await loadGlobalShortcut()
@@ -209,6 +221,7 @@ export function useSettingsBootstrap({
           setThemeMode(storedThemeMode)
           setDisplayMode(storedDisplayMode)
           setResetTimerDisplayMode(storedResetTimerDisplayMode)
+          setTimeFormatMode(storedTimeFormatMode)
           setGlobalShortcut(storedGlobalShortcut)
           setStartOnLogin(storedStartOnLogin)
 
@@ -259,6 +272,7 @@ export function useSettingsBootstrap({
     setOnboardingComplete,
     setStartOnLogin,
     setThemeMode,
+    setTimeFormatMode,
     startBatch,
   ])
 
