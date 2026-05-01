@@ -25,6 +25,8 @@ export type DisplayMode = "used" | "left";
 
 export type ResetTimerDisplayMode = "relative" | "absolute";
 
+export type TimeFormatMode = "auto" | "12h" | "24h";
+
 export type MenubarIconStyle = "provider" | "logoBar" | "logoGrid" | "bars" | "donut";
 
 export type GlobalShortcut = string | null;
@@ -35,6 +37,7 @@ const AUTO_UPDATE_SETTINGS_KEY = "autoUpdateInterval";
 const THEME_MODE_KEY = "themeMode";
 const DISPLAY_MODE_KEY = "displayMode";
 const RESET_TIMER_DISPLAY_MODE_KEY = "resetTimerDisplayMode";
+const TIME_FORMAT_KEY = "timeFormat";
 const MENUBAR_ICON_STYLE_KEY = "menubarIconStyle";
 const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
@@ -49,6 +52,7 @@ export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 export const DEFAULT_DISPLAY_MODE: DisplayMode = "left";
 export const DEFAULT_RESET_TIMER_DISPLAY_MODE: ResetTimerDisplayMode = "relative";
+export const DEFAULT_TIME_FORMAT_MODE: TimeFormatMode = "auto";
 /** Default tray appearance for new installs and store reset (Plugin / provider style). */
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
@@ -71,6 +75,7 @@ const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
 const DISPLAY_MODES: DisplayMode[] = ["used", "left"];
 const RESET_TIMER_DISPLAY_MODES: ResetTimerDisplayMode[] = ["relative", "absolute"];
+const TIME_FORMAT_MODES: TimeFormatMode[] = ["auto", "12h", "24h"];
 const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "logoBar", "logoGrid", "donut", "bars"];
 
 export const MENUBAR_ICON_STYLE_OPTIONS: { value: MenubarIconStyle; label: string }[] = [
@@ -101,6 +106,12 @@ export const DISPLAY_MODE_OPTIONS: { value: DisplayMode; label: string }[] = [
 export const RESET_TIMER_DISPLAY_OPTIONS: { value: ResetTimerDisplayMode; label: string }[] = [
   { value: "relative", label: "Relative" },
   { value: "absolute", label: "Absolute" },
+];
+
+export const TIME_FORMAT_OPTIONS: { value: TimeFormatMode; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "12h", label: "12-hour" },
+  { value: "24h", label: "24-hour" },
 ];
 
 const store = new LazyStore(SETTINGS_STORE_PATH);
@@ -330,6 +341,24 @@ export async function loadResetTimerDisplayMode(): Promise<ResetTimerDisplayMode
 
 export async function saveResetTimerDisplayMode(mode: ResetTimerDisplayMode): Promise<void> {
   await store.set(RESET_TIMER_DISPLAY_MODE_KEY, mode);
+  await store.save();
+}
+
+function isTimeFormatMode(value: unknown): value is TimeFormatMode {
+  return (
+    typeof value === "string" &&
+    TIME_FORMAT_MODES.includes(value as TimeFormatMode)
+  );
+}
+
+export async function loadTimeFormatMode(): Promise<TimeFormatMode> {
+  const stored = await store.get<unknown>(TIME_FORMAT_KEY);
+  if (isTimeFormatMode(stored)) return stored;
+  return DEFAULT_TIME_FORMAT_MODE;
+}
+
+export async function saveTimeFormatMode(mode: TimeFormatMode): Promise<void> {
+  await store.set(TIME_FORMAT_KEY, mode);
   await store.save();
 }
 
