@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { FORK_GITHUB_REPO } from "@/lib/fork-meta"
 
 export interface Release {
   id: number
@@ -10,7 +11,7 @@ export interface Release {
 }
 
 async function fetchReleaseByTag(tag: string): Promise<Release | null> {
-  const url = `https://api.github.com/repos/robinebers/openusage/releases/tags/${encodeURIComponent(
+  const url = `https://api.github.com/repos/${FORK_GITHUB_REPO}/releases/tags/${encodeURIComponent(
     tag,
   )}`
   const res = await fetch(url)

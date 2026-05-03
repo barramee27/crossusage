@@ -1,6 +1,6 @@
 [package]
 name = "crossusage-core"
-version = "1.0.6"
+version = "1.0.7"
 description = "Shared plugin engine for CrossUsage (GUI + CLI)"
 edition = "2024"
 
@@ -13,7 +13,7 @@ aes-gcm = "0.10.3"
 base64 = "0.22"
 log = "0.4"
 regex-lite = "0.1.9"
-reqwest = { version = "0.13", features = ["blocking", "socks"] }
+reqwest = { version = "0.13.3", features = ["blocking", "socks"] }
 rquickjs = { version = "0.11", features = ["bindgen"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
@@ -22,4 +22,5 @@ time = { version = "0.3.47", features = ["formatting", "parsing"] }
 dirs = "6"
 
 [target.'cfg(unix)'.dependencies]
+libc = "0.2"
 users = "0.11"

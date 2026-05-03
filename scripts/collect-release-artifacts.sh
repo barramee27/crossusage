@@ -38,6 +38,7 @@ copy_glob "$ROOT/target/x86_64-pc-windows-gnu/release/crossusage.exe"
 
 # Portable Linux CLI (optional — run scripts/build-cli-tarball.sh on Linux amd64/arm64 first)
 copy_glob "$ROOT/crossusage-cli_${VERSION}_linux_"*.tar.gz
+copy_glob "$ROOT/crossusage-cli_${VERSION}_windows_"*.zip
 
 # Portable Linux GUI (optional — scripts/build-gui-portable-linux-tarball.sh after tauri build)
 copy_glob "$ROOT/crossusage_${VERSION}_linux_"*.tar.gz
@@ -59,7 +60,7 @@ Typical filenames (Tauri uses productName "crossusage" + version ${VERSION}):
   - AppImage:  crossusage_${VERSION}_amd64.AppImage
   - Windows:   crossusage_${VERSION}_x64-setup.exe (NSIS) and crossusage.exe
   - CLI:       crossusage-cli (same .deb / installer as GUI when built with prepare-cli-sidecar.sh)
-  - CLI tarball: crossusage-cli_${VERSION}_linux_amd64.tar.gz or _darwin_arm64.tar.gz (scripts/build-cli-tarball.sh) for INSTALL_MODE=cli
+  - CLI tarball: crossusage-cli_${VERSION}_linux_amd64.tar.gz, crossusage-cli_${VERSION}_windows_amd64.zip (scripts/build-cli-tarball.sh / build-cli-zip-windows-gnu.sh) for INSTALL_MODE=cli
   - Portable GUI: crossusage_${VERSION}_linux_<arch>.tar.gz, crossusage_${VERSION}_windows_<arch>.zip, crossusage_${VERSION}_darwin_<arch>.tar.gz (see scripts/build-gui-portable-*.sh / .ps1)
 EOF
 

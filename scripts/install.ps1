@@ -1,22 +1,24 @@
 # CrossUsage — install from GitHub (Windows).
 # Repo: https://github.com/barramee27/crossusage
 #
-# INSTALL_MODE=cli: portable CLI zip/tar.gz — tries latest GitHub Release asset first; only if missing, falls back to
-# releases/ on the branch (raw.githubusercontent.com). Full mode uses NSIS/setup from the latest Release.
+# INSTALL_MODE=cli: portable CLI zip/tar.gz — tries GitHub Release **v1.0.3** first; only if missing, falls back to
+# releases/ on the branch (raw.githubusercontent.com). Full mode uses NSIS/setup from that same release.
 #
 # Usage (PowerShell):
 #   irm https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.ps1 | iex
 #
 # Environment:
-#   $env:GITHUB_REPO     default: barramee27/crossusage
-#   $env:INSTALL_MODE    full (default) | cli — full = NSIS x64-setup.exe; cli = portable zip/tar.gz (binary + resources) like install.sh INSTALL_MODE=cli
-#   $env:INSTALL_GIT_REF branch or tag for raw.githubusercontent.com CLI bundle fallback (default: feat/linux-windows-native-support)
-#   $env:INSTALL_CLI_URL optional override URL for the CLI .zip or .tar.gz (skips GitHub Release + branch fallbacks)
-#   $env:INSTALL_SILENT  if "0" or "false", run NSIS installer interactively (full mode only; no effect in cli mode)
+#   $env:GITHUB_REPO      default: barramee27/crossusage
+#   $env:INSTALL_MODE     full (default) | cli — full = NSIS x64-setup.exe; cli = portable zip/tar.gz (binary + resources) like install.sh INSTALL_MODE=cli
+#   $env:INSTALL_GIT_REF   branch or tag for raw.githubusercontent.com CLI bundle fallback (default: feat/linux-windows-native-support)
+#   $env:INSTALL_CLI_URL  optional override URL for the CLI .zip or .tar.gz (skips GitHub Release + branch fallbacks)
+#   $env:INSTALL_SILENT   if "0" or "false", run NSIS installer interactively (full mode only; no effect in cli mode)
 
 $ErrorActionPreference = "Stop"
 
 $GithubRepo = if ($env:GITHUB_REPO) { $env:GITHUB_REPO } else { "barramee27/crossusage" }
+# Pinned: CrossUsage v1.0.3 is the release with full Linux/Windows/macOS CLI assets for this fork.
+$InstallReleaseTag = "v1.0.3"
 $InstallGitRef = if ($env:INSTALL_GIT_REF) { $env:INSTALL_GIT_REF } else { "feat/linux-windows-native-support" }
 $InstallMode = if ($env:INSTALL_MODE) { $env:INSTALL_MODE.Trim().ToLowerInvariant() } else { "full" }
 
@@ -128,11 +130,11 @@ function Install-PortableCli {
     }
   }
 
-  # 2) Latest GitHub Release (same priority as scripts/install.sh INSTALL_MODE=cli)
+  # 2) Pinned GitHub Release (same priority as scripts/install.sh INSTALL_MODE=cli)
   if (-not $downloaded) {
-    Write-Host "Trying latest GitHub Release …"
+    Write-Host "Trying GitHub release $InstallReleaseTag …"
     try {
-      $apiUrl = "https://api.github.com/repos/$GithubRepo/releases/latest"
+      $apiUrl = "https://api.github.com/repos/$GithubRepo/releases/tags/$InstallReleaseTag"
       $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
       $reZip = [regex]::new("crossusage-cli_.+_windows_${archTag}\.zip$", "IgnoreCase")
       $reTgz = [regex]::new("crossusage-cli_.+_windows_${archTag}\.tar\.gz$", "IgnoreCase")
@@ -174,13 +176,13 @@ function Install-PortableCli {
   if (-not $downloaded) {
     Write-Error @"
 No CLI bundle found for windows_${archTag}.
-Attach crossusage-cli_<version>_windows_${archTag}.zip (or .tar.gz) to the latest GitHub Release, or add it under releases/ on branch $InstallGitRef (see scripts/build-cli-windows.ps1).
+Attach crossusage-cli_<version>_windows_${archTag}.zip (or .tar.gz) to GitHub release $InstallReleaseTag, or add it under releases/ on branch $InstallGitRef (see scripts/build-cli-windows.ps1).
 "@
     exit 1
   }
 
   if ($gotFrom -like "legacy-*" -and $ver) {
-    Write-Warning "Used legacy filename; ensure releases/crossusage-cli_${ver}_windows_${archTag}.zip is committed on $InstallGitRef or upload the asset to the latest Release."
+    Write-Warning "Used legacy filename; ensure releases/crossusage-cli_${ver}_windows_${archTag}.zip is committed on $InstallGitRef or upload the asset to release $InstallReleaseTag."
   }
 
   $rootCli = Join-Path $env:USERPROFILE ".local\lib\crossusage"
@@ -263,14 +265,14 @@ if ($InstallMode -ne "full") {
 }
 
 # --- Full install: NSIS GUI + bundled CLI (classic) ---
-$apiUrl = "https://api.github.com/repos/$GithubRepo/releases/latest"
+$apiUrl = "https://api.github.com/repos/$GithubRepo/releases/tags/$InstallReleaseTag"
 
-Write-Host "Fetching latest release from GitHub ($GithubRepo) ..."
+Write-Host "Fetching release $InstallReleaseTag from GitHub ($GithubRepo) ..."
 $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
 
 $asset = $release.assets | Where-Object { $_.name -match 'x64-setup\.exe$' } | Select-Object -First 1
 if (-not $asset) {
-  Write-Error "No NSIS installer (*x64-setup.exe) found in latest release. For CLI-only (no installer), run:`n  `$env:INSTALL_MODE='cli'; irm https://raw.githubusercontent.com/$GithubRepo/$InstallGitRef/scripts/install.ps1 | iex`nSee https://github.com/$GithubRepo/releases/latest"
+  Write-Error "No NSIS installer (*x64-setup.exe) found in release $InstallReleaseTag. For CLI-only (no installer), run:`n  `$env:INSTALL_MODE='cli'; irm https://raw.githubusercontent.com/$GithubRepo/$InstallGitRef/scripts/install.ps1 | iex`nSee https://github.com/$GithubRepo/releases/tag/$InstallReleaseTag"
   exit 1
 }
 

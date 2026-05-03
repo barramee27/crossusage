@@ -3,9 +3,9 @@
 # Repo: https://github.com/barramee27/crossusage
 #
 # Where downloads come from:
-#   • Linux full (deb/rpm/AppImage): latest GitHub Release only (api.github.com → browser_download_url).
-#   • INSTALL_MODE=cli (Linux/macOS tarball): latest GitHub Release asset first; only if missing, falls back to
-#     files under releases/ on the branch (raw.githubusercontent.com) — not the default path.
+#   • Linux full (deb/rpm/AppImage): GitHub Release **v1.0.3** only (`…/releases/tags/v1.0.3`).
+#   • INSTALL_MODE=cli (Linux/macOS tarball): that release’s assets first; only if missing, falls back to
+#     files under releases/ on the branch (raw.githubusercontent.com).
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
@@ -20,7 +20,9 @@
 set -euo pipefail
 
 GITHUB_REPO="${GITHUB_REPO:-barramee27/crossusage}"
-API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+# Pinned: CrossUsage v1.0.3 is the release with full Linux/Windows/macOS CLI assets for this fork.
+INSTALL_RELEASE_TAG="v1.0.3"
+API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${INSTALL_RELEASE_TAG}"
 
 die() {
   echo "install.sh: $*" >&2
@@ -197,7 +199,7 @@ if [[ "$INSTALL_MODE" == cli ]]; then
   echo "Downloading portable CLI bundle (${CLI_OS} ${CLI_ARCH_TAG}) …"
   rm -f "$TMP_CLI"
   GOT_FROM=""
-  # Prefer INSTALL_CLI_URL override, then latest GitHub Release asset, then branch releases/ on raw.githubusercontent.com.
+  # Prefer INSTALL_CLI_URL override, then pinned GitHub Release asset, then branch releases/ on raw.githubusercontent.com.
   if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
     download_to "$INSTALL_CLI_URL" "$TMP_CLI"
     GOT_FROM="override"
@@ -225,7 +227,7 @@ if [[ "$INSTALL_MODE" == cli ]]; then
     fi
   fi
   if [[ ! -s "$TMP_CLI" ]]; then
-    die "No CLI tarball found. Attach crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz to the latest GitHub Release, or add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh)."
+    die "No CLI tarball found. Attach crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz to GitHub release ${INSTALL_RELEASE_TAG}, or add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh)."
   fi
   if [[ "$GOT_FROM" == "legacy" && -n "$REPO_VER" ]]; then
     echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is committed on ${INSTALL_GIT_REF} so installs get the matching build." >&2
@@ -269,14 +271,14 @@ case "$KERNEL" in
   MINGW*|MSYS*|CYGWIN*)
     echo "This script is for Unix shells. On Windows, use PowerShell:"
     echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.ps1 | iex"
-    echo "Or download the latest .exe from:"
-    echo "  https://github.com/${GITHUB_REPO}/releases/latest"
+    echo "Or download the Windows installer from:"
+    echo "  https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG}"
     exit 0
     ;;
 esac
 
 if [[ "$KERNEL" != Linux ]]; then
-  die "unsupported OS: $KERNEL (try manual download from https://github.com/${GITHUB_REPO}/releases/latest)"
+  die "unsupported OS: $KERNEL (try manual download from https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG})"
 fi
 
 DEB_ARCH="$(map_deb_arch)"
@@ -295,7 +297,7 @@ INSTALL_RPM_URL="$(echo "$JSON" | pick_asset_url "crossusage-.+\\.${RPM_ARCH}\\.
 INSTALL_AI_URL="$(echo "$JSON" | pick_asset_url "crossusage_.+_${AI_ARCH}\\.AppImage\$" || true)"
 
 if [[ -z "$INSTALL_DEB_URL" && -z "$INSTALL_RPM_URL" && -z "$INSTALL_AI_URL" ]]; then
-  die "no Linux assets found in latest release (expected .deb / .rpm / .AppImage for ${DEB_ARCH})"
+    die "no Linux assets found in release ${INSTALL_RELEASE_TAG} (expected .deb / .rpm / .AppImage for ${DEB_ARCH})"
 fi
 
 KIND="${INSTALL_KIND:-}"
@@ -312,13 +314,13 @@ if [[ -z "$KIND" ]]; then
   elif [[ -n "$INSTALL_RPM_URL" ]]; then
     KIND=rpm
   else
-    die "no suitable package for this system; see https://github.com/${GITHUB_REPO}/releases/latest"
+    die "no suitable package for this system; see https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG}"
   fi
 fi
 
 case "$KIND" in
   deb)
-    [[ -n "$INSTALL_DEB_URL" ]] || die "no .deb for ${DEB_ARCH} in latest release"
+    [[ -n "$INSTALL_DEB_URL" ]] || die "no .deb for ${DEB_ARCH} in release ${INSTALL_RELEASE_TAG}"
     DEB_FILE="$TMP/crossusage-install-$$.deb"
     echo "Downloading .deb ..."
     download_to "$INSTALL_DEB_URL" "$DEB_FILE"
@@ -365,7 +367,7 @@ case "$KIND" in
     fi
     ;;
   rpm)
-    [[ -n "$INSTALL_RPM_URL" ]] || die "no .rpm in latest release"
+    [[ -n "$INSTALL_RPM_URL" ]] || die "no .rpm in release ${INSTALL_RELEASE_TAG}"
     RPM_FILE="$TMP/crossusage-install-$$.rpm"
     echo "Downloading .rpm ..."
     download_to "$INSTALL_RPM_URL" "$RPM_FILE"
@@ -383,7 +385,7 @@ case "$KIND" in
     rm -f "$RPM_FILE"
     ;;
   appimage)
-    [[ -n "$INSTALL_AI_URL" ]] || die "no .AppImage for ${AI_ARCH} in latest release"
+    [[ -n "$INSTALL_AI_URL" ]] || die "no .AppImage for ${AI_ARCH} in release ${INSTALL_RELEASE_TAG}"
     AI_FILE="$TMP/crossusage-install-$$.AppImage"
     echo "Downloading AppImage ..."
     download_to "$INSTALL_AI_URL" "$AI_FILE"
