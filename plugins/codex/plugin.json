@@ -52,6 +52,11 @@
     },
     {
       "type": "text",
+      "label": "Account",
+      "scope": "detail"
+    },
+    {
+      "type": "text",
       "label": "Today",
       "scope": "detail"
     },
