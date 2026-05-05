@@ -6,6 +6,7 @@ import {
   DEFAULT_GLOBAL_SHORTCUT,
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
+  DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
@@ -28,7 +29,7 @@ type AppPreferencesStore = {
   timeFormatMode: TimeFormatMode
   globalShortcut: GlobalShortcut
   startOnLogin: boolean
-
+  showAccountIdentity: boolean
   menubarIconStyle: MenubarIconStyle
   uiScale: UIScale
 
@@ -44,7 +45,7 @@ type AppPreferencesStore = {
   setTimeFormatMode: (value: TimeFormatMode) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
   setStartOnLogin: (value: boolean) => void
-
+  setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setUIScale: (value: UIScale) => void
 
@@ -62,7 +63,7 @@ const initialState = {
   timeFormatMode: DEFAULT_TIME_FORMAT_MODE,
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   startOnLogin: DEFAULT_START_ON_LOGIN,
-
+  showAccountIdentity: DEFAULT_SHOW_ACCOUNT_IDENTITY,
   menubarIconStyle: DEFAULT_MENUBAR_ICON_STYLE,
   uiScale: DEFAULT_UI_SCALE,
 
@@ -80,7 +81,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setTimeFormatMode: (value) => set({ timeFormatMode: value }),
   setGlobalShortcut: (value) => set({ globalShortcut: value }),
   setStartOnLogin: (value) => set({ startOnLogin: value }),
-
+  setShowAccountIdentity: (value) => set({ showAccountIdentity: value }),
   setMenubarIconStyle: (value) => set({ menubarIconStyle: value }),
   setUIScale: (value) => set({ uiScale: value }),
 

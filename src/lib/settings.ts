@@ -43,6 +43,7 @@ const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
 const START_ON_LOGIN_KEY = "startOnLogin";
+const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
 
 const UI_SCALE_KEY = "uiScale";
 
@@ -57,6 +58,7 @@ export const DEFAULT_TIME_FORMAT_MODE: TimeFormatMode = "auto";
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
+export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
 
 export type UIScale = "normal" | "small" | "compact";
 export const DEFAULT_UI_SCALE: UIScale = "normal";
@@ -521,7 +523,6 @@ export async function saveStartOnLogin(value: boolean): Promise<void> {
   await store.save();
 }
 
-
 export function isUIScale(value: unknown): value is UIScale {
   return typeof value === "string" && UI_SCALE_VALUES.includes(value as UIScale);
 }
@@ -584,5 +585,16 @@ export async function resolveOnboardingComplete(storedPluginSettings: PluginSett
 
 export async function saveOnboardingCompleteV1(done: boolean): Promise<void> {
   await store.set(ONBOARDING_COMPLETE_V1_KEY, done);
+  await store.save();
+}
+
+export async function loadShowAccountIdentity(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_ACCOUNT_IDENTITY_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_ACCOUNT_IDENTITY;
+}
+
+export async function saveShowAccountIdentity(value: boolean): Promise<void> {
+  await store.set(SHOW_ACCOUNT_IDENTITY_KEY, value);
   await store.save();
 }

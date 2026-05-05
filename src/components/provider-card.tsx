@@ -35,8 +35,7 @@ interface ProviderCardProps {
   resetTimerDisplayMode?: ResetTimerDisplayMode
   timeFormatMode?: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
-  /** Detail view: stretch the card to fill the scroll viewport height. */
-  layout?: "default" | "detailFill"
+  showAccountIdentity?: boolean
 }
 
 const PACE_VISUALS: Record<PaceStatus, { dotClass: string }> = {
@@ -113,7 +112,7 @@ export function ProviderCard({
   resetTimerDisplayMode = "relative",
   timeFormatMode = "auto",
   onResetTimerDisplayModeToggle,
-  layout = "default",
+  showAccountIdentity = true,
 }: ProviderCardProps) {
   const cooldownRemainingMs = useMemo(() => {
     if (!lastManualRefreshAt) return 0
@@ -306,7 +305,7 @@ export function ProviderCard({
             )}
           </div>
           <div className="ml-2 flex min-w-0 max-w-[55%] items-center justify-end gap-1.5">
-            {accountIdentity && (
+            {showAccountIdentity && accountIdentity && (
               <Badge
                 variant="secondary"
                 className="truncate min-w-0"

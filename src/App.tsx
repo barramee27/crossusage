@@ -75,15 +75,7 @@ function App() {
     setTimeFormatMode,
     setGlobalShortcut,
     setStartOnLogin,
-
-    uiScale,
-    setUIScale,
-
-    setShowTrayIcon,
-
-    onboardingComplete,
-    setOnboardingComplete,
-
+    setShowAccountIdentity,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       autoUpdateInterval: state.autoUpdateInterval,
@@ -99,15 +91,7 @@ function App() {
       setTimeFormatMode: state.setTimeFormatMode,
       setGlobalShortcut: state.setGlobalShortcut,
       setStartOnLogin: state.setStartOnLogin,
-
-      uiScale: state.uiScale,
-      setUIScale: state.setUIScale,
-
-      setShowTrayIcon: state.setShowTrayIcon,
-
-      onboardingComplete: state.onboardingComplete,
-      setOnboardingComplete: state.setOnboardingComplete,
-
+      setShowAccountIdentity: state.setShowAccountIdentity,
     }))
   )
 
@@ -162,13 +146,7 @@ function App() {
     setTimeFormatMode,
     setGlobalShortcut,
     setStartOnLogin,
-
-    setUIScale,
-
-    setShowTrayIcon,
-
-    setOnboardingComplete,
-
+    setShowAccountIdentity,
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,
@@ -184,13 +162,13 @@ function App() {
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
     handleMenubarIconStyleChange,
-    handleUIScaleChange,
+    handleShowAccountIdentityChange,
   } = useSettingsDisplayActions({
     setThemeMode,
     setDisplayMode,
     resetTimerDisplayMode,
     setResetTimerDisplayMode,
-    setTimeFormatMode,
+    setShowAccountIdentity,
     setMenubarIconStyle,
     setUIScale,
     scheduleTrayIconUpdate,
@@ -545,6 +523,7 @@ function App() {
         onResetTimerDisplayModeToggle: handleResetTimerDisplayModeToggle,
         onTimeFormatModeChange: handleTimeFormatModeChange,
         onMenubarIconStyleChange: handleMenubarIconStyleChange,
+        onShowAccountIdentityChange: handleShowAccountIdentityChange,
         traySettingsPreview,
         onGlobalShortcutChange: handleGlobalShortcutChange,
         onStartOnLoginChange: handleStartOnLoginChange,

@@ -80,10 +80,8 @@ const defaultProps = {
   onGlobalShortcutChange: vi.fn(),
   startOnLogin: false,
   onStartOnLoginChange: vi.fn(),
-  uiScale: "normal" as const,
-  onUIScaleChange: vi.fn(),
-  onSetCursorTrayMetricForAllAccounts: vi.fn(),
-  cursorRequestsLineAvailable: null as boolean | null,
+  showAccountIdentity: true,
+  onShowAccountIdentityChange: vi.fn(),
 }
 
 afterEach(() => {
@@ -422,5 +420,18 @@ describe("SettingsPage", () => {
     )
     await userEvent.click(screen.getByText("Start on login"))
     expect(onStartOnLoginChange).toHaveBeenCalledWith(true)
+  })
+
+  it("toggles account identity visibility", async () => {
+    const onShowAccountIdentityChange = vi.fn()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        showAccountIdentity={false}
+        onShowAccountIdentityChange={onShowAccountIdentityChange}
+      />
+    )
+    await userEvent.click(screen.getByText("Show account identity"))
+    expect(onShowAccountIdentityChange).toHaveBeenCalledWith(true)
   })
 })

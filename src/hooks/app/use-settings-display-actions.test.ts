@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const {
   saveDisplayModeMock,
   saveResetTimerDisplayModeMock,
+  saveShowAccountIdentityMock,
   saveThemeModeMock,
   saveUIScaleMock,
   saveTimeFormatModeMock,
@@ -11,16 +12,18 @@ const {
   saveThemeModeMock: vi.fn(),
   saveDisplayModeMock: vi.fn(),
   saveResetTimerDisplayModeMock: vi.fn(),
-  saveUIScaleMock: vi.fn(),
-  saveTimeFormatModeMock: vi.fn(),
+  saveShowAccountIdentityMock: vi.fn(),
+}))
+
+vi.mock("@/lib/analytics", () => ({
+  track: trackMock,
 }))
 
 vi.mock("@/lib/settings", () => ({
   saveThemeMode: saveThemeModeMock,
   saveDisplayMode: saveDisplayModeMock,
   saveResetTimerDisplayMode: saveResetTimerDisplayModeMock,
-  saveUIScale: saveUIScaleMock,
-  saveTimeFormatMode: saveTimeFormatModeMock,
+  saveShowAccountIdentity: saveShowAccountIdentityMock,
 }))
 
 import { useSettingsDisplayActions } from "@/hooks/app/use-settings-display-actions"
@@ -30,24 +33,18 @@ describe("useSettingsDisplayActions", () => {
     saveThemeModeMock.mockReset()
     saveDisplayModeMock.mockReset()
     saveResetTimerDisplayModeMock.mockReset()
-    saveUIScaleMock.mockReset()
+    saveShowAccountIdentityMock.mockReset()
     saveThemeModeMock.mockResolvedValue(undefined)
     saveDisplayModeMock.mockResolvedValue(undefined)
     saveResetTimerDisplayModeMock.mockResolvedValue(undefined)
-    saveUIScaleMock.mockResolvedValue(undefined)
-    saveTimeFormatModeMock.mockReset()
-    saveThemeModeMock.mockResolvedValue(undefined)
-    saveDisplayModeMock.mockResolvedValue(undefined)
-    saveResetTimerDisplayModeMock.mockResolvedValue(undefined)
-    saveTimeFormatModeMock.mockResolvedValue(undefined)
+    saveShowAccountIdentityMock.mockResolvedValue(undefined)
   })
 
   it("applies display-related setting changes", () => {
     const setThemeMode = vi.fn()
     const setDisplayMode = vi.fn()
     const setResetTimerDisplayMode = vi.fn()
-    const setUIScale = vi.fn()
-    const setTimeFormatMode = vi.fn()
+    const setShowAccountIdentity = vi.fn()
     const scheduleTrayIconUpdate = vi.fn()
 
     const { result } = renderHook(() =>
@@ -56,9 +53,7 @@ describe("useSettingsDisplayActions", () => {
         setDisplayMode,
         resetTimerDisplayMode: "relative",
         setResetTimerDisplayMode,
-        setUIScale,
-        setTimeFormatMode,
-        setMenubarIconStyle: vi.fn(),
+        setShowAccountIdentity,
         scheduleTrayIconUpdate,
       })
     )
@@ -67,19 +62,19 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleThemeModeChange("glass")
       result.current.handleDisplayModeChange("used")
       result.current.handleResetTimerDisplayModeChange("absolute")
-      result.current.handleTimeFormatModeChange("24h")
+      result.current.handleShowAccountIdentityChange(false)
     })
 
     expect(setThemeMode).toHaveBeenCalledWith("glass")
     expect(setDisplayMode).toHaveBeenCalledWith("used")
     expect(setResetTimerDisplayMode).toHaveBeenCalledWith("absolute")
-    expect(setTimeFormatMode).toHaveBeenCalledWith("24h")
+    expect(setShowAccountIdentity).toHaveBeenCalledWith(false)
     expect(scheduleTrayIconUpdate).toHaveBeenCalledWith("settings", 0)
 
     expect(saveThemeModeMock).toHaveBeenCalledWith("glass")
     expect(saveDisplayModeMock).toHaveBeenCalledWith("used")
     expect(saveResetTimerDisplayModeMock).toHaveBeenCalledWith("absolute")
-    expect(saveTimeFormatModeMock).toHaveBeenCalledWith("24h")
+    expect(saveShowAccountIdentityMock).toHaveBeenCalledWith(false)
   })
 
   it("toggles reset timer mode in both directions", () => {
@@ -92,9 +87,7 @@ describe("useSettingsDisplayActions", () => {
           setDisplayMode: vi.fn(),
           resetTimerDisplayMode: mode,
           setResetTimerDisplayMode,
-          setUIScale: vi.fn(),
-          setTimeFormatMode: vi.fn(),
-          setMenubarIconStyle: vi.fn(),
+          setShowAccountIdentity: vi.fn(),
           scheduleTrayIconUpdate: vi.fn(),
         }),
       { initialProps: { mode: "relative" as const } }
@@ -116,10 +109,12 @@ describe("useSettingsDisplayActions", () => {
     const themeError = new Error("theme failed")
     const displayError = new Error("display failed")
     const resetError = new Error("reset failed")
+    const accountError = new Error("account failed")
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     saveThemeModeMock.mockRejectedValueOnce(themeError)
     saveDisplayModeMock.mockRejectedValueOnce(displayError)
     saveResetTimerDisplayModeMock.mockRejectedValueOnce(resetError)
+    saveShowAccountIdentityMock.mockRejectedValueOnce(accountError)
 
     const timeFormatError = new Error("time format failed")
     saveTimeFormatModeMock.mockRejectedValueOnce(timeFormatError)
@@ -130,9 +125,7 @@ describe("useSettingsDisplayActions", () => {
         setDisplayMode: vi.fn(),
         resetTimerDisplayMode: "relative",
         setResetTimerDisplayMode: vi.fn(),
-        setUIScale: vi.fn(),
-        setTimeFormatMode: vi.fn(),
-        setMenubarIconStyle: vi.fn(),
+        setShowAccountIdentity: vi.fn(),
         scheduleTrayIconUpdate: vi.fn(),
       })
     )
@@ -141,14 +134,14 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleThemeModeChange("light")
       result.current.handleDisplayModeChange("left")
       result.current.handleResetTimerDisplayModeChange("relative")
-      result.current.handleTimeFormatModeChange("12h")
+      result.current.handleShowAccountIdentityChange(true)
     })
 
     await waitFor(() => {
       expect(errorSpy).toHaveBeenCalledWith("Failed to save theme mode:", themeError)
       expect(errorSpy).toHaveBeenCalledWith("Failed to save display mode:", displayError)
       expect(errorSpy).toHaveBeenCalledWith("Failed to save reset timer display mode:", resetError)
-      expect(errorSpy).toHaveBeenCalledWith("Failed to save time format mode:", timeFormatError)
+      expect(errorSpy).toHaveBeenCalledWith("Failed to save account identity visibility:", accountError)
     })
 
     errorSpy.mockRestore()

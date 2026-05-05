@@ -883,12 +883,8 @@ interface SettingsPageProps {
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
   startOnLogin: boolean;
   onStartOnLoginChange: (value: boolean) => void;
-  uiScale: UIScale;
-  onUIScaleChange: (value: UIScale) => void;
-  /** Sets the same single tray line for every enabled Cursor account (used when picking single-provider icon styles). */
-  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void;
-  /** Cursor-only: whether the Requests line exists in probe data (null = loading). */
-  cursorRequestsLineAvailable: boolean | null;
+  showAccountIdentity: boolean;
+  onShowAccountIdentityChange: (value: boolean) => void;
 }
 
 export function SettingsPage({
@@ -917,10 +913,8 @@ export function SettingsPage({
   onGlobalShortcutChange,
   startOnLogin,
   onStartOnLoginChange,
-  uiScale,
-  onUIScaleChange,
-  onSetCursorTrayMetricForAllAccounts,
-  cursorRequestsLineAvailable,
+  showAccountIdentity,
+  onShowAccountIdentityChange,
 }: SettingsPageProps) {
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
@@ -1376,6 +1370,20 @@ export function SettingsPage({
             <span className="text-xs text-muted-foreground">{supportBundleMessage}</span>
           ) : null}
         </div>
+      </section>
+      <section>
+        <h3 className="text-lg font-semibold mb-0">Account Identity</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          Show account email beside plan badges
+        </p>
+        <label className="flex items-center gap-2 text-sm select-none text-foreground">
+          <Checkbox
+            key={`show-account-identity-${showAccountIdentity}`}
+            checked={showAccountIdentity}
+            onCheckedChange={(checked) => onShowAccountIdentityChange(checked === true)}
+          />
+          Show account identity
+        </label>
       </section>
       <section>
         <h3 className="text-lg font-semibold mb-0">Plugins</h3>

@@ -43,13 +43,7 @@ export type AppContentActionProps = {
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
   onStartOnLoginChange: (value: boolean) => void
-
-  onUIScaleChange: (value: UIScale) => void
-
-  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void
-
-  /** null = loading / unknown; true = Cursor probe has Requests line; false = not available (e.g. Pro) */
-  cursorRequestsLineAvailable: boolean | null
+  onShowAccountIdentityChange: (value: boolean) => void
 }
 
 export type AppContentProps = AppContentDerivedProps & AppContentActionProps
@@ -76,13 +70,7 @@ export function AppContent({
   traySettingsPreview,
   onGlobalShortcutChange,
   onStartOnLoginChange,
-
-  onUIScaleChange,
-
-  onSetCursorTrayMetricForAllAccounts,
-
-  cursorRequestsLineAvailable,
-
+  onShowAccountIdentityChange,
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
     useShallow((state) => ({
@@ -99,9 +87,7 @@ export function AppContent({
     globalShortcut,
     themeMode,
     startOnLogin,
-
-    uiScale,
-
+    showAccountIdentity,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -112,9 +98,7 @@ export function AppContent({
       globalShortcut: state.globalShortcut,
       themeMode: state.themeMode,
       startOnLogin: state.startOnLogin,
-
-      uiScale: state.uiScale,
-
+      showAccountIdentity: state.showAccountIdentity,
     }))
   )
 
@@ -127,6 +111,7 @@ export function AppContent({
         resetTimerDisplayMode={resetTimerDisplayMode}
         timeFormatMode={timeFormatMode}
         onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+        showAccountIdentity={showAccountIdentity}
       />
     )
   }
@@ -159,13 +144,8 @@ export function AppContent({
         onGlobalShortcutChange={onGlobalShortcutChange}
         startOnLogin={startOnLogin}
         onStartOnLoginChange={onStartOnLoginChange}
-
-        uiScale={uiScale}
-        onUIScaleChange={onUIScaleChange}
-
-        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
-
-        cursorRequestsLineAvailable={cursorRequestsLineAvailable}
+        showAccountIdentity={showAccountIdentity}
+        onShowAccountIdentityChange={onShowAccountIdentityChange}
       />
     )
   }
@@ -182,6 +162,7 @@ export function AppContent({
       resetTimerDisplayMode={resetTimerDisplayMode}
       timeFormatMode={timeFormatMode}
       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+      showAccountIdentity={showAccountIdentity}
     />
   )
 }

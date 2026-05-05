@@ -10,6 +10,7 @@ interface ProviderDetailPageProps {
   resetTimerDisplayMode: ResetTimerDisplayMode
   timeFormatMode?: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
+  showAccountIdentity?: boolean
 }
 
 export function ProviderDetailPage({
@@ -19,6 +20,7 @@ export function ProviderDetailPage({
   resetTimerDisplayMode,
   timeFormatMode = "auto",
   onResetTimerDisplayModeToggle,
+  showAccountIdentity,
 }: ProviderDetailPageProps) {
   const pluginSettings = useAppPluginStore(state => state.pluginSettings)
 
@@ -36,27 +38,23 @@ export function ProviderDetailPage({
     : rawLines
 
   return (
-    <div className="flex min-h-full w-full flex-col">
-      <ProviderCard
-        name={plugin.meta.name}
-        plan={plugin.data?.plan}
-        links={plugin.meta.links}
-        showSeparator={false}
-        loading={plugin.loading}
-        error={plugin.error}
-        lines={plugin.data?.lines ?? []}
-        skeletonLines={plugin.meta.lines}
-        lastManualRefreshAt={plugin.lastManualRefreshAt}
-        lastUpdatedAt={plugin.lastUpdatedAt ?? null}
-        onRetry={onRetry}
-        scopeFilter="all"
-        allowedLabels={allowedLabels}
-        displayMode={displayMode}
-        resetTimerDisplayMode={resetTimerDisplayMode}
-        timeFormatMode={timeFormatMode}
-        onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
-        layout="detailFill"
-      />
-    </div>
+    <ProviderCard
+      name={plugin.meta.name}
+      plan={plugin.data?.plan}
+      links={plugin.meta.links}
+      showSeparator={false}
+      loading={plugin.loading}
+      error={plugin.error}
+      lines={plugin.data?.lines ?? []}
+      skeletonLines={plugin.meta.lines}
+      lastManualRefreshAt={plugin.lastManualRefreshAt}
+      lastUpdatedAt={plugin.lastUpdatedAt}
+      onRetry={onRetry}
+      scopeFilter="all"
+      displayMode={displayMode}
+      resetTimerDisplayMode={resetTimerDisplayMode}
+      onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+      showAccountIdentity={showAccountIdentity}
+    />
   )
 }

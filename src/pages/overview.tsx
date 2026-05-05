@@ -10,6 +10,7 @@ interface OverviewPageProps {
   resetTimerDisplayMode: ResetTimerDisplayMode
   timeFormatMode?: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
+  showAccountIdentity?: boolean
 }
 
 export function OverviewPage({
@@ -19,6 +20,7 @@ export function OverviewPage({
   resetTimerDisplayMode,
   timeFormatMode = "auto",
   onResetTimerDisplayModeToggle,
+  showAccountIdentity,
 }: OverviewPageProps) {
   const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
 
@@ -32,37 +34,26 @@ export function OverviewPage({
 
   return (
     <div>
-      {plugins.map((plugin, index) => {
-        const rawLines = pluginSettings?.trayLines?.[plugin.meta.id]
-        const allowedLabels =
-          rawLines == null || rawLines.length === 0
-            ? null
-            : rawLines[0] === "__NONE__"
-              ? []
-              : rawLines
-
-        return (
-          <ProviderCard
-            key={plugin.meta.id}
-            name={plugin.meta.name}
-            plan={plugin.data?.plan}
-            showSeparator={index < plugins.length - 1}
-            loading={plugin.loading}
-            error={plugin.error}
-            lines={plugin.data?.lines ?? []}
-            skeletonLines={plugin.meta.lines}
-            lastManualRefreshAt={plugin.lastManualRefreshAt}
-            lastUpdatedAt={plugin.lastUpdatedAt ?? null}
-            onRetry={onRetryPlugin ? () => onRetryPlugin(plugin.meta.id) : undefined}
-            scopeFilter="overview"
-            allowedLabels={allowedLabels}
-            displayMode={displayMode}
-            resetTimerDisplayMode={resetTimerDisplayMode}
-            timeFormatMode={timeFormatMode}
-            onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
-          />
-        )
-      })}
+      {plugins.map((plugin, index) => (
+        <ProviderCard
+          key={plugin.meta.id}
+          name={plugin.meta.name}
+          plan={plugin.data?.plan}
+          showSeparator={index < plugins.length - 1}
+          loading={plugin.loading}
+          error={plugin.error}
+          lines={plugin.data?.lines ?? []}
+          skeletonLines={plugin.meta.lines}
+          lastManualRefreshAt={plugin.lastManualRefreshAt}
+          lastUpdatedAt={plugin.lastUpdatedAt}
+          onRetry={onRetryPlugin ? () => onRetryPlugin(plugin.meta.id) : undefined}
+          scopeFilter="overview"
+          displayMode={displayMode}
+          resetTimerDisplayMode={resetTimerDisplayMode}
+          onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+          showAccountIdentity={showAccountIdentity}
+        />
+      ))}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import {
   saveDisplayMode,
   saveMenubarIconStyle,
   saveResetTimerDisplayMode,
+  saveShowAccountIdentity,
   saveThemeMode,
   saveTimeFormatMode,
   type DisplayMode,
@@ -21,7 +22,7 @@ type UseSettingsDisplayActionsArgs = {
   setDisplayMode: (value: DisplayMode) => void
   resetTimerDisplayMode: ResetTimerDisplayMode
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
-  setTimeFormatMode: (value: TimeFormatMode) => void
+  setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setUIScale: (value: UIScale) => void
   scheduleTrayIconUpdate: ScheduleTrayIconUpdate
@@ -32,7 +33,7 @@ export function useSettingsDisplayActions({
   setDisplayMode,
   resetTimerDisplayMode,
   setResetTimerDisplayMode,
-  setTimeFormatMode,
+  setShowAccountIdentity,
   setMenubarIconStyle,
   setUIScale,
   scheduleTrayIconUpdate,
@@ -79,12 +80,13 @@ export function useSettingsDisplayActions({
     })
   }, [scheduleTrayIconUpdate, setMenubarIconStyle])
 
-  const handleUIScaleChange = useCallback((value: UIScale) => {
-    setUIScale(value)
-    void saveUIScale(value).catch((error) => {
-      console.error("Failed to save UI scale:", error)
+  const handleShowAccountIdentityChange = useCallback((value: boolean) => {
+    track("setting_changed", { setting: "show_account_identity", value: String(value) })
+    setShowAccountIdentity(value)
+    void saveShowAccountIdentity(value).catch((error) => {
+      console.error("Failed to save account identity visibility:", error)
     })
-  }, [setUIScale])
+  }, [setShowAccountIdentity])
 
   return {
     handleThemeModeChange,
@@ -93,6 +95,6 @@ export function useSettingsDisplayActions({
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
     handleMenubarIconStyleChange,
-    handleUIScaleChange,
+    handleShowAccountIdentityChange,
   }
 }

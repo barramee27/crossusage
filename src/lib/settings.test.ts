@@ -6,6 +6,7 @@ import {
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_PLUGIN_SETTINGS,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
+  DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_TIME_FORMAT_MODE,
@@ -20,6 +21,7 @@ import {
   loadMenubarIconStyle,
   loadPluginSettings,
   loadResetTimerDisplayMode,
+  loadShowAccountIdentity,
   loadStartOnLogin,
   loadTimeFormatMode,
   migrateLegacyTraySettings,
@@ -32,6 +34,7 @@ import {
   saveMenubarIconStyle,
   savePluginSettings,
   saveResetTimerDisplayMode,
+  saveShowAccountIdentity,
   saveStartOnLogin,
   saveThemeMode,
   loadPersistUsageHistory,
@@ -458,38 +461,22 @@ describe("settings", () => {
     await expect(loadStartOnLogin()).resolves.toBe(DEFAULT_START_ON_LOGIN)
   })
 
-  describe("resolveOnboardingComplete", () => {
-    it("returns true when store key is true", async () => {
-      storeState.set("onboardingCompleteV1", true)
-      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(true)
-    })
-
-    it("returns false when key missing and no colon instance ids", async () => {
-      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(false)
-    })
-
-    it("migrates and returns true when key missing but multi-account instance ids exist", async () => {
-      const settings = {
-        ...DEFAULT_PLUGIN_SETTINGS,
-        providerInstances: { "claude:work": { baseProviderId: "claude", label: "Work" } },
-      }
-      await expect(resolveOnboardingComplete(settings)).resolves.toBe(true)
-      expect(storeState.get("onboardingCompleteV1")).toBe(true)
-    })
-
-    it("returns false when store key is false", async () => {
-      storeState.set("onboardingCompleteV1", false)
-      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(false)
-    })
+  it("loads default account identity visibility when missing", async () => {
+    await expect(loadShowAccountIdentity()).resolves.toBe(DEFAULT_SHOW_ACCOUNT_IDENTITY)
   })
 
-  it("loads persist usage history default false", async () => {
-    await expect(loadPersistUsageHistory()).resolves.toBe(false)
+  it("loads stored account identity visibility", async () => {
+    storeState.set("showAccountIdentity", false)
+    await expect(loadShowAccountIdentity()).resolves.toBe(false)
   })
 
-  it("saves and loads persist usage history", async () => {
-    await savePersistUsageHistory(true)
-    await expect(loadPersistUsageHistory()).resolves.toBe(true)
-    expect(storeState.get("persistUsageHistory")).toBe(true)
+  it("saves account identity visibility", async () => {
+    await saveShowAccountIdentity(false)
+    await expect(loadShowAccountIdentity()).resolves.toBe(false)
+  })
+
+  it("falls back to default for invalid account identity visibility", async () => {
+    storeState.set("showAccountIdentity", "invalid")
+    await expect(loadShowAccountIdentity()).resolves.toBe(DEFAULT_SHOW_ACCOUNT_IDENTITY)
   })
 })

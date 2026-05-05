@@ -15,7 +15,7 @@ const {
   loadMenubarIconStyleMock,
   loadPluginSettingsMock,
   loadResetTimerDisplayModeMock,
-  loadShowTrayIconMock,
+  loadShowAccountIdentityMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUIScaleMock,
@@ -38,7 +38,7 @@ const {
   loadMenubarIconStyleMock: vi.fn(),
   loadPluginSettingsMock: vi.fn(),
   loadResetTimerDisplayModeMock: vi.fn(),
-  loadShowTrayIconMock: vi.fn(),
+  loadShowAccountIdentityMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
@@ -67,7 +67,7 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_GLOBAL_SHORTCUT: null,
   DEFAULT_MENUBAR_ICON_STYLE: "provider",
   DEFAULT_RESET_TIMER_DISPLAY_MODE: "relative",
-  DEFAULT_SHOW_TRAY_ICON: true,
+  DEFAULT_SHOW_ACCOUNT_IDENTITY: true,
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_SCALE: "normal",
@@ -80,6 +80,7 @@ vi.mock("@/lib/settings", () => ({
   loadMenubarIconStyle: loadMenubarIconStyleMock,
   loadPluginSettings: loadPluginSettingsMock,
   loadResetTimerDisplayMode: loadResetTimerDisplayModeMock,
+  loadShowAccountIdentity: loadShowAccountIdentityMock,
   loadStartOnLogin: loadStartOnLoginMock,
   loadThemeMode: loadThemeModeMock,
   loadUIScale: loadUIScaleMock,
@@ -103,6 +104,7 @@ function createArgs() {
     setTimeFormatMode: vi.fn(),
     setGlobalShortcut: vi.fn(),
     setStartOnLogin: vi.fn(),
+    setShowAccountIdentity: vi.fn(),
     setMenubarIconStyle: vi.fn(),
     setUIScale: vi.fn(),
     setShowTrayIcon: vi.fn(),
@@ -128,7 +130,7 @@ describe("useSettingsBootstrap", () => {
     loadMenubarIconStyleMock.mockReset()
     loadPluginSettingsMock.mockReset()
     loadResetTimerDisplayModeMock.mockReset()
-    loadShowTrayIconMock.mockReset()
+    loadShowAccountIdentityMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUIScaleMock.mockReset()
@@ -161,8 +163,7 @@ describe("useSettingsBootstrap", () => {
     loadGlobalShortcutMock.mockResolvedValue("CommandOrControl+Shift+O")
     loadMenubarIconStyleMock.mockResolvedValue("provider")
     loadStartOnLoginMock.mockResolvedValue(true)
-    loadUIScaleMock.mockResolvedValue("normal")
-    loadShowTrayIconMock.mockResolvedValue(true)
+    loadShowAccountIdentityMock.mockResolvedValue(false)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)
@@ -226,5 +227,15 @@ describe("useSettingsBootstrap", () => {
     })
 
     errorSpy.mockRestore()
+  })
+
+  it("loads account identity visibility", async () => {
+    const args = createArgs()
+
+    renderHook(() => useSettingsBootstrap(args))
+
+    await waitFor(() => {
+      expect(args.setShowAccountIdentity).toHaveBeenCalledWith(false)
+    })
   })
 })
