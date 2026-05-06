@@ -57,20 +57,7 @@ import { cn } from "@/lib/utils";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
 import { FORK_REPO_URL } from "@/lib/fork-meta";
-
-async function sendNotificationAsync(payload: Parameters<
-  typeof import("@tauri-apps/plugin-notification").sendNotification
->[0]) {
-  const { sendNotification } = await import("@tauri-apps/plugin-notification")
-  return sendNotification(payload)
-}
-
-async function sendNotificationAsync(payload: Parameters<
-  typeof import("@tauri-apps/plugin-notification").sendNotification
->[0]) {
-  const { sendNotification } = await import("@tauri-apps/plugin-notification")
-  return sendNotification(payload)
-}
+import { sendNotificationAsync } from "@/lib/notification";
 
 interface PluginConfig {
   id: string;
