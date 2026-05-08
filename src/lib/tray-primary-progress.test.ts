@@ -75,6 +75,53 @@ describe("getTrayPrimaryBars", () => {
     expect(bars).toEqual([{ id: "b", items: [{ label: "Session", fraction: 0.75 }] }])
   })
 
+  it("uses base provider primary candidates for account instances", () => {
+    const bars = getTrayPrimaryBars({
+      pluginsMeta: [
+        {
+          id: "claude",
+          name: "Claude",
+          iconUrl: "claude.svg",
+          primaryCandidates: ["Session"],
+          lines: [],
+        },
+      ],
+      pluginSettings: {
+        order: ["claude:work", "claude:personal"],
+        disabled: [],
+        providerInstances: {
+          "claude:work": { baseProviderId: "claude", label: "Work" },
+          "claude:personal": { baseProviderId: "claude", label: "Personal" },
+        },
+      },
+      pluginStates: {
+        "claude:personal": {
+          data: {
+            providerId: "claude:personal",
+            displayName: "Claude (Personal)",
+            iconUrl: "",
+            lines: [
+              {
+                type: "progress",
+                label: "Session",
+                used: 20,
+                limit: 100,
+                format: { kind: "percent" },
+              },
+            ],
+          },
+          loading: false,
+          error: null,
+        },
+      },
+    })
+
+    expect(bars).toEqual([
+      { id: "claude:work", items: [] },
+      { id: "claude:personal", items: [{ label: "Session", fraction: 0.8 }] },
+    ])
+  })
+
   it("includes plugins with primary candidates even when no data (items empty)", () => {
     const bars = getTrayPrimaryBars({
       pluginsMeta: [
@@ -127,7 +174,12 @@ describe("getTrayPrimaryBars", () => {
       },
     })
 
-    expect(bars).toEqual([{ id: "a", items: [{ label: "Plan usage", fraction: 1 }] }])
+    expect(bars).toEqual([
+      {
+        id: "a",
+        items: [{ label: "Plan usage", fraction: 1, valueKind: "dollars", used: 150, limit: 100 }],
+      },
+    ])
   })
 
   it("does not compute fraction when limit is 0", () => {
@@ -238,7 +290,12 @@ describe("getTrayPrimaryBars", () => {
         },
       },
     })
-    expect(bars).toEqual([{ id: "a", items: [{ label: "Plan usage", fraction: 0.5 }] }])
+    expect(bars).toEqual([
+      {
+        id: "a",
+        items: [{ label: "Plan usage", fraction: 0.5, valueKind: "dollars", used: 50, limit: 100 }],
+      },
+    ])
   })
 
   it("uses first candidate when both are available", () => {
@@ -283,7 +340,12 @@ describe("getTrayPrimaryBars", () => {
       },
     })
     // Should use Credits (20/100 = 0.2), not Plan usage (80/100 = 0.8)
-    expect(bars).toEqual([{ id: "a", items: [{ label: "Credits", fraction: 0.2 }] }])
+    expect(bars).toEqual([
+      {
+        id: "a",
+        items: [{ label: "Credits", fraction: 0.2, valueKind: "dollars", used: 20, limit: 100 }],
+      },
+    ])
   })
 
   it("skips plugins with empty primaryCandidates", () => {
@@ -346,6 +408,48 @@ describe("getTrayPrimaryBars", () => {
     })
     // Empty trayLines = user wants nothing shown
     expect(bars).toEqual([{ id: "a", items: [] }])
+  })
+
+  it("includes dollar fields on tray items when progress format is dollars", () => {
+    const bars = getTrayPrimaryBars({
+      pluginsMeta: [
+        {
+          id: "cursor",
+          name: "Cursor",
+          iconUrl: "",
+          primaryCandidates: ["Credits", "Total usage"],
+          lines: [],
+        },
+      ],
+      pluginSettings: { order: ["cursor"], disabled: [], trayLines: { cursor: ["Credits"] } },
+      pluginStates: {
+        cursor: {
+          data: {
+            providerId: "cursor",
+            displayName: "Cursor",
+            iconUrl: "",
+            lines: [
+              {
+                type: "progress",
+                label: "Credits",
+                used: 5,
+                limit: 20,
+                format: { kind: "dollars" },
+              },
+            ],
+          },
+          loading: false,
+          error: null,
+        },
+      },
+      displayMode: "used",
+    })
+    expect(bars).toEqual([
+      {
+        id: "cursor",
+        items: [{ label: "Credits", fraction: 0.25, valueKind: "dollars", used: 5, limit: 20 }],
+      },
+    ])
   })
 })
 

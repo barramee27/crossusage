@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { useShallow } from "zustand/react/shallow"
 import { AppShell } from "@/components/app/app-shell"
 import { useAppPluginViews } from "@/hooks/app/use-app-plugin-views"
@@ -11,8 +12,15 @@ import { useSettingsSystemActions } from "@/hooks/app/use-settings-system-action
 import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
+import { useAppUpdate } from "@/hooks/use-app-update"
 import { track } from "@/lib/analytics"
-import { REFRESH_COOLDOWN_MS, savePluginSettings } from "@/lib/settings"
+import {
+  buildProviderInstanceId,
+  getBaseProviderId,
+  getProviderInstanceLabel,
+  REFRESH_COOLDOWN_MS,
+  savePluginSettings,
+} from "@/lib/settings"
 import { type PluginContextAction } from "@/components/side-nav"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
@@ -20,6 +28,13 @@ import { useAppUiStore } from "@/stores/app-ui-store"
 
 const TRAY_PROBE_DEBOUNCE_MS = 500
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
+
+type ProviderAccountCredentialInput = {
+  label?: string
+  accessToken: string
+  refreshToken: string
+  sessionKey: string
+}
 
 function App() {
   const {
@@ -63,7 +78,6 @@ function App() {
     uiScale,
     setUIScale,
 
-    showTrayIcon,
     setShowTrayIcon,
 
   } = useAppPreferencesStore(
@@ -84,7 +98,6 @@ function App() {
       uiScale: state.uiScale,
       setUIScale: state.setUIScale,
 
-      showTrayIcon: state.showTrayIcon,
       setShowTrayIcon: state.setShowTrayIcon,
 
     }))
@@ -110,6 +123,11 @@ function App() {
     onProbeResult: handleProbeResult,
   })
 
+  const pluginSettingsRef = useRef(pluginSettings)
+  pluginSettingsRef.current = pluginSettings
+
+  const { updateStatus, triggerInstall, checkForUpdates } = useAppUpdate()
+
   const { scheduleTrayIconUpdate, traySettingsPreview } = useTrayIcon({
     pluginsMeta,
     pluginSettings,
@@ -117,7 +135,6 @@ function App() {
     displayMode,
     menubarIconStyle,
     activeView,
-    showTrayIcon,
   })
 
   useEffect(() => {
@@ -170,22 +187,20 @@ function App() {
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
     handleStartOnLoginChange,
-    handleShowTrayIconChange,
   } = useSettingsSystemActions({
     pluginSettings,
     setAutoUpdateInterval,
     setAutoUpdateNextAt,
     setGlobalShortcut,
     setStartOnLogin,
-    setShowTrayIcon,
     applyStartOnLogin,
-    scheduleTrayIconUpdate,
   })
 
   const {
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
+    handleSetCursorTrayMetricForAllAccounts,
   } = useSettingsPluginActions({
     pluginSettings,
     pluginsMeta,
@@ -211,18 +226,21 @@ function App() {
     return lines.some((l) => l.label === "Requests")
   }, [pluginStates])
 
+  const cursorTrayLinesKey = JSON.stringify(pluginSettings?.trayLines?.cursor ?? null)
+
   useEffect(() => {
     if (cursorRequestsLineAvailable !== false) return
-    if (!pluginSettings?.trayLines?.cursor) return
-    const cur = pluginSettings.trayLines.cursor
+    const current = pluginSettingsRef.current
+    if (!current?.trayLines?.cursor) return
+    const cur = current.trayLines.cursor
     if (cur[0] === "__NONE__") return
     if (!cur.includes("Requests")) return
     const next = cur.filter((l) => l !== "Requests")
     const nextTrayLines = {
-      ...pluginSettings.trayLines,
+      ...current.trayLines,
       cursor: next.length === 0 ? ["__NONE__"] : next,
     }
-    const nextSettings = { ...pluginSettings, trayLines: nextTrayLines }
+    const nextSettings = { ...current, trayLines: nextTrayLines }
     setPluginSettings(nextSettings)
     void savePluginSettings(nextSettings).catch((e) => {
       console.error("Failed to prune Requests from tray lines:", e)
@@ -230,7 +248,7 @@ function App() {
     scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
   }, [
     cursorRequestsLineAvailable,
-    pluginSettings,
+    cursorTrayLinesKey,
     setPluginSettings,
     scheduleTrayIconUpdate,
   ])
@@ -242,11 +260,6 @@ function App() {
     pluginsMeta,
     pluginStates,
   })
-
-  const pluginSettingsRef = useRef(pluginSettings)
-  useEffect(() => {
-    pluginSettingsRef.current = pluginSettings
-  }, [pluginSettings])
 
   const handlePluginContextAction = useCallback(
     (pluginId: string, action: PluginContextAction) => {
@@ -289,6 +302,181 @@ function App() {
     [pluginStates]
   )
 
+  const saveProviderAccountCredentials = useCallback(
+    async (args: {
+      instanceId: string
+      baseProviderId: string
+      label: string
+      accessToken?: string | null
+      refreshToken?: string | null
+      sessionKey?: string | null
+    }) => {
+      await invoke("save_provider_account", {
+        account: {
+          instanceId: args.instanceId,
+          baseProviderId: args.baseProviderId,
+          label: args.label,
+          accessToken: args.accessToken ?? null,
+          refreshToken: args.refreshToken ?? null,
+          sessionKey: args.sessionKey ?? null,
+          expiresAt: null,
+        },
+      })
+    },
+    []
+  )
+
+  const handleAddProviderAccount = useCallback(
+    (baseProviderId: string, input: ProviderAccountCredentialInput) => {
+      if (!pluginSettings) return
+      const base = pluginsMeta.find((plugin) => plugin.id === baseProviderId)
+      if (!base) return
+      const label = input.label?.trim() || "Account"
+      let instanceId = buildProviderInstanceId(baseProviderId, label)
+      let counter = 2
+      while (
+        pluginSettings.order.includes(instanceId) ||
+        pluginSettings.providerInstances?.[instanceId]
+      ) {
+        instanceId = `${buildProviderInstanceId(baseProviderId, label)}-${counter}`
+        counter += 1
+      }
+      const nextSettings = {
+        ...pluginSettings,
+        order: [...pluginSettings.order, instanceId],
+        providerInstances: {
+          ...(pluginSettings.providerInstances ?? {}),
+          [instanceId]: { baseProviderId, label },
+        },
+      }
+      setPluginSettings(nextSettings)
+      void saveProviderAccountCredentials({
+        instanceId,
+        baseProviderId,
+        label,
+        accessToken: input.accessToken,
+        refreshToken: input.refreshToken,
+        sessionKey: input.sessionKey,
+      })
+        .then(() => savePluginSettings(nextSettings))
+        .then(() => {
+          setLoadingForPlugins([instanceId])
+          return startBatch([instanceId])
+        })
+        .catch((error) => {
+          console.error("Failed to add provider account:", error)
+          setErrorForPlugins([instanceId], "Failed to save account")
+        })
+      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+    },
+    [
+      pluginSettings,
+      pluginsMeta,
+      saveProviderAccountCredentials,
+      scheduleTrayIconUpdate,
+      setErrorForPlugins,
+      setLoadingForPlugins,
+      setPluginSettings,
+      startBatch,
+    ]
+  )
+
+  const handleUpdateProviderAccountCredentials = useCallback(
+    (id: string, input: ProviderAccountCredentialInput) => {
+      if (!pluginSettings) return
+      const baseProviderId = getBaseProviderId(id, pluginSettings)
+      const base = pluginsMeta.find((plugin) => plugin.id === baseProviderId)
+      if (!base) return
+      const label = input.label?.trim() || getProviderInstanceLabel(id, pluginSettings) || base.name
+      void saveProviderAccountCredentials({
+        instanceId: id,
+        baseProviderId,
+        label,
+        accessToken: input.accessToken,
+        refreshToken: input.refreshToken,
+        sessionKey: input.sessionKey,
+      })
+        .then(() => {
+          setLoadingForPlugins([id])
+          return startBatch([id])
+        })
+        .catch((error) => {
+          console.error("Failed to update provider account credentials:", error)
+          setErrorForPlugins([id], "Failed to save account")
+        })
+    },
+    [
+      pluginSettings,
+      pluginsMeta,
+      saveProviderAccountCredentials,
+      setErrorForPlugins,
+      setLoadingForPlugins,
+      startBatch,
+    ]
+  )
+
+  const handleRenameProviderAccount = useCallback(
+    (id: string, label: string) => {
+      if (!pluginSettings) return
+      const instance = pluginSettings.providerInstances?.[id]
+      if (!instance) return
+      const trimmedLabel = label.trim()
+      if (!trimmedLabel) return
+      const nextSettings = {
+        ...pluginSettings,
+        providerInstances: {
+          ...(pluginSettings.providerInstances ?? {}),
+          [id]: { ...instance, label: trimmedLabel },
+        },
+      }
+      setPluginSettings(nextSettings)
+      void invoke("save_provider_account", {
+        account: {
+          instanceId: id,
+          baseProviderId: instance.baseProviderId,
+          label: trimmedLabel,
+          accessToken: null,
+          refreshToken: null,
+          sessionKey: null,
+          expiresAt: null,
+        },
+      })
+        .then(() => savePluginSettings(nextSettings))
+        .catch((error) => {
+          console.error("Failed to rename provider account:", error)
+        })
+      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+    },
+    [pluginSettings, scheduleTrayIconUpdate, setPluginSettings]
+  )
+
+  const handleRemoveProviderAccount = useCallback(
+    (id: string) => {
+      if (!pluginSettings) return
+      if (!pluginSettings.providerInstances?.[id]) return
+      const nextTrayLines = { ...(pluginSettings.trayLines ?? {}) }
+      delete nextTrayLines[id]
+      const nextInstances = { ...(pluginSettings.providerInstances ?? {}) }
+      delete nextInstances[id]
+      const nextSettings = {
+        ...pluginSettings,
+        order: pluginSettings.order.filter((pluginId) => pluginId !== id),
+        disabled: pluginSettings.disabled.filter((pluginId) => pluginId !== id),
+        trayLines: nextTrayLines,
+        providerInstances: nextInstances,
+      }
+      setPluginSettings(nextSettings)
+      if (activeView === id) setActiveView("home")
+      void invoke("delete_provider_account", { instanceId: id })
+        .then(() => savePluginSettings(nextSettings))
+        .catch((error) => {
+          console.error("Failed to remove provider account:", error)
+        })
+      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+    },
+    [activeView, pluginSettings, scheduleTrayIconUpdate, setActiveView, setPluginSettings]
+  )
+
   return (
     <AppShell
       onRefreshAll={handleRefreshAll}
@@ -300,11 +488,18 @@ function App() {
       onPluginContextAction={handlePluginContextAction}
       isPluginRefreshAvailable={isPluginRefreshAvailable}
       onNavReorder={handleReorder}
+      updateStatus={updateStatus}
+      onUpdateInstall={triggerInstall}
+      onUpdateCheck={checkForUpdates}
       appContentProps={{
         onRetryPlugin: handleRetryPlugin,
         onReorder: handleReorder,
         onToggle: handleToggle,
         onTrayLineToggle: handleTrayLineToggle,
+        onAddProviderAccount: handleAddProviderAccount,
+        onUpdateProviderAccountCredentials: handleUpdateProviderAccountCredentials,
+        onRenameProviderAccount: handleRenameProviderAccount,
+        onRemoveProviderAccount: handleRemoveProviderAccount,
         onAutoUpdateIntervalChange: handleAutoUpdateIntervalChange,
         onThemeModeChange: handleThemeModeChange,
         onDisplayModeChange: handleDisplayModeChange,
@@ -317,7 +512,7 @@ function App() {
 
         onUIScaleChange: handleUIScaleChange,
 
-        onShowTrayIconChange: handleShowTrayIconChange,
+        onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
 
         cursorRequestsLineAvailable,
 

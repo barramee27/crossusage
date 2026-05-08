@@ -271,7 +271,7 @@ html:not(.tauri-popover) .app-panel-surface {
   --glass-panel-blur: 28px;
   --glass-panel-sat: 185%;
   --glass-panel-bright: 1.02;
-  --glass-panel-fill: rgba(255, 255, 255, 0.10);
+  --glass-panel-fill: rgba(255, 255, 255, 0.88);
   --glass-panel-border: rgba(255, 255, 255, 0.38);
   --glass-panel-rim-top: rgba(255, 255, 255, 0.55);
   --glass-panel-rim-bottom: rgba(0, 0, 0, 0.05);
@@ -287,7 +287,7 @@ html:not(.tauri-popover) .app-panel-surface {
   --glass-nav-blur: 40px;
   --glass-nav-sat: 188%;
   --glass-nav-contrast: 1.12;
-  --glass-nav-fill: rgba(255, 255, 255, 0.09);
+  --glass-nav-fill: rgba(255, 255, 255, 0.86);
   --glass-nav-border: rgba(255, 255, 255, 0.26);
   --glass-nav-inset-v: rgba(255, 255, 255, 0.16);
   --glass-nav-inset-h: rgba(255, 255, 255, 0.20);
@@ -296,15 +296,15 @@ html:not(.tauri-popover) .app-panel-surface {
   --glass-main-blur: 36px;
   --glass-main-sat: 165%;
   --glass-main-contrast: 1.08;
-  --glass-main-fill: rgba(255, 255, 255, 0.07);
+  --glass-main-fill: rgba(255, 255, 255, 0.84);
   --glass-main-inset-x: rgba(255, 255, 255, 0.22);
   --glass-main-inset-y: rgba(255, 255, 255, 0.14);
 
   /* Provider cards — lightest blur, inset in the hierarchy */
   --glass-card-blur: 16px;
   --glass-card-sat: 168%;
-  --glass-card-fill: rgba(255, 255, 255, 0.12);
-  --glass-card-fill-hover: rgba(255, 255, 255, 0.22);
+  --glass-card-fill: rgba(255, 255, 255, 0.90);
+  --glass-card-fill-hover: rgba(255, 255, 255, 0.96);
   --glass-card-border: rgba(255, 255, 255, 0.28);
   --glass-card-rim: rgba(255, 255, 255, 0.45);
   --glass-card-rim-hover: rgba(255, 255, 255, 0.55);
@@ -319,11 +319,13 @@ html:not(.tauri-popover) .app-panel-surface {
 }
 
 :root.dark.glass {
+  --muted-foreground: #b8b8b8;
+
   --glass-panel-blur: 30px;
   --glass-panel-sat: 155%;
   --glass-panel-bright: 0.98;
-  --glass-panel-fill: rgba(18, 18, 24, 0.52);
-  --glass-panel-border: rgba(255, 255, 255, 0.11);
+  --glass-panel-fill: rgba(18, 18, 24, 0.92);
+  --glass-panel-border: rgba(255, 255, 255, 0.16);
   --glass-panel-rim-top: rgba(255, 255, 255, 0.12);
   --glass-panel-rim-bottom: rgba(0, 0, 0, 0.18);
   --glass-panel-ambient-1: rgba(0, 0, 0, 0.42);
@@ -337,22 +339,22 @@ html:not(.tauri-popover) .app-panel-surface {
   --glass-nav-blur: 44px;
   --glass-nav-sat: 170%;
   --glass-nav-contrast: 1.08;
-  --glass-nav-fill: rgba(32, 32, 38, 0.48);
-  --glass-nav-border: rgba(255, 255, 255, 0.07);
+  --glass-nav-fill: rgba(25, 25, 30, 0.92);
+  --glass-nav-border: rgba(255, 255, 255, 0.12);
   --glass-nav-inset-v: rgba(255, 255, 255, 0.07);
   --glass-nav-inset-h: rgba(255, 255, 255, 0.10);
 
   --glass-main-sat: 145%;
   --glass-main-contrast: 1.04;
-  --glass-main-fill: rgba(28, 28, 34, 0.36);
-  --glass-main-inset-x: rgba(255, 255, 255, 0.07);
-  --glass-main-inset-y: rgba(255, 255, 255, 0.05);
+  --glass-main-fill: rgba(22, 22, 28, 0.90);
+  --glass-main-inset-x: rgba(255, 255, 255, 0.10);
+  --glass-main-inset-y: rgba(255, 255, 255, 0.08);
 
-  --glass-card-fill: rgba(34, 34, 42, 0.58);
-  --glass-card-fill-hover: rgba(50, 50, 60, 0.62);
-  --glass-card-border: rgba(255, 255, 255, 0.10);
-  --glass-card-rim: rgba(255, 255, 255, 0.09);
-  --glass-card-rim-hover: rgba(255, 255, 255, 0.12);
+  --glass-card-fill: rgba(34, 34, 42, 0.92);
+  --glass-card-fill-hover: rgba(50, 50, 60, 0.96);
+  --glass-card-border: rgba(255, 255, 255, 0.14);
+  --glass-card-rim: rgba(255, 255, 255, 0.12);
+  --glass-card-rim-hover: rgba(255, 255, 255, 0.16);
   --glass-card-ambient: rgba(0, 0, 0, 0.28);
   --glass-card-ambient-hover: rgba(0, 0, 0, 0.32);
   --glass-card-spec-a: rgba(255, 255, 255, 0.07);

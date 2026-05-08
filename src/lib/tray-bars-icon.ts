@@ -6,9 +6,15 @@ export type TrayGridCell = {
   text: string
 }
 
+export type TrayProviderIcon = {
+  id: string
+  iconUrl?: string
+}
+
 const BARS_TRACK_OPACITY = 0.16
 const BARS_REMAINDER_OPACITY = 0.24
 const BARS_FILL_OPACITY = 1
+const LOGO_REMAINDER_OPACITY = 0.18
 
 function rgbaToImageDataBytes(rgba: Uint8ClampedArray): Uint8Array {
   // Image.new expects Uint8Array. Uint8ClampedArray shares the same buffer layout.
@@ -22,6 +28,70 @@ function escapeXmlText(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
+}
+
+function decodeSvgDataUrl(url: string): string | null {
+  const match = url.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?(;base64)?,(.*)$/i)
+  if (!match) return null
+
+  const payload = match[2]
+  try {
+    if (match[1]) {
+      if (typeof atob !== "function") return null
+      return atob(payload)
+    }
+    return decodeURIComponent(payload)
+  } catch {
+    return null
+  }
+}
+
+function inlineSvgImage(args: {
+  svgText: string
+  x: number
+  y: number
+  size: number
+  color: string
+}): string | null {
+  const { svgText, x, y, size, color } = args
+  const viewBox = svgText.match(/\bviewBox=(["'])(.*?)\1/i)?.[2] ?? "0 0 100 100"
+  const body = svgText
+    .replace(/<\?xml[\s\S]*?\?>/i, "")
+    .replace(/<!doctype[\s\S]*?>/i, "")
+    .match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/i)?.[1]
+
+  if (!body) return null
+
+  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="${escapeXmlText(viewBox)}" color="${color}" fill="currentColor" preserveAspectRatio="xMidYMid meet">${body}</svg>`
+}
+
+function providerIconMarkup(args: {
+  href: string
+  x: number
+  y: number
+  size: number
+  color: string
+  opacity?: number
+  clipPathId?: string
+}): string {
+  const { href, x, y, size, color, opacity = 1, clipPathId } = args
+  const svgText = href.length > 0 ? decodeSvgDataUrl(href) : null
+  const inlineSvg = svgText ? inlineSvgImage({ svgText, x, y, size, color }) : null
+  const content = inlineSvg
+    ? inlineSvg
+    : href.length > 0
+      ? `<image x="${x}" y="${y}" width="${size}" height="${size}" href="${escapeXmlText(href)}" preserveAspectRatio="xMidYMid meet" />`
+      : (() => {
+          const cx = x + size / 2
+          const cy = y + size / 2
+          const radius = Math.max(2, size / 2 - 1.5)
+          const strokeW = Math.max(1.5, Math.round(size * 0.14))
+          return `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${color}" stroke-width="${strokeW}" opacity="1" shape-rendering="geometricPrecision" />`
+        })()
+
+  const opacityAttr = opacity < 1 ? ` opacity="${opacity}"` : ""
+  const clipAttr = clipPathId ? ` clip-path="url(#${clipPathId})"` : ""
+  return `<g${clipAttr}${opacityAttr}>${content}</g>`
 }
 
 function makeRoundedBarPath(args: {
@@ -117,7 +187,16 @@ function getSvgLayout(args: {
   barsX: number
   barsWidth: number
   iconSize: number
-  texts: { x: number; y: number; text: string; fontSize: number }[]
+  iconX?: number
+  iconY?: number
+  texts: {
+    x: number
+    y: number
+    text: string
+    fontSize: number
+    anchor?: "start" | "middle"
+    textLength?: number
+  }[]
 } {
   const { sizePx, style = "provider", percentText, gridCells = [], hideIcon = false } = args
   const hasPercentText = typeof percentText === "string" && percentText.length > 0
@@ -130,17 +209,111 @@ function getSvgLayout(args: {
   const barsWidth = sizePx - 2 * pad
   const iconSize = Math.max(6, Math.round(sizePx - 2 * pad * 0.5))
 
-  if (style === "donut") {
-    const donutGap = Math.max(1, Math.round(sizePx * 0.06))
+  if (style === "logoBar" || style === "logoGrid" || style === "donut") {
+    const logoPad = Math.max(1, Math.round(sizePx * 0.08))
     return {
-      width: sizePx + donutGap + sizePx,
-      height,
-      pad,
+      width: sizePx,
+      height: sizePx,
+      pad: logoPad,
       gap,
-      barsX,
-      barsWidth,
-      iconSize,
+      barsX: logoPad,
+      barsWidth: sizePx - 2 * logoPad,
+      iconSize: sizePx - 2 * logoPad,
+      iconX: logoPad,
+      iconY: logoPad,
       texts: [],
+    }
+  }
+
+  if (style === "provider") {
+    // Square stacked layout: icon top half, percent bottom half.
+    // Stays square so Linux/Windows trays can't squash icon+text into a sliver.
+    const cellsForProvider = [...gridCells]
+    if (cellsForProvider.length === 0 && hasPercentText) {
+      cellsForProvider.push({ text: percentText! })
+    }
+    const cellText = cellsForProvider[0]?.text ?? ""
+    const stackPad = Math.max(1, Math.round(sizePx * 0.06))
+    const innerW = sizePx - 2 * stackPad
+
+    if (hideIcon) {
+      // Text-only square badge: one big readable percent centered.
+      if (!cellText) {
+        return { width: sizePx, height, pad: stackPad, gap, barsX, barsWidth, iconSize: 0, texts: [] }
+      }
+      const fontSize = Math.max(11, Math.round(sizePx * 0.62))
+      const desired = estimateTextWidthPx(cellText, fontSize)
+      const textLength = Math.min(innerW, desired)
+      return {
+        width: sizePx,
+        height: sizePx,
+        pad: stackPad,
+        gap,
+        barsX: stackPad,
+        barsWidth: innerW,
+        iconSize: 0,
+        texts: [
+          {
+            x: Math.round(sizePx / 2),
+            y: Math.round(sizePx / 2) + verticalNudgePx,
+            text: cellText,
+            fontSize,
+            anchor: "middle",
+            textLength,
+          },
+        ],
+      }
+    }
+
+    if (!cellText) {
+      // Icon-only square.
+      const iconOnlySize = innerW
+      return {
+        width: sizePx,
+        height: sizePx,
+        pad: stackPad,
+        gap,
+        barsX: stackPad,
+        barsWidth: innerW,
+        iconSize: iconOnlySize,
+        iconX: stackPad,
+        iconY: stackPad,
+        texts: [],
+      }
+    }
+
+    // Icon (top ~52%) + percent (bottom ~42%) inside a square bitmap.
+    const iconAreaH = Math.round(sizePx * 0.52)
+    const stackedIconSize = Math.max(8, iconAreaH - stackPad)
+    const stackedIconX = Math.round((sizePx - stackedIconSize) / 2)
+    const stackedIconY = stackPad
+
+    const textTop = stackPad + iconAreaH
+    const textAreaH = Math.max(8, sizePx - textTop - stackPad)
+    const fontSize = Math.max(9, textAreaH + 1)
+    const desired = estimateTextWidthPx(cellText, fontSize)
+    const textLength = Math.min(innerW, desired)
+
+    return {
+      width: sizePx,
+      height: sizePx,
+      pad: stackPad,
+      gap,
+      barsX: stackPad,
+      barsWidth: innerW,
+      iconSize: stackedIconSize,
+      iconX: stackedIconX,
+      iconY: stackedIconY,
+      texts: [
+        {
+          x: Math.round(sizePx / 2),
+          y: textTop + Math.round(textAreaH / 2) + verticalNudgePx,
+          text: cellText,
+          fontSize,
+          anchor: "middle",
+          textLength,
+        },
+      ],
     }
   }
 
@@ -167,7 +340,8 @@ function getSvgLayout(args: {
   const useTwoCols = numItems > 2
   const numRows = numItems > 1 ? 2 : 1
 
-  const fontSize = numRows === 1 ? Math.max(9, Math.round(sizePx * 0.68)) : Math.max(8, Math.round(sizePx * 0.55))
+  const fontSize =
+    numRows === 1 ? Math.max(11, Math.round(sizePx * 0.76)) : Math.max(9, Math.round(sizePx * 0.6))
   const textGap = Math.max(2, Math.round(sizePx * 0.08))
   const startX = hideIcon ? pad : sizePx + textGap
 
@@ -237,20 +411,181 @@ function getSvgLayout(args: {
   }
 }
 
-export function makeTrayBarsSvg(args: {
+/** Bars / text / strokes for generated tray SVGs: dark UI → light ink; light UI → dark ink. */
+export function getTrayForegroundHex(isDarkUi: boolean): "#000000" | "#ffffff" {
+  return isDarkUi ? "#ffffff" : "#000000"
+}
+
+export type TrayBarsIconArgs = {
   bars?: TrayPrimaryBar[]
   sizePx: number
   style?: MenubarIconStyle
   percentText?: string
   providerIconUrl?: string
+  providerIcons?: TrayProviderIcon[]
   gridCells?: TrayGridCell[]
   hideIcon?: boolean
-}): string {
-  const { bars = [], sizePx, style = "provider", percentText, providerIconUrl, gridCells = [], hideIcon = false } = args
-  const barsForStyle = style === "bars" ? bars : bars.slice(0, 1)
+  /** SVG stroke/fill color (default black). Provider raster logos unchanged. */
+  foregroundHex?: string
+}
+
+function logoFraction(bar: TrayPrimaryBar | undefined): number {
+  const fraction = bar?.items?.[0]?.fraction
+  if (typeof fraction !== "number" || !Number.isFinite(fraction)) return 0
+  return Math.max(0, Math.min(1, fraction))
+}
+
+function logoProgressParts(args: {
+  href: string
+  x: number
+  y: number
+  size: number
+  fraction: number
+  color: string
+  clipPathId: string
+}): string[] {
+  const { href, x, y, size, fraction, color, clipPathId } = args
+  const fillH = Math.round(size * Math.max(0, Math.min(1, fraction)))
+  const parts = [
+    providerIconMarkup({
+      href,
+      x,
+      y,
+      size,
+      color,
+      opacity: LOGO_REMAINDER_OPACITY,
+    }),
+  ]
+
+  if (fillH > 0) {
+    const fillY = y + size - fillH
+    parts.push(`<clipPath id="${clipPathId}"><rect x="${x}" y="${fillY}" width="${size}" height="${fillH}" /></clipPath>`)
+    parts.push(
+      providerIconMarkup({
+        href,
+        x,
+        y,
+        size,
+        color,
+        clipPathId,
+      })
+    )
+  }
+
+  return parts
+}
+
+function polarPoint(cx: number, cy: number, radius: number, angleDeg: number): {
+  x: number
+  y: number
+} {
+  const radians = (angleDeg * Math.PI) / 180
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  }
+}
+
+function pieClipPathMarkup(args: {
+  clipPathId: string
+  x: number
+  y: number
+  size: number
+  fraction: number
+}): string | null {
+  const fraction = Math.max(0, Math.min(1, args.fraction))
+  if (fraction <= 0) return null
+  const { clipPathId, x, y, size } = args
+  if (fraction >= 1) {
+    return `<clipPath id="${clipPathId}"><rect x="${x}" y="${y}" width="${size}" height="${size}" /></clipPath>`
+  }
+
+  const cx = x + size / 2
+  const cy = y + size / 2
+  const radius = size * 0.72 // covers square icon corners, not only the inscribed circle.
+  const start = polarPoint(cx, cy, radius, -90)
+  const end = polarPoint(cx, cy, radius, -90 + 360 * fraction)
+  const largeArc = fraction > 0.5 ? 1 : 0
+  const path = [
+    `M ${cx} ${cy}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y}`,
+    "Z",
+  ].join(" ")
+  return `<clipPath id="${clipPathId}"><path d="${path}" /></clipPath>`
+}
+
+function logoPieParts(args: {
+  href: string
+  x: number
+  y: number
+  size: number
+  fraction: number
+  color: string
+  clipPathId: string
+}): string[] {
+  const { href, x, y, size, fraction, color, clipPathId } = args
+  const parts = [
+    providerIconMarkup({
+      href,
+      x,
+      y,
+      size,
+      color,
+      opacity: LOGO_REMAINDER_OPACITY,
+    }),
+  ]
+  const clipPath = pieClipPathMarkup({ clipPathId, x, y, size, fraction })
+  if (clipPath) {
+    parts.push(clipPath)
+    parts.push(providerIconMarkup({ href, x, y, size, color, clipPathId }))
+  }
+  return parts
+}
+
+function logoGridCells(args: {
+  sizePx: number
+  count: number
+}): { x: number; y: number; size: number }[] {
+  const { sizePx } = args
+  const count = Math.max(1, Math.min(4, args.count))
+  const cols = count === 1 ? 1 : 2
+  const rows = count <= 2 ? 1 : 2
+  const pad = Math.max(1, Math.round(sizePx * 0.08))
+  const gap = Math.max(1, Math.round(sizePx * 0.06))
+  const cellW = Math.floor((sizePx - 2 * pad - (cols - 1) * gap) / cols)
+  const cellH = Math.floor((sizePx - 2 * pad - (rows - 1) * gap) / rows)
+  const iconSize = Math.max(6, Math.min(cellW, cellH))
+  const gridW = cols * cellW + (cols - 1) * gap
+  const gridH = rows * cellH + (rows - 1) * gap
+  const startX = Math.floor((sizePx - gridW) / 2)
+  const startY = Math.floor((sizePx - gridH) / 2)
+
+  return Array.from({ length: count }, (_, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = startX + col * (cellW + gap) + Math.floor((cellW - iconSize) / 2)
+    const y = startY + row * (cellH + gap) + Math.floor((cellH - iconSize) / 2)
+    return { x, y, size: iconSize }
+  })
+}
+
+export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
+  const {
+    bars = [],
+    sizePx,
+    style = "provider",
+    percentText,
+    providerIconUrl,
+    providerIcons = [],
+    gridCells = [],
+    hideIcon = false,
+    foregroundHex = "#000000",
+  } = args
+  const barsForStyle = style === "bars" || style === "logoGrid" ? bars : bars.slice(0, 1)
   const n = Math.max(1, Math.min(4, barsForStyle.length || 1))
   const text = normalizePercentText(percentText)
-  
+
   const layout = getSvgLayout({
     sizePx,
     style,
@@ -270,25 +605,51 @@ export function makeTrayBarsSvg(args: {
 
   if (style === "provider") {
     // handled below
-  } else if (style === "donut") {
-    const cx = layout.pad + layout.barsWidth / 2
-    const cy = height / 2
-    const radius = Math.max(2, layout.barsWidth / 2 - 1)
-    const strokeW = Math.max(1.5, Math.round(layout.barsWidth * 0.15))
-    
+  } else if (style === "logoBar") {
+    const href = typeof providerIconUrl === "string" && !hideIcon ? providerIconUrl.trim() : ""
     parts.push(
-      `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="black" stroke-width="${strokeW}" opacity="${BARS_TRACK_OPACITY}" shape-rendering="geometricPrecision" />`
+      ...logoProgressParts({
+        href,
+        x: layout.iconX ?? layout.pad,
+        y: layout.iconY ?? layout.pad,
+        size: layout.iconSize,
+        fraction: logoFraction(barsForStyle[0]),
+        color: foregroundHex,
+        clipPathId: "tray-logo-fill",
+      })
     )
-
-    const fraction = barsForStyle[0]?.items?.[0]?.fraction
-    if (typeof fraction === "number" && Number.isFinite(fraction) && fraction > 0) {
-      const visual = getVisualBarFraction(fraction)
-      const circumference = 2 * Math.PI * radius
-      const dasharray = `${circumference * visual} ${circumference}`
+  } else if (style === "logoGrid") {
+    const iconById = new Map(providerIcons.map((icon) => [icon.id, icon.iconUrl?.trim() ?? ""]))
+    const cells = logoGridCells({ sizePx, count: barsForStyle.length || 1 })
+    for (let i = 0; i < cells.length; i += 1) {
+      const bar = barsForStyle[i]
+      const cell = cells[i]
+      const href = bar ? (iconById.get(bar.id) ?? "") : ""
       parts.push(
-        `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="black" stroke-width="${strokeW}" stroke-dasharray="${dasharray}" stroke-dashoffset="${circumference / 4}" stroke-linecap="round" opacity="${BARS_FILL_OPACITY}" shape-rendering="geometricPrecision" transform="rotate(-90 ${cx} ${cy})" />`
+        ...logoProgressParts({
+          href,
+          x: cell.x,
+          y: cell.y,
+          size: cell.size,
+          fraction: logoFraction(bar),
+          color: foregroundHex,
+          clipPathId: `tray-logo-grid-fill-${i}`,
+        })
       )
     }
+  } else if (style === "donut") {
+    const href = typeof providerIconUrl === "string" && !hideIcon ? providerIconUrl.trim() : ""
+    parts.push(
+      ...logoPieParts({
+        href,
+        x: layout.iconX ?? layout.pad,
+        y: layout.iconY ?? layout.pad,
+        size: layout.iconSize,
+        fraction: logoFraction(barsForStyle[0]),
+        color: foregroundHex,
+        clipPathId: "tray-logo-pie",
+      })
+    )
   } else {
     // style === "bars"
     const trackOpacity = BARS_TRACK_OPACITY
@@ -312,7 +673,7 @@ export function makeTrayBarsSvg(args: {
       const x = layout.barsX
 
       parts.push(
-        `<rect x="${x}" y="${y}" width="${trackW}" height="${trackH}" rx="${rx}" fill="black" opacity="${trackOpacity}" />`
+        `<rect x="${x}" y="${y}" width="${trackW}" height="${trackH}" rx="${rx}" fill="${foregroundHex}" opacity="${trackOpacity}" />`
       )
 
       const fraction = bar?.items?.[0]?.fraction
@@ -322,7 +683,7 @@ export function makeTrayBarsSvg(args: {
           const movingEdgeRadius = Math.max(0, Math.floor(rx * 0.35))
           if (fillW >= trackW) {
             parts.push(
-              `<rect x="${x}" y="${y}" width="${fillW}" height="${trackH}" rx="${rx}" fill="black" opacity="${fillOpacity}" />`
+              `<rect x="${x}" y="${y}" width="${fillW}" height="${trackH}" rx="${rx}" fill="${foregroundHex}" opacity="${fillOpacity}" />`
             )
           } else {
             const fillPath = makeRoundedBarPath({
@@ -333,7 +694,7 @@ export function makeTrayBarsSvg(args: {
               leftRadius: rx,
               rightRadius: movingEdgeRadius,
             })
-            parts.push(`<path d="${fillPath}" fill="black" opacity="${fillOpacity}" />`)
+            parts.push(`<path d="${fillPath}" fill="${foregroundHex}" opacity="${fillOpacity}" />`)
           }
         }
 
@@ -347,37 +708,30 @@ export function makeTrayBarsSvg(args: {
             leftRadius: Math.max(0, Math.floor(rx * 0.2)),
             rightRadius: rx,
           })
-          parts.push(`<path d="${remainderPath}" fill="black" opacity="${remainderOpacity}" />`)
+          parts.push(`<path d="${remainderPath}" fill="${foregroundHex}" opacity="${remainderOpacity}" />`)
         }
       }
     }
   }
 
-  const x = layout.barsX
-  const y = Math.round((height - layout.iconSize) / 2) + 1
+  const x = layout.iconX ?? layout.barsX
+  const y = layout.iconY ?? Math.round((height - layout.iconSize) / 2) + 1
   const href = typeof providerIconUrl === "string" ? providerIconUrl.trim() : ""
 
-  if (!hideIcon && style !== "bars") {
-    if (href.length > 0) {
-      parts.push(
-        `<image x="${x}" y="${y}" width="${layout.iconSize}" height="${layout.iconSize}" href="${escapeXmlText(href)}" preserveAspectRatio="xMidYMid meet" />`
-      )
-    } else {
-      const cx = x + layout.iconSize / 2
-      const cy = y + layout.iconSize / 2
-      const radius = Math.max(2, layout.iconSize / 2 - 1.5)
-      const strokeW = Math.max(1.5, Math.round(layout.iconSize * 0.14))
-      parts.push(
-        `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="black" stroke-width="${strokeW}" opacity="1" shape-rendering="geometricPrecision" />`
-      )
-    }
+  if (!hideIcon && style !== "bars" && style !== "logoBar" && style !== "logoGrid" && style !== "donut") {
+    parts.push(providerIconMarkup({ href, x, y, size: layout.iconSize, color: foregroundHex }))
   }
 
-  for (const { x: tX, y: tY, text, fontSize } of layout.texts) {
-    const anchor = text === "|" ? "middle" : "start"
+  for (const { x: tX, y: tY, text, fontSize, anchor: textAnchor, textLength } of layout.texts) {
+    const anchor = text === "|" ? "middle" : (textAnchor ?? "start")
     const opacity = text === "|" ? "0.3" : "1"
+    const strokeExtra = text === "|" ? "" : ` ${trayPercentTextStrokeAttrs(foregroundHex, fontSize)}`
+    const lengthExtra =
+      typeof textLength === "number"
+        ? ` textLength="${textLength}" lengthAdjust="spacingAndGlyphs"`
+        : ""
     parts.push(
-      `<text x="${tX}" y="${tY}" fill="black" opacity="${opacity}" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif" font-size="${fontSize}" font-weight="700" text-anchor="${anchor}" dominant-baseline="middle">${escapeXmlText(text)}</text>`
+      `<text x="${tX}" y="${tY}" fill="${foregroundHex}" opacity="${opacity}" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="${fontSize}" font-weight="900" text-anchor="${anchor}" dominant-baseline="middle" text-rendering="geometricPrecision"${lengthExtra}${strokeExtra}>${escapeXmlText(text)}</text>`
     )
   }
 
@@ -417,16 +771,27 @@ async function rasterizeSvgToRgba(svg: string, widthPx: number, heightPx: number
   }
 }
 
-export async function renderTrayBarsIcon(args: {
-  bars?: TrayPrimaryBar[]
-  sizePx: number
-  style?: MenubarIconStyle
-  percentText?: string
-  providerIconUrl?: string
-  gridCells?: TrayGridCell[]
-  hideIcon?: boolean
-}): Promise<Image> {
-  const { bars = [], sizePx, style = "provider", percentText, providerIconUrl, gridCells = [], hideIcon = false } = args
+/** Dark outline behind light glyphs (and vice versa) so scaled tray bitmaps stay readable. */
+function trayPercentTextStrokeAttrs(foregroundHex: string, fontSize: number): string {
+  const hex = foregroundHex.trim().toLowerCase()
+  const isLightInk = hex === "#ffffff" || hex === "#fff"
+  const stroke = isLightInk ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.55)"
+  const sw = Math.max(1.25, Math.min(2.75, fontSize * 0.09))
+  return `stroke="${stroke}" stroke-width="${sw.toFixed(2)}" paint-order="stroke fill" stroke-linejoin="round"`
+}
+
+export async function renderTrayBarsIcon(args: TrayBarsIconArgs): Promise<Image> {
+  const {
+    bars = [],
+    sizePx,
+    style = "provider",
+    percentText,
+    providerIconUrl,
+    providerIcons = [],
+    gridCells = [],
+    hideIcon = false,
+    foregroundHex = "#000000",
+  } = args
   const text = normalizePercentText(percentText)
   const svg = makeTrayBarsSvg({
     bars,
@@ -434,20 +799,18 @@ export async function renderTrayBarsIcon(args: {
     style,
     percentText: text,
     providerIconUrl,
+    providerIcons,
     gridCells,
     hideIcon,
+    foregroundHex,
   })
   const layout = getSvgLayout({
     sizePx,
     style,
     percentText: text,
+    gridCells,
+    hideIcon,
   })
   const rgba = await rasterizeSvgToRgba(svg, layout.width, layout.height)
   return await Image.new(rgba, layout.width, layout.height)
-}
-
-export function getTrayIconSizePx(devicePixelRatio: number | undefined): number {
-  const dpr = typeof devicePixelRatio === "number" && devicePixelRatio > 0 ? devicePixelRatio : 1
-  // 18pt-ish slot -> render at 18px * dpr for crispness (36px on Retina).
-  return Math.max(18, Math.round(18 * dpr))
 }

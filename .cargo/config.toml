@@ -1,5 +1,6 @@
 # Cross-compile crossusage-cli for Windows (GNU) from Linux — requires:
 #   sudo apt install mingw-w64   # Debian/Ubuntu
 #   rustup target add x86_64-pc-windows-gnu
-[target.x86_64-pc-windows-gnu]
-linker = "x86_64-w64-mingw32-gcc"
+#
+# Use the MinGW linker (default when target is x86_64-pc-windows-gnu). Portable GUI zips use
+# `crates/crossusage-win-launcher` to materialize WebView2Loader.dll before starting `crossusage_gui.exe`.

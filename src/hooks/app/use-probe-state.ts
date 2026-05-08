@@ -59,6 +59,26 @@ export function useProbeState({ onProbeResult }: UseProbeStateArgs) {
     })
   }, [])
 
+  /** Clears loading for ids still loading after `probe:batch-complete` (e.g. missed events during listener churn). */
+  const finalizeStaleProbeLoading = useCallback((ids: string[]) => {
+    setPluginStates((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const id of ids) {
+        const s = prev[id]
+        if (!s?.loading) continue
+        changed = true
+        const hasData = Boolean(s.data)
+        next[id] = {
+          ...s,
+          loading: false,
+          error: s.error ?? (hasData ? null : "Probe did not return data"),
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [])
+
   const handleProbeResult = useCallback(
     (output: PluginOutput) => {
       const errorMessage = getErrorMessage(output)
@@ -95,6 +115,7 @@ export function useProbeState({ onProbeResult }: UseProbeStateArgs) {
     manualRefreshIdsRef,
     setLoadingForPlugins,
     setErrorForPlugins,
+    finalizeStaleProbeLoading,
     handleProbeResult,
   }
 }

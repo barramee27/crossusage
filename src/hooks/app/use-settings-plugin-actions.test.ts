@@ -12,6 +12,8 @@ vi.mock("@/lib/analytics", () => ({
 
 vi.mock("@/lib/settings", () => ({
   savePluginSettings: savePluginSettingsMock,
+  getProviderInstanceMeta: (id: string, _settings: unknown, plugins: PluginMeta[]) =>
+    plugins.find((plugin) => plugin.id === id) ?? null,
 }))
 
 import type { PluginMeta } from "@/lib/plugin-types"

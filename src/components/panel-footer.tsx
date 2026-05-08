@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { AboutDialog } from "@/components/about-dialog";
 import type { UpdateStatus } from "@/hooks/use-app-update";
 import { useNowTicker } from "@/hooks/use-now-ticker";
@@ -40,14 +39,14 @@ function VersionDisplay({
       );
     case "ready":
       return (
-        <Button
-          variant="destructive"
-          size="xs"
-          className="update-border-beam"
+        <button
+          type="button"
           onClick={onUpdateInstall}
+          title={`Restart to install v${updateStatus.version}`}
+          className="text-xs font-medium text-primary hover:text-primary/90 hover:underline underline-offset-2 transition-colors cursor-pointer text-left"
         >
-          Restart to update
-        </Button>
+          Ready to update
+        </button>
       );
     case "installing":
       return (

@@ -313,6 +313,9 @@
   }
 
   function loadCredentials(ctx) {
+    const injected = readInjectedCredential(ctx)
+    if (injected) return injected
+
     const envAccessToken = readEnvText(ctx, "CLAUDE_CODE_OAUTH_TOKEN")
     const stored = loadStoredCredentials(ctx, !!envAccessToken)
     if (!envAccessToken) {
@@ -330,6 +333,33 @@
     }
   }
 
+  function readInjectedCredential(ctx) {
+    try {
+      if (!ctx.host.credentials || typeof ctx.host.credentials.get !== "function") return null
+      const raw = ctx.host.credentials.get()
+      if (!raw) return null
+      const credential = ctx.util.tryParseJson(String(raw))
+      if (!credential) return null
+      const accessToken = String(credential.accessToken || credential.sessionKey || "").trim()
+      const refreshToken = String(credential.refreshToken || "").trim()
+      if (!accessToken && !refreshToken) return null
+      return {
+        oauth: {
+          accessToken,
+          refreshToken,
+          expiresAt: typeof credential.expiresAt === "number" ? credential.expiresAt : null,
+          scopes: ["user:profile"],
+        },
+        source: "provider-account",
+        serviceName: null,
+        fullData: { claudeAiOauth: {} },
+      }
+    } catch (e) {
+      ctx.host.log.warn("provider account credential read failed: " + String(e))
+      return null
+    }
+  }
+
   function hasProfileScope(creds) {
     if (!creds || creds.inferenceOnly) {
       return false
@@ -342,6 +372,21 @@
   }
 
   function saveCredentials(ctx, source, serviceName, fullData) {
+    if (source === "provider-account") {
+      try {
+        if (ctx.host.credentials && typeof ctx.host.credentials.update === "function") {
+          const oauth = fullData && fullData.claudeAiOauth ? fullData.claudeAiOauth : {}
+          ctx.host.credentials.update(JSON.stringify({
+            accessToken: oauth.accessToken || null,
+            refreshToken: oauth.refreshToken || null,
+            expiresAt: oauth.expiresAt || null,
+          }))
+        }
+      } catch (e) {
+        ctx.host.log.error("Failed to update provider account credentials: " + String(e))
+      }
+      return
+    }
     // MUST use minified JSON - macOS `security -w` hex-encodes values with newlines,
     // which Claude Code can't read back, causing it to invalidate the session.
     const text = JSON.stringify(fullData)

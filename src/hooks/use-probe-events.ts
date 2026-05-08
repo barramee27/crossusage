@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
-import type { PluginOutput } from "@/lib/plugin-types"
+import type { PluginOutput, ProbeTarget } from "@/lib/plugin-types"
 
 type ProbeResult = {
   batchId: string
@@ -19,11 +19,13 @@ type ProbeBatchStarted = {
 
 type UseProbeEventsOptions = {
   onResult: (output: PluginOutput) => void
-  onBatchComplete: () => void
+  onBatchComplete: (pluginIds: string[]) => void
+  getProbeTargets?: (pluginIds?: string[]) => ProbeTarget[] | undefined
 }
 
-export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOptions) {
+export function useProbeEvents({ onResult, onBatchComplete, getProbeTargets }: UseProbeEventsOptions) {
   const activeBatchIds = useRef<Set<string>>(new Set())
+  const batchPluginIdsRef = useRef<Map<string, string[]>>(new Map())
   const unlisteners = useRef<UnlistenFn[]>([])
   const listenersReadyRef = useRef<Promise<void> | null>(null)
   const listenersReadyResolveRef = useRef<(() => void) | null>(null)
@@ -52,7 +54,9 @@ export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOpti
         "probe:batch-complete",
         (event) => {
           if (activeBatchIds.current.delete(event.payload.batchId)) {
-            onBatchComplete()
+            const ids = batchPluginIdsRef.current.get(event.payload.batchId) ?? []
+            batchPluginIdsRef.current.delete(event.payload.batchId)
+            onBatchComplete(ids)
           }
         }
       )
@@ -73,10 +77,11 @@ export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOpti
 
     return () => {
       cancelled = true
+      listenersReadyResolveRef.current?.()
+      listenersReadyResolveRef.current = null
+      listenersReadyRef.current = null
       unlisteners.current.forEach((unlisten) => unlisten())
       unlisteners.current = []
-      listenersReadyRef.current = null
-      listenersReadyResolveRef.current = null
     }
   }, [onBatchComplete, onResult])
 
@@ -92,17 +97,22 @@ export function useProbeEvents({ onResult, onBatchComplete }: UseProbeEventsOpti
         : `batch-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
     activeBatchIds.current.add(batchId)
-    const args = pluginIds
-      ? { batchId, pluginIds }
-      : { batchId }
+    const probeTargets = getProbeTargets?.(pluginIds)
+    const args = probeTargets
+      ? { batchId, pluginIds, probeTargets }
+      : pluginIds
+        ? { batchId, pluginIds }
+        : { batchId }
     try {
       const result = await invoke<ProbeBatchStarted>("start_probe_batch", args)
+      batchPluginIdsRef.current.set(batchId, result.pluginIds)
       return result.pluginIds
     } catch (error) {
       activeBatchIds.current.delete(batchId)
+      batchPluginIdsRef.current.delete(batchId)
       throw error
     }
-  }, [])
+  }, [getProbeTargets])
 
   return { startBatch }
 }

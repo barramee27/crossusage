@@ -157,6 +157,8 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 
 ## Supported Providers
 
+**Multiple Cursor or Claude accounts:** paste OAuth tokens per row in Settings — see [**multi-account credentials**](docs/providers/multi-account-credentials.md).
+
 - [**Amp**](docs/providers/amp.md) / free tier, bonus, credits
 - [**Antigravity**](docs/providers/antigravity.md) / all models
 - [**Claude**](docs/providers/claude.md) / session, weekly, extra usage, local token usage (ccusage)

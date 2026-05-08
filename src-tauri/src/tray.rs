@@ -1,13 +1,13 @@
 use std::sync::{Mutex, OnceLock};
 
+use tauri::Wry;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::path::BaseDirectory;
+use tauri::tray::TrayIconBuilder;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
-use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri::Wry;
 use tauri_plugin_store::StoreExt;
 
 #[cfg(target_os = "linux")]
@@ -126,10 +126,15 @@ fn set_stored_log_level(app_handle: &AppHandle, level: log::LevelFilter) {
 }
 
 pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
-    let tray_icon_path = app_handle
+    let icon = match app_handle
         .path()
-        .resolve("icons/tray-icon.png", BaseDirectory::Resource)?;
-    let icon = Image::from_path(tray_icon_path)?;
+        .resolve("icons/tray-icon.png", BaseDirectory::Resource)
+        .ok()
+        .and_then(|path| Image::from_path(path).ok())
+    {
+        Some(icon) => icon,
+        None => Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?,
+    };
 
     // Load persisted log level
     let current_level = get_stored_log_level(app_handle);
@@ -250,7 +255,9 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
 
     // Template images are a macOS menu-bar convention (alpha mask + system tint).
     // On Windows/Linux use the PNG as a normal color icon so the tray looks correct.
-    let mut builder = TrayIconBuilder::with_id("tray").icon(icon).tooltip("CrossUsage");
+    let mut builder = TrayIconBuilder::with_id("tray")
+        .icon(icon)
+        .tooltip("CrossUsage");
     #[cfg(target_os = "macos")]
     {
         builder = builder.icon_as_template(true);

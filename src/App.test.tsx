@@ -35,7 +35,10 @@ const state = vi.hoisted(() => ({
   autostartDisableMock: vi.fn(),
   autostartIsEnabledMock: vi.fn(),
   renderTrayBarsIconMock: vi.fn(),
-  probeHandlers: null as null | { onResult: (output: any) => void; onBatchComplete: () => void },
+  probeHandlers: null as null | {
+    onResult: (output: any) => void
+    onBatchComplete: (pluginIds: string[]) => void
+  },
   trayGetByIdMock: vi.fn(),
   traySetIconMock: vi.fn(),
   traySetIconAsTemplateMock: vi.fn(),
@@ -206,17 +209,23 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
   isEnabled: state.autostartIsEnabledMock,
 }))
 
+vi.mock("@/lib/tray-icon-size", () => ({
+  getTrayIconSizePx: () => 36,
+}))
+
 vi.mock("@/lib/tray-bars-icon", async () => {
   const actual = await vi.importActual<typeof import("@/lib/tray-bars-icon")>("@/lib/tray-bars-icon")
   return {
     ...actual,
-    getTrayIconSizePx: () => 36,
     renderTrayBarsIcon: state.renderTrayBarsIconMock,
   }
 })
 
 vi.mock("@/hooks/use-probe-events", () => ({
-  useProbeEvents: (handlers: { onResult: (output: any) => void; onBatchComplete: () => void }) => {
+  useProbeEvents: (handlers: {
+    onResult: (output: any) => void
+    onBatchComplete: (pluginIds: string[]) => void
+  }) => {
     state.probeHandlers = handlers
     return { startBatch: state.startBatchMock }
   },
@@ -481,7 +490,7 @@ describe("App", () => {
       iconUrl: "icon-a",
       lines: [{ type: "text", label: "Now", value: "Later" }],
     })
-    state.probeHandlers?.onBatchComplete()
+    state.probeHandlers?.onBatchComplete(["a"])
     await screen.findByText("Now")
   })
 
@@ -629,6 +638,74 @@ describe("App", () => {
     expect(state.traySetTitleMock).not.toHaveBeenCalledWith("--%")
   })
 
+  it("logo bar style passes the selected provider logo to renderTrayBarsIcon", async () => {
+    state.loadMenubarIconStyleMock.mockResolvedValue("logoBar")
+    state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
+      if (cmd === "list_plugins") {
+        return [
+          {
+            id: "a",
+            name: "Alpha",
+            iconUrl: "icon-a",
+            primaryCandidates: ["Session"],
+            lines: [{ type: "progress", label: "Session", scope: "overview" }],
+          },
+        ]
+      }
+      return null
+    })
+    state.loadPluginSettingsMock.mockResolvedValueOnce({ order: ["a"], disabled: [] })
+
+    render(<App />)
+    await waitFor(() => expect(state.startBatchMock).toHaveBeenCalled())
+    await waitFor(() => expect(state.renderTrayBarsIconMock).toHaveBeenCalled())
+
+    const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
+    expect(firstCall.style).toBe("logoBar")
+    expect(firstCall.providerIconUrl).toBe("icon-a")
+    await waitFor(() => expect(state.traySetTitleMock).toHaveBeenCalledWith(""))
+  })
+
+  it("all logos style passes each provider logo to renderTrayBarsIcon", async () => {
+    state.loadMenubarIconStyleMock.mockResolvedValue("logoGrid")
+    state.invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_platform") return "macos"
+      if (cmd === "list_plugins") {
+        return [
+          {
+            id: "a",
+            name: "Alpha",
+            iconUrl: "icon-a",
+            primaryCandidates: ["Session"],
+            lines: [{ type: "progress", label: "Session", scope: "overview" }],
+          },
+          {
+            id: "b",
+            name: "Beta",
+            iconUrl: "icon-b",
+            primaryCandidates: ["Session"],
+            lines: [{ type: "progress", label: "Session", scope: "overview" }],
+          },
+        ]
+      }
+      return null
+    })
+    state.loadPluginSettingsMock.mockResolvedValueOnce({ order: ["a", "b"], disabled: [] })
+
+    render(<App />)
+    await waitFor(() => expect(state.startBatchMock).toHaveBeenCalled())
+    await waitFor(() => expect(state.renderTrayBarsIconMock).toHaveBeenCalled())
+
+    const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
+    expect(firstCall.style).toBe("logoGrid")
+    expect(firstCall.providerIcons).toEqual([
+      { id: "a", iconUrl: "icon-a" },
+      { id: "b", iconUrl: "icon-b" },
+    ])
+    expect(firstCall.bars).toHaveLength(2)
+  })
+
   it("renders percent text in tray icon when native title is unavailable", async () => {
     state.trayGetByIdMock.mockResolvedValueOnce({
       setIcon: state.traySetIconMock.mockResolvedValue(undefined),
@@ -641,7 +718,8 @@ describe("App", () => {
     await waitFor(() => expect(state.renderTrayBarsIconMock).toHaveBeenCalled())
 
     const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
-    expect(firstCall.gridCells).toEqual([])
+    expect(firstCall.gridCells).toEqual([{ text: "--%" }])
+    expect(firstCall.percentText).toBe("--%")
     expect(state.traySetTitleMock).not.toHaveBeenCalled()
   })
 
@@ -740,7 +818,7 @@ describe("App", () => {
     await userEvent.click(settingsButtons[0])
 
     expect(screen.getByRole("heading", { name: "Tray / menu bar icon" })).toBeVisible()
-    const barsRadio = await screen.findByRole("radio", { name: "Bars" })
+    const barsRadio = await screen.findByRole("radio", { name: "Battery bars" })
     await userEvent.click(barsRadio)
     expect(state.saveMenubarIconStyleMock).toHaveBeenCalledWith("bars")
 
@@ -757,7 +835,7 @@ describe("App", () => {
     await userEvent.click(settingsButtons[0])
 
     expect(screen.getByRole("heading", { name: "Tray / menu bar icon" })).toBeVisible()
-    const donutRadio = await screen.findByRole("radio", { name: "Donut" })
+    const donutRadio = await screen.findByRole("radio", { name: "Pie chart" })
     await userEvent.click(donutRadio)
     expect(state.saveMenubarIconStyleMock).toHaveBeenCalledWith("donut")
 
@@ -968,7 +1046,7 @@ describe("App", () => {
     render(<App />)
     const settingsButtons = await screen.findAllByRole("button", { name: "Settings" })
     await userEvent.click(settingsButtons[0])
-    await userEvent.click(await screen.findByRole("radio", { name: "Bars" }))
+    await userEvent.click(await screen.findByRole("radio", { name: "Battery bars" }))
 
     await waitFor(() =>
       expect(errorSpy).toHaveBeenCalledWith("Failed to save menubar icon style:", expect.any(Error))
@@ -1097,7 +1175,7 @@ describe("App", () => {
     removeAction()
 
     await waitFor(() =>
-      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {} })
+      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {} })
     )
     expect(state.trackMock).toHaveBeenCalledWith("provider_toggled", { provider_id: "b", enabled: "false" })
     expect(state.startBatchMock).not.toHaveBeenCalled()
@@ -1113,7 +1191,7 @@ describe("App", () => {
     const removeAction = await triggerPluginContextAction("Beta", "b", "remove")
     removeAction()
     await waitFor(() =>
-      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {} })
+      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {} })
     )
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Beta" })).not.toBeInTheDocument()
@@ -1770,7 +1848,8 @@ describe("App", () => {
       await vi.waitFor(() =>
         expect(state.renderTrayBarsIconMock).toHaveBeenCalledWith(expect.objectContaining({
           sizePx: expect.any(Number),
-          gridCells: [],
+          gridCells: [{ text: "--%" }],
+          percentText: "--%",
           providerIconUrl: "icon-a",
           hideIcon: false,
         }))

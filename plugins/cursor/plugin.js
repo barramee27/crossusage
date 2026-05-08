@@ -13,6 +13,10 @@
   const REST_USAGE_URL = "https://cursor.com/api/usage"
   const STRIPE_URL = "https://cursor.com/api/auth/stripe"
   const CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
+  /** Must match `buildDevMockProviderCredentials` when `VITE_PROVIDER_ACCOUNT_DEV_MOCK` is enabled. */
+  const CROSSUSAGE_DEV_MOCK_ACCESS = "crossusage-dev-mock-access-token"
+  const CROSSUSAGE_DEV_MOCK_REFRESH = "crossusage-dev-mock-refresh-token"
+  const CROSSUSAGE_DEV_MOCK_SESSION_PREFIX = "crossusage-dev-mock-session:"
   const REFRESH_BUFFER_MS = 5 * 60 * 1000 // refresh 5 minutes before expiration
   const LOGIN_HINT = "Sign in via Cursor app or run `agent login`."
   /** Connect RPC (api2.cursor.sh) — short product UA. */
@@ -197,6 +201,9 @@
   }
 
   function loadAuthState(ctx) {
+    const injected = readInjectedCredential(ctx)
+    if (injected) return injected
+
     const sqliteAccessToken = readStateValue(ctx, "cursorAuth/accessToken")
     const sqliteRefreshToken = readStateValue(ctx, "cursorAuth/refreshToken")
     const sqliteMembershipTypeRaw = readStateValue(ctx, "cursorAuth/stripeMembershipType")
@@ -244,6 +251,87 @@
     }
   }
 
+  function readInjectedCredential(ctx) {
+    try {
+      if (!ctx.host.credentials || typeof ctx.host.credentials.get !== "function") return null
+      const raw = ctx.host.credentials.get()
+      if (!raw) return null
+      const credential = ctx.util.tryParseJson(String(raw))
+      if (!credential) return null
+      const accessToken = String(credential.accessToken || credential.sessionKey || "").trim()
+      const refreshToken = String(credential.refreshToken || "").trim()
+      if (!accessToken && !refreshToken) return null
+      return {
+        accessToken: accessToken || null,
+        refreshToken: refreshToken || null,
+        source: "provider-account",
+      }
+    } catch (e) {
+      ctx.host.log.warn("provider account credential read failed: " + String(e))
+      return null
+    }
+  }
+
+  function isCrossusageDevMockCredential(accessToken, refreshToken) {
+    const at = accessToken ? String(accessToken).trim() : ""
+    const rt = refreshToken ? String(refreshToken).trim() : ""
+    if (at === CROSSUSAGE_DEV_MOCK_ACCESS) return true
+    if (rt === CROSSUSAGE_DEV_MOCK_REFRESH) return true
+    if (at.indexOf(CROSSUSAGE_DEV_MOCK_SESSION_PREFIX) === 0) return true
+    return false
+  }
+
+  function buildCrossusageDevMockProbeOutput(ctx) {
+    ctx.host.log.info("crossusage dev mock: skipping Cursor API (no network)")
+    // Labels must match plugin.json manifest lines so tray + overview filters never go empty.
+    return {
+      plan: "Dev mock",
+      lines: [
+        ctx.line.text({
+          label: "Data source",
+          value: "Mock (CrossUsage dev)",
+          subtitle: "Placeholder tokens from Settings; api2.cursor.sh is not called.",
+        }),
+        ctx.line.progress({
+          label: "Total usage",
+          used: 35,
+          limit: 100,
+          format: { kind: "percent" },
+        }),
+        ctx.line.progress({
+          label: "Credits",
+          used: 250,
+          limit: 1000,
+          format: { kind: "dollars" },
+        }),
+        ctx.line.progress({
+          label: "Requests",
+          used: 42,
+          limit: 1000,
+          format: { kind: "count", suffix: " req" },
+        }),
+        ctx.line.progress({
+          label: "Auto usage",
+          used: 18,
+          limit: 100,
+          format: { kind: "percent" },
+        }),
+        ctx.line.progress({
+          label: "API usage",
+          used: 7,
+          limit: 50,
+          format: { kind: "percent" },
+        }),
+        ctx.line.progress({
+          label: "On-demand",
+          used: 1,
+          limit: 10,
+          format: { kind: "percent" },
+        }),
+      ],
+    }
+  }
+
   function getTokenSubject(ctx, token) {
     if (!token) return null
     const payload = ctx.jwt.decodePayload(token)
@@ -253,6 +341,18 @@
   }
 
   function persistAccessToken(ctx, source, accessToken) {
+    if (source === "provider-account") {
+      try {
+        if (ctx.host.credentials && typeof ctx.host.credentials.update === "function") {
+          const update = { accessToken: accessToken || null }
+          ctx.host.credentials.update(JSON.stringify(update))
+          return true
+        }
+      } catch (e) {
+        ctx.host.log.warn("provider account credential update failed: " + String(e))
+      }
+      return false
+    }
     if (source === "keychain") {
       return writeKeychainValue(ctx, KEYCHAIN_ACCESS_TOKEN_SERVICE, accessToken)
     }
@@ -849,6 +949,13 @@
     let accessToken = authState.accessToken
     const refreshTokenValue = authState.refreshToken
     const authSource = authState.source
+
+    if (
+      authSource === "provider-account" &&
+      isCrossusageDevMockCredential(accessToken, refreshTokenValue)
+    ) {
+      return buildCrossusageDevMockProbeOutput(ctx)
+    }
 
     if (!accessToken && !refreshTokenValue) {
       ctx.host.log.error("probe failed: no access or refresh token in sqlite/keychain")

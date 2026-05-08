@@ -1,14 +1,20 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { PluginMeta } from "@/lib/plugin-types";
+import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
 
 // Refresh cooldown duration in milliseconds (5 minutes)
 export const REFRESH_COOLDOWN_MS = 300_000;
 
 // Spec: persist plugin order + disabled list; new plugins append, default disabled unless in DEFAULT_ENABLED_PLUGINS.
+export type ProviderInstanceSettings = {
+  baseProviderId: string;
+  label: string;
+};
+
 export type PluginSettings = {
   order: string[];
   disabled: string[];
   trayLines?: Record<string, string[]>;
+  providerInstances?: Record<string, ProviderInstanceSettings>;
 };
 
 export type AutoUpdateIntervalMinutes = 5 | 15 | 30 | 60;
@@ -19,7 +25,7 @@ export type DisplayMode = "used" | "left";
 
 export type ResetTimerDisplayMode = "relative" | "absolute";
 
-export type MenubarIconStyle = "provider" | "bars" | "donut";
+export type MenubarIconStyle = "provider" | "logoBar" | "logoGrid" | "bars" | "donut";
 
 export type GlobalShortcut = string | null;
 
@@ -44,6 +50,7 @@ export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 export const DEFAULT_DISPLAY_MODE: DisplayMode = "left";
 export const DEFAULT_RESET_TIMER_DISPLAY_MODE: ResetTimerDisplayMode = "relative";
+/** Default tray appearance for new installs and store reset (Plugin / provider style). */
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
@@ -57,6 +64,7 @@ export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
   { value: "compact", label: "Compact" },
 ];
 
+/** Default: show CrossUsage in the system tray / menu bar. */
 export const DEFAULT_SHOW_TRAY_ICON = true;
 
 
@@ -64,12 +72,14 @@ const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
 const DISPLAY_MODES: DisplayMode[] = ["used", "left"];
 const RESET_TIMER_DISPLAY_MODES: ResetTimerDisplayMode[] = ["relative", "absolute"];
-const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "donut", "bars"];
+const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "logoBar", "logoGrid", "donut", "bars"];
 
 export const MENUBAR_ICON_STYLE_OPTIONS: { value: MenubarIconStyle; label: string }[] = [
-  { value: "provider", label: "Plugin" },
-  { value: "donut", label: "Donut" },
-  { value: "bars", label: "Bars" },
+  { value: "provider", label: "Logo + %" },
+  { value: "logoBar", label: "Logo fill" },
+  { value: "logoGrid", label: "All logos" },
+  { value: "donut", label: "Pie chart" },
+  { value: "bars", label: "Battery bars" },
 ];
 
 export const AUTO_UPDATE_OPTIONS: { value: AutoUpdateIntervalMinutes; label: string }[] =
@@ -102,6 +112,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   order: [],
   disabled: [],
   trayLines: {},
+  providerInstances: {},
 };
 
 export async function loadPluginSettings(): Promise<PluginSettings> {
@@ -111,6 +122,10 @@ export async function loadPluginSettings(): Promise<PluginSettings> {
     order: Array.isArray(stored.order) ? stored.order : [],
     disabled: Array.isArray(stored.disabled) ? stored.disabled : [],
     trayLines: stored.trayLines && typeof stored.trayLines === "object" ? stored.trayLines : {},
+    providerInstances:
+      stored.providerInstances && typeof stored.providerInstances === "object"
+        ? stored.providerInstances
+        : {},
   };
 }
 
@@ -143,18 +158,40 @@ export function normalizePluginSettings(
   settings: PluginSettings,
   plugins: PluginMeta[]
 ): PluginSettings {
-  const knownIds = plugins.map((plugin) => plugin.id);
-  const knownSet = new Set(knownIds);
+  const knownBaseIds = plugins.map((plugin) => plugin.id);
+  const knownBaseSet = new Set(knownBaseIds);
+
+  const providerInstances: Record<string, ProviderInstanceSettings> = {};
+  for (const [instanceId, instance] of Object.entries(settings.providerInstances ?? {})) {
+    const id = instanceId.trim();
+    const baseProviderId = instance?.baseProviderId?.trim();
+    if (!id || !baseProviderId || !knownBaseSet.has(baseProviderId)) continue;
+    if (knownBaseSet.has(id) && id !== baseProviderId) continue;
+    const label = instance.label?.trim() || defaultProviderInstanceLabel(baseProviderId, id);
+    providerInstances[id] = { baseProviderId, label };
+  }
+
+  const knownInstanceIds = new Set<string>(knownBaseIds);
+  for (const instanceId of Object.keys(providerInstances)) {
+    knownInstanceIds.add(instanceId);
+  }
 
   const order: string[] = [];
   const seen = new Set<string>();
   for (const id of settings.order) {
-    if (!knownSet.has(id) || seen.has(id)) continue;
+    if (!knownInstanceIds.has(id) || seen.has(id)) continue;
     seen.add(id);
     order.push(id);
   }
   const newlyAdded: string[] = [];
-  for (const id of knownIds) {
+  for (const id of knownBaseIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      order.push(id);
+      newlyAdded.push(id);
+    }
+  }
+  for (const id of Object.keys(providerInstances).sort()) {
     if (!seen.has(id)) {
       seen.add(id);
       order.push(id);
@@ -162,15 +199,16 @@ export function normalizePluginSettings(
     }
   }
 
-  const disabled = settings.disabled.filter((id) => knownSet.has(id));
+  const disabled = settings.disabled.filter((id) => knownInstanceIds.has(id));
   for (const id of newlyAdded) {
-    if (!DEFAULT_ENABLED_PLUGINS.has(id) && !disabled.includes(id)) {
+    const baseProviderId = getBaseProviderId(id, { ...settings, providerInstances });
+    if (!DEFAULT_ENABLED_PLUGINS.has(baseProviderId) && !disabled.includes(id)) {
       disabled.push(id);
     }
   }
   const trayLines = { ...(settings.trayLines ?? {}) };
   for (const key in trayLines) {
-    if (!knownSet.has(key)) {
+    if (!knownInstanceIds.has(key)) {
       delete trayLines[key];
       continue;
     }
@@ -201,7 +239,7 @@ export function normalizePluginSettings(
     }
   }
 
-  return { order, disabled, trayLines };
+  return { order, disabled, trayLines, providerInstances };
 }
 
 export function arePluginSettingsEqual(
@@ -231,6 +269,18 @@ export function arePluginSettingsEqual(
     for (let i = 0; i < aArr.length; i += 1) {
       if (aArr[i] !== bArr[i]) return false;
     }
+  }
+
+  const aInstances = a.providerInstances || {};
+  const bInstances = b.providerInstances || {};
+  const aInstanceKeys = Object.keys(aInstances).sort();
+  const bInstanceKeys = Object.keys(bInstances).sort();
+  if (aInstanceKeys.length !== bInstanceKeys.length) return false;
+  for (let i = 0; i < aInstanceKeys.length; i += 1) {
+    if (aInstanceKeys[i] !== bInstanceKeys[i]) return false;
+    const key = aInstanceKeys[i];
+    if (aInstances[key]?.baseProviderId !== bInstances[key]?.baseProviderId) return false;
+    if (aInstances[key]?.label !== bInstances[key]?.label) return false;
   }
 
   return true;
@@ -345,6 +395,75 @@ export async function migrateLegacyTraySettings(): Promise<void> {
 export function getEnabledPluginIds(settings: PluginSettings): string[] {
   const disabledSet = new Set(settings.disabled);
   return settings.order.filter((id) => !disabledSet.has(id));
+}
+
+export function getBaseProviderId(instanceId: string, settings: PluginSettings | null): string {
+  return settings?.providerInstances?.[instanceId]?.baseProviderId ?? instanceId;
+}
+
+export function getProviderInstanceLabel(instanceId: string, settings: PluginSettings | null): string | null {
+  return settings?.providerInstances?.[instanceId]?.label ?? null;
+}
+
+export function getProviderDisplayName(
+  instanceId: string,
+  settings: PluginSettings | null,
+  plugins: PluginMeta[]
+): string {
+  const baseProviderId = getBaseProviderId(instanceId, settings);
+  const baseName = plugins.find((plugin) => plugin.id === baseProviderId)?.name ?? baseProviderId;
+  const label = getProviderInstanceLabel(instanceId, settings);
+  if (!label || instanceId === baseProviderId) return baseName;
+  return `${baseName} (${label})`;
+}
+
+export function getProviderInstanceMeta(
+  instanceId: string,
+  settings: PluginSettings | null,
+  plugins: PluginMeta[]
+): PluginMeta | null {
+  const baseProviderId = getBaseProviderId(instanceId, settings);
+  const base = plugins.find((plugin) => plugin.id === baseProviderId);
+  if (!base) return null;
+  const label = getProviderInstanceLabel(instanceId, settings) ?? undefined;
+  return {
+    ...base,
+    id: instanceId,
+    baseProviderId,
+    instanceLabel: label,
+    name: getProviderDisplayName(instanceId, settings, plugins),
+  };
+}
+
+export function getProbeTargets(
+  instanceIds: string[] | undefined,
+  settings: PluginSettings | null
+): ProbeTarget[] | undefined {
+  if (!settings) return undefined;
+  const ids = instanceIds ?? getEnabledPluginIds(settings);
+  return ids.map((instanceId) => {
+    const baseProviderId = getBaseProviderId(instanceId, settings);
+    const label = getProviderInstanceLabel(instanceId, settings) ?? undefined;
+    return { instanceId, baseProviderId, label };
+  });
+}
+
+export function buildProviderInstanceId(baseProviderId: string, label: string): string {
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = slug || `account-${Date.now().toString(36)}`;
+  return `${baseProviderId}:${suffix}`;
+}
+
+function defaultProviderInstanceLabel(baseProviderId: string, instanceId: string): string {
+  if (instanceId === baseProviderId) return "";
+  const suffix = instanceId.startsWith(`${baseProviderId}:`)
+    ? instanceId.slice(baseProviderId.length + 1)
+    : instanceId;
+  return suffix || "Account";
 }
 
 function isGlobalShortcut(value: unknown): value is GlobalShortcut {

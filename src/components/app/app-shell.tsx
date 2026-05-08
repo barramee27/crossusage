@@ -11,7 +11,7 @@ import { useAppVersion } from "@/hooks/app/use-app-version"
 import { usePanel } from "@/hooks/app/use-panel"
 import { usePlatform } from "@/hooks/app/use-platform"
 import { useTrayRestartBridge } from "@/hooks/app/use-tray-restart-bridge"
-import { useAppUpdate } from "@/hooks/use-app-update"
+import type { UpdateStatus } from "@/hooks/use-app-update"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
 
@@ -25,6 +25,9 @@ type AppShellProps = {
   onPluginContextAction: (pluginId: string, action: PluginContextAction) => void
   isPluginRefreshAvailable: (pluginId: string) => boolean
   onNavReorder: (orderedIds: string[]) => void
+  updateStatus: UpdateStatus
+  onUpdateInstall: () => void
+  onUpdateCheck: () => void
   appContentProps: AppContentActionProps
 }
 
@@ -38,6 +41,9 @@ export function AppShell({
   onPluginContextAction,
   isPluginRefreshAvailable,
   onNavReorder,
+  updateStatus,
+  onUpdateInstall,
+  onUpdateCheck,
   appContentProps,
 }: AppShellProps) {
   const { themeMode } = useAppPreferencesStore(
@@ -72,8 +78,7 @@ export function AppShell({
   })
 
   const appVersion = useAppVersion()
-  const { updateStatus, triggerInstall, checkForUpdates } = useAppUpdate()
-  useTrayRestartBridge(updateStatus, triggerInstall)
+  useTrayRestartBridge(updateStatus, onUpdateInstall)
   const platform = usePlatform()
   const macPopoverChrome = isTauri() && platform === "macos"
 
@@ -117,12 +122,14 @@ export function AppShell({
                 ref={scrollRef}
                 className="min-h-0 flex-1 overflow-y-auto scrollbar-none"
               >
-                <AppContent
-                  {...appContentProps}
-                  displayPlugins={displayPlugins}
-                  settingsPlugins={settingsPlugins}
-                  selectedPlugin={selectedPlugin}
-                />
+                <div className="min-h-full min-w-0">
+                  <AppContent
+                    {...appContentProps}
+                    displayPlugins={displayPlugins}
+                    settingsPlugins={settingsPlugins}
+                    selectedPlugin={selectedPlugin}
+                  />
+                </div>
               </div>
               <div
                 className={`app-scroll-fade pointer-events-none absolute inset-x-0 bottom-0 h-14 transition-opacity duration-200 ${canScrollDown ? "opacity-100" : "opacity-0"}`}
@@ -132,8 +139,8 @@ export function AppShell({
               version={appVersion}
               autoUpdateNextAt={autoUpdateNextAt}
               updateStatus={updateStatus}
-              onUpdateInstall={triggerInstall}
-              onUpdateCheck={checkForUpdates}
+              onUpdateInstall={onUpdateInstall}
+              onUpdateCheck={onUpdateCheck}
               onRefreshAll={onRefreshAll}
               showAbout={showAbout}
               onShowAbout={() => setShowAbout(true)}

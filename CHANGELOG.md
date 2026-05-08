@@ -2,6 +2,25 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections at the bottom of this file are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## Unreleased
+
+### App
+
+- **Updates:** When an update has downloaded, the footer replaces **CrossUsage `<version>`** with **Ready to update** (click to restart and install). No separate Settings section or “check for updates” control—tray **Restart to update** still applies the pending build.
+- **Tray:** Dynamic tray icons pick **white or black** raster ink from the **system** dark/light preference, independent of CrossUsage App Theme; provider PNG logos are unchanged. Indicator placement on GNOME is shell-controlled.
+- **Glass:** stronger panel, nav, and card opacity so text stays readable over terminal/editor backgrounds.
+- **Cursor:** Default tray **percentage / bars primary line** is **Total usage** (not Credits), via `primaryOrder` in the Cursor plugin manifest. Custom tray line selections in Settings are unchanged.
+- **Windows / Linux:** Default panel size increased from **380×700** to **600×800** logical px so Settings and provider views stay readable (resolution/display scaling does not widen a fixed window).
+
+### Fix
+
+- **Windows portable / GNU:** Added a **single-file** portable exe build (`release:gui-portable-onefile-windows-gnu`) where **crossusage.exe** embeds the Tauri GUI, CLI, resources, and **WebView2Loader.dll**, extracts them to temp, then starts the GUI. Optional unique output names: `release:gui-portable-onefile-windows-gnu:unique`, `CROSSUSAGE_ONEFILE_TAG`, or `CROSSUSAGE_UNIQUE_ONEFILE=1`. The zip build still supports the folder layout. NSIS installer unchanged.
+- **Windows startup:** Windows release builds now show the main window on launch instead of relying only on the tray icon, and tray startup falls back to an embedded tray icon if the packaged resource is missing.
+
+## 1.0.8-beta.1
+
+Pre-release **1.0.8-beta.1** — version bump only (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, `crossusage-core`). Portable / onefile Windows builds use this label for testing before **1.0.8** stable.
+
 ## 1.0.7
 
 ### App
@@ -53,10 +72,10 @@ Merged from [robinebers/openusage v0.6.15](https://github.com/robinebers/openusa
 ### Install & CI
 
 - **Windows `[scripts/install.ps1](scripts/install.ps1)`:** `**INSTALL_MODE=cli`** — prefers the **latest GitHub Release** asset matching `crossusage-cli_*_windows_<arch>.zip` (or `.tar.gz`), then falls back to `releases/` on the branch. Extracts to `%USERPROFILE%\.local\lib\crossusage` and adds `%USERPROFILE%\.local\bin` (with `crossusage-cli.cmd` shim). `**[scripts/build-cli-windows.ps1](scripts/build-cli-windows.ps1)`** builds the zip for publishing.
-- **Linux → Windows CLI zip:** `**[scripts/build-cli-zip-windows-gnu.sh](scripts/build-cli-zip-windows-gnu.sh)`** cross-compiles `x86_64-pc-windows-gnu` and zips for `releases/`. `**[.cargo/config.toml](.cargo/config.toml)**` sets the MinGW linker.
+- **Linux → Windows CLI zip:** `**[scripts/build-cli-zip-windows-gnu.sh](scripts/build-cli-zip-windows-gnu.sh)`** cross-compiles `x86_64-pc-windows-gnu` and zips for `releases/`. `**[.cargo/config.toml](.cargo/config.toml)`** sets the MinGW linker.
 - **Windows GUI builds in CI:** `[.github/workflows/windows-gui.yml](.github/workflows/windows-gui.yml)` — run **Actions → Windows GUI (Tauri) → Run workflow** to download NSIS `*x64-setup.exe`, `crossusage.exe`, and `crossusage-cli.exe` artifacts (no tag required).
 - **Publish workflow:** `[.github/workflows/publish.yml](.github/workflows/publish.yml)` no longer runs on `**v*` tag push** (it targeted signed macOS DMGs and failed without Apple/Tauri secrets). It is `**workflow_dispatch` only**, with a required **tag** input, if you ever configure those secrets.
-- **macOS CLI CI:** `[.github/workflows/macos-cli-tarball.yml](.github/workflows/macos-cli-tarball.yml)` — `**workflow_dispatch`** on `**macos-latest**`: `**bundle:plugins**`, `**build-cli-tarball.sh**`, verify tarball contains `**resources/bundled_plugins/**` (supports `**./resources/...**` from bsdtar), artifact `**crossusage-cli-darwin-arm64-tarball**`. Optional upload to latest GitHub Release. **GUI (.dmg)** is not built in this job (use local `tauri build` or `**publish.yml`** with signing secrets).
+- **macOS CLI CI:** `[.github/workflows/macos-cli-tarball.yml](.github/workflows/macos-cli-tarball.yml)` — `**workflow_dispatch`** on `**macos-latest`**: `**bundle:plugins`**, `**build-cli-tarball.sh**`, verify tarball contains `**resources/bundled_plugins/**` (supports `**./resources/...**` from bsdtar), artifact `**crossusage-cli-darwin-arm64-tarball**`. Optional upload to latest GitHub Release. GUI (.dmg) is not built in this job (use local `tauri build` or `**publish.yml**` with signing secrets).
 
 ## 1.0.4
 
@@ -101,8 +120,8 @@ Merged from [robinebers/openusage v0.6.15](https://github.com/robinebers/openusa
 - **Install scripts:** `[scripts/install.sh](scripts/install.sh)` (Linux: GitHub latest `.deb` / `.rpm` / AppImage; `**INSTALL_MODE=cli`** portable tarball; auto-repair when `.deb` lacks `crossusage-cli`; macOS message; Windows redirect), `[scripts/install.ps1](scripts/install.ps1)` (Windows NSIS), and `[scripts/build-cli-tarball.sh](scripts/build-cli-tarball.sh)` for release assets. Documented in [README](README.md) and [INSTALL.md](INSTALL.md).
 - **CLI:** `crossusage-cli dashboard` — full-screen TUI (ratatui) with a multi-panel usage view (`q` / `Esc` to quit), optional JSONL history (`persist_history` in `~/.config/crossusage/config.toml`), and `**crossusage-cli export`** (`--format json|csv`, optional `--from-file` for JSONL).
 - **CI:** GitHub Actions job **crossusage-cli** builds/tests the CLI on Linux, Windows, and macOS.
-- **CLI:** `crossusage-cli daemon` — background polling with `**notify-rust`** desktop alerts when usage crosses `**--threshold-percent**` (default 85); `**--detach**` spawns a child and exits; optional `**--log-file**`.
-- **CLI (btop-style refresh):** default command opens the **dashboard** (no subcommand); global flags `**--config`**, `**--theme**`, `**--refresh-sec**`, `**--no-mouse**`, `**--daemon**` (mutually exclusive with subcommands); `**probe**` defaults to **JSON** (`--human` for tables); `**list`** probes and shows usage columns; TUI adds **header** (clock, CPU/RAM, est. spend), **chart** pane, **probe progress** line, **quit confirm**, themes `**btop-rainbow`** / `**auto**`; panic hook **press any key to exit**.
+- **CLI:** `crossusage-cli daemon` — background polling with `**notify-rust`** desktop alerts when usage crosses `**--threshold-percent`** (default 85); `**--detach`** spawns a child and exits; optional `**--log-file**`.
+- **CLI (btop-style refresh):** default command opens the **dashboard** (no subcommand); global flags `**--config`**, `**--theme`**, `**--refresh-sec**`, `**--no-mouse**`, `**--daemon**` (mutually exclusive with subcommands); `**probe**` defaults to JSON (`--human` for tables); `**list**` probes and shows usage columns; TUI adds **header** (clock, CPU/RAM, est. spend), **chart** pane, **probe progress** line, **quit confirm**, themes `**btop-rainbow`** / `**auto`**; panic hook **press any key to exit**.
 - **Vitest**: global `testTimeout` raised to reduce flaky timeouts under parallel runs; `main.test.tsx` mocks entry deps and Tauri log to stabilize the bootstrap test.
 
 ### Included from prior fork work (summary)

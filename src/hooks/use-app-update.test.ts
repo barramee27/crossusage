@@ -121,7 +121,7 @@ describe("useAppUpdate", () => {
     await act(() => Promise.resolve()) // extra tick for download to complete
 
     expect(downloadMock).toHaveBeenCalled()
-    expect(result.current.updateStatus).toEqual({ status: "ready" })
+    expect(result.current.updateStatus).toEqual({ status: "ready", version: "1.0.0" })
   })
 
   it("does not check again when already ready", async () => {

@@ -1,0 +1,16 @@
+Windows portable / manual copy
+================================
+
+**Official portable zip (GNU / Linux-built zip):** Run **crossusage.exe** (small launcher). It
+writes **WebView2Loader.dll** next to itself if missing, then starts **crossusage_gui.exe** (the
+real app). You can copy **crossusage.exe** alone to another folder if you also copy
+**crossusage_gui.exe** (same folder); the launcher recreates the DLL on first run.
+
+**Older / MSVC zip (single exe):** Keep **WebView2Loader.dll** in the same folder as
+**crossusage.exe** when that DLL is shipped next to the exe. Without it, Windows may show:
+
+  WebView2Loader.dll was not found
+
+Use the full zip from releases, or run the NSIS installer, or keep the required files together.
+
+You also need the Microsoft Edge WebView2 Runtime (normal on Windows 10/11).

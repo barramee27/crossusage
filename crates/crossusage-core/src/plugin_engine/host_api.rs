@@ -4,10 +4,13 @@ use aes_gcm::{
     aes::Aes256,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use crate::provider_accounts::{self, ProviderAccountContext, ProviderCredential};
 use rquickjs::{Ctx, Exception, Function, Object};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Map, Value as JsonValue};
 use std::collections::{HashMap, HashSet};
+#[cfg(test)]
+use std::collections::VecDeque;
 
 #[cfg(unix)]
 use users::os::unix::UserExt;
@@ -495,7 +498,9 @@ fn encrypt_aes_256_gcm_envelope(plaintext: &str, key_b64: &str) -> Result<String
 
 pub fn inject_host_api<'js>(
     ctx: &Ctx<'js>,
-    plugin_id: &str,
+    base_plugin_id: &str,
+    instance_id: &str,
+    account: Option<&ProviderAccountContext>,
     app_data_dir: &PathBuf,
     app_version: &str,
 ) -> rquickjs::Result<()> {
@@ -508,11 +513,11 @@ pub fn inject_host_api<'js>(
     app_obj.set("version", app_version)?;
     app_obj.set("platform", std::env::consts::OS)?;
     app_obj.set("appDataDir", app_data_dir.to_string_lossy().to_string())?;
-    let plugin_data_dir = app_data_dir.join("plugins_data").join(plugin_id);
+    let plugin_data_dir = app_data_dir.join("plugins_data").join(instance_id);
     if let Err(err) = std::fs::create_dir_all(&plugin_data_dir) {
         log::warn!(
             "[plugin:{}] failed to create plugin data dir: {}",
-            plugin_id,
+            instance_id,
             err
         );
     }
@@ -522,16 +527,28 @@ pub fn inject_host_api<'js>(
     )?;
     probe_ctx.set("app", app_obj)?;
 
+    let account_obj = Object::new(ctx.clone())?;
+    account_obj.set("instanceId", instance_id)?;
+    account_obj.set("baseProviderId", base_plugin_id)?;
+    account_obj.set("label", account.map(|a| a.label.as_str()).unwrap_or(""))?;
+    probe_ctx.set("account", account_obj)?;
+
     let host = Object::new(ctx.clone())?;
-    inject_log(ctx, &host, plugin_id)?;
+    let host_account_obj = Object::new(ctx.clone())?;
+    host_account_obj.set("instanceId", instance_id)?;
+    host_account_obj.set("baseProviderId", base_plugin_id)?;
+    host_account_obj.set("label", account.map(|a| a.label.as_str()).unwrap_or(""))?;
+    host.set("account", host_account_obj)?;
+    inject_log(ctx, &host, instance_id)?;
     inject_fs(ctx, &host)?;
     inject_crypto(ctx, &host)?;
-    inject_env(ctx, &host, plugin_id)?;
-    inject_http(ctx, &host, plugin_id)?;
-    inject_keychain(ctx, &host, plugin_id)?;
+    inject_env(ctx, &host, base_plugin_id)?;
+    inject_http(ctx, &host, instance_id)?;
+    inject_credentials(ctx, &host, account)?;
+    inject_keychain(ctx, &host, instance_id)?;
     inject_sqlite(ctx, &host)?;
-    inject_ls(ctx, &host, plugin_id)?;
-    inject_ccusage(ctx, &host, plugin_id)?;
+    inject_ls(ctx, &host, base_plugin_id)?;
+    inject_ccusage(ctx, &host, base_plugin_id)?;
 
     probe_ctx.set("host", host)?;
     globals.set("__openusage_ctx", probe_ctx)?;
@@ -711,6 +728,62 @@ fn inject_env<'js>(ctx: &Ctx<'js>, host: &Object<'js>, _plugin_id: &str) -> rqui
     Ok(())
 }
 
+fn inject_credentials<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    account: Option<&ProviderAccountContext>,
+) -> rquickjs::Result<()> {
+    let credentials_obj = Object::new(ctx.clone())?;
+    let credential_json = account
+        .and_then(|account| account.credential.as_ref())
+        .and_then(|credential| serde_json::to_string(credential).ok());
+    credentials_obj.set(
+        "get",
+        Function::new(ctx.clone(), move || -> Option<String> {
+            credential_json.clone()
+        })?,
+    )?;
+
+    let store_path = account.and_then(|account| account.store_path.clone());
+    let instance_id = account.map(|account| account.instance_id.clone());
+    credentials_obj.set(
+        "update",
+        Function::new(
+            ctx.clone(),
+            move |ctx_inner: Ctx<'_>, update_json: String| -> rquickjs::Result<Option<String>> {
+                let Some(path) = store_path.as_ref() else {
+                    return Ok(None);
+                };
+                let Some(id) = instance_id.as_ref() else {
+                    return Ok(None);
+                };
+                let update: ProviderCredential = serde_json::from_str(&update_json).map_err(|e| {
+                    Exception::throw_message(
+                        &ctx_inner,
+                        &format!("invalid credential update: {}", e),
+                    )
+                })?;
+                let updated = provider_accounts::update_credential_at_path(path, id, update)
+                    .map_err(|e| {
+                        Exception::throw_message(
+                            &ctx_inner,
+                            &format!("credential update failed: {}", e),
+                        )
+                    })?;
+                match updated {
+                    Some(credential) => serde_json::to_string(&credential)
+                        .map(Some)
+                        .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string())),
+                    None => Ok(None),
+                }
+            },
+        )?,
+    )?;
+
+    host.set("credentials", credentials_obj)?;
+    Ok(())
+}
+
 fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rquickjs::Result<()> {
     let http_obj = Object::new(ctx.clone())?;
     let pid = plugin_id.to_string();
@@ -745,6 +818,27 @@ fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rqui
                             )
                         })?;
                         header_map.insert(name, value);
+                    }
+                }
+
+                #[cfg(test)]
+                {
+                    let lock = HTTP_MOCK_STATE.get_or_init(|| Mutex::new(None));
+                    let mut guard = lock.lock().unwrap();
+                    if let Some(state) = guard.as_mut() {
+                        state.requests.push(CapturedHttpRequest {
+                            url: req.url.clone(),
+                            method: method_str.to_string(),
+                            headers: req.headers.clone().unwrap_or_default(),
+                            body_text: req.body_text.clone(),
+                        });
+                        let resp = state.responses.pop_front().unwrap_or(HttpRespParams {
+                            status: 200,
+                            headers: std::collections::HashMap::new(),
+                            body_text: "{}".to_string(),
+                        });
+                        return serde_json::to_string(&resp)
+                            .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()));
                     }
                 }
 
@@ -1168,6 +1262,51 @@ struct HttpRespParams {
     status: u16,
     headers: std::collections::HashMap<String, String>,
     body_text: String,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CapturedHttpRequest {
+    pub url: String,
+    pub method: String,
+    pub headers: std::collections::HashMap<String, String>,
+    pub body_text: Option<String>,
+}
+
+#[cfg(test)]
+struct HttpMockState {
+    responses: VecDeque<HttpRespParams>,
+    requests: Vec<CapturedHttpRequest>,
+}
+
+#[cfg(test)]
+static HTTP_MOCK_STATE: OnceLock<Mutex<Option<HttpMockState>>> = OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn install_http_mock(responses: Vec<(u16, &str)>) {
+    let state = HttpMockState {
+        responses: responses
+            .into_iter()
+            .map(|(status, body)| HttpRespParams {
+                status,
+                headers: std::collections::HashMap::new(),
+                body_text: body.to_string(),
+            })
+            .collect(),
+        requests: Vec::new(),
+    };
+    let lock = HTTP_MOCK_STATE.get_or_init(|| Mutex::new(None));
+    *lock.lock().unwrap() = Some(state);
+}
+
+#[cfg(test)]
+pub(crate) fn take_http_mock_requests() -> Vec<CapturedHttpRequest> {
+    let lock = HTTP_MOCK_STATE.get_or_init(|| Mutex::new(None));
+    lock.lock()
+        .unwrap()
+        .take()
+        .map(|state| state.requests)
+        .unwrap_or_default()
 }
 
 // --- Language Server Discovery ---
@@ -2657,7 +2796,8 @@ mod tests {
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
             let app_data = std::env::temp_dir();
-            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
             let globals = ctx.globals();
             let probe_ctx: Object = globals.get("__openusage_ctx").expect("probe ctx");
             let host: Object = probe_ctx.get("host").expect("host");
@@ -2673,7 +2813,8 @@ mod tests {
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
             let app_data = std::env::temp_dir();
-            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
             let globals = ctx.globals();
             let probe_ctx: Object = globals.get("__openusage_ctx").expect("probe ctx");
             let host: Object = probe_ctx.get("host").expect("host");
@@ -2693,7 +2834,8 @@ mod tests {
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
             let app_data = std::env::temp_dir();
-            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
             let globals = ctx.globals();
             let probe_ctx: Object = globals.get("__openusage_ctx").expect("probe ctx");
             let host: Object = probe_ctx.get("host").expect("host");
@@ -2761,7 +2903,8 @@ mod tests {
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
             let app_data = std::env::temp_dir();
-            inject_host_api(&ctx, "test", &app_data, "0.0.0").expect("inject host api");
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
             let globals = ctx.globals();
             let probe_ctx: Object = globals.get("__openusage_ctx").expect("probe ctx");
             let host: Object = probe_ctx.get("host").expect("host");

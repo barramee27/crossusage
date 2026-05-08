@@ -8,15 +8,15 @@ mod panel_linux;
 use panel_linux as panel;
 #[cfg(target_os = "windows")]
 mod panel_windows;
+use crossusage_core::{plugin_engine, provider_accounts};
 #[cfg(target_os = "windows")]
 use panel_windows as panel;
-use crossusage_core::plugin_engine;
 mod local_http_api;
-#[cfg(target_os = "linux")]
-mod tray_linux;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod popover_platform;
 mod tray;
+#[cfg(target_os = "linux")]
+mod tray_linux;
 #[cfg(target_os = "macos")]
 mod webkit_config;
 
@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use tauri_plugin_aptabase::EventTracker;
 
@@ -224,6 +224,38 @@ pub struct ProbeBatchStarted {
     pub plugin_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProbeTarget {
+    pub instance_id: String,
+    pub base_provider_id: String,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderAccountInfo {
+    pub instance_id: String,
+    pub base_provider_id: String,
+    pub label: String,
+    pub has_access_token: bool,
+    pub has_refresh_token: bool,
+    pub has_session_key: bool,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveProviderAccountRequest {
+    pub instance_id: String,
+    pub base_provider_id: String,
+    pub label: String,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub session_key: Option<String>,
+    pub expires_at: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProbeResult {
@@ -255,14 +287,18 @@ fn hide_panel(app_handle: tauri::AppHandle) {
     {
         use tauri::Manager;
         if let Some(window) = app_handle.get_webview_window("main") {
-            window.hide().unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
+            window
+                .hide()
+                .unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
         }
     }
     #[cfg(target_os = "windows")]
     {
         use tauri::Manager;
         if let Some(window) = app_handle.get_webview_window("main") {
-            window.hide().unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
+            window
+                .hide()
+                .unwrap_or_else(|e| log::warn!("Failed to hide window: {}", e));
         }
     }
 }
@@ -335,11 +371,139 @@ fn open_devtools(#[allow(unused)] app_handle: tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn list_provider_accounts(
+    state: tauri::State<'_, Mutex<AppState>>,
+    base_provider_id: Option<String>,
+) -> Result<Vec<ProviderAccountInfo>, String> {
+    let app_data_dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    let store = provider_accounts::load_store(&app_data_dir).map_err(|e| e.to_string())?;
+    let base_filter = base_provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let mut accounts: Vec<ProviderAccountInfo> = store
+        .accounts
+        .into_values()
+        .filter(|account| {
+            base_filter
+                .as_ref()
+                .map(|base| account.base_provider_id == *base)
+                .unwrap_or(true)
+        })
+        .map(|account| ProviderAccountInfo {
+            instance_id: account.instance_id,
+            base_provider_id: account.base_provider_id,
+            label: account.label,
+            has_access_token: account
+                .credential
+                .access_token
+                .as_deref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false),
+            has_refresh_token: account
+                .credential
+                .refresh_token
+                .as_deref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false),
+            has_session_key: account
+                .credential
+                .session_key
+                .as_deref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false),
+            expires_at: account.credential.expires_at,
+        })
+        .collect();
+    accounts.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
+    Ok(accounts)
+}
+
+#[tauri::command]
+fn save_provider_account(
+    state: tauri::State<'_, Mutex<AppState>>,
+    account: SaveProviderAccountRequest,
+) -> Result<ProviderAccountInfo, String> {
+    let app_data_dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    let mut credential = provider_accounts::ProviderCredential {
+        access_token: account.access_token,
+        refresh_token: account.refresh_token,
+        session_key: account.session_key,
+        expires_at: account.expires_at,
+    };
+    if credential.is_empty() {
+        if let Ok(Some(existing)) =
+            provider_accounts::get_account(&app_data_dir, account.instance_id.trim())
+        {
+            credential = existing.credential;
+        }
+    }
+    let provider_account = provider_accounts::ProviderAccount {
+        instance_id: account.instance_id.trim().to_string(),
+        base_provider_id: account.base_provider_id.trim().to_string(),
+        label: account.label.trim().to_string(),
+        credential,
+    };
+    if provider_account.instance_id.is_empty()
+        || provider_account.base_provider_id.is_empty()
+        || provider_account.label.is_empty()
+    {
+        return Err("provider account requires instanceId, baseProviderId, and label".into());
+    }
+    provider_accounts::upsert_account(&app_data_dir, provider_account.clone())
+        .map_err(|e| e.to_string())?;
+    Ok(ProviderAccountInfo {
+        instance_id: provider_account.instance_id,
+        base_provider_id: provider_account.base_provider_id,
+        label: provider_account.label,
+        has_access_token: provider_account
+            .credential
+            .access_token
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+        has_refresh_token: provider_account
+            .credential
+            .refresh_token
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+        has_session_key: provider_account
+            .credential
+            .session_key
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+        expires_at: provider_account.credential.expires_at,
+    })
+}
+
+#[tauri::command]
+fn delete_provider_account(
+    state: tauri::State<'_, Mutex<AppState>>,
+    instance_id: String,
+) -> Result<(), String> {
+    let app_data_dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    provider_accounts::delete_account(&app_data_dir, instance_id.trim()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn start_probe_batch(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, Mutex<AppState>>,
     batch_id: Option<String>,
     plugin_ids: Option<Vec<String>>,
+    probe_targets: Option<Vec<ProbeTarget>>,
 ) -> Result<ProbeBatchStarted, String> {
     let batch_id = batch_id
         .and_then(|id| {
@@ -361,28 +525,85 @@ async fn start_probe_batch(
         )
     };
 
-    let selected_plugins = match plugin_ids {
-        Some(ids) => {
-            let mut by_id: HashMap<String, plugin_engine::manifest::LoadedPlugin> = plugins
-                .into_iter()
-                .map(|plugin| (plugin.manifest.id.clone(), plugin))
-                .collect();
+    let selected_targets: Vec<ProbeTarget> = match probe_targets {
+        Some(targets) => {
             let mut seen = HashSet::new();
-            ids.into_iter()
-                .filter_map(|id| {
-                    if !seen.insert(id.clone()) {
+            targets
+                .into_iter()
+                .filter_map(|target| {
+                    let instance_id = target.instance_id.trim().to_string();
+                    let base_provider_id = target.base_provider_id.trim().to_string();
+                    if instance_id.is_empty()
+                        || base_provider_id.is_empty()
+                        || !seen.insert(instance_id.clone())
+                    {
                         return None;
                     }
-                    by_id.remove(&id)
+                    Some(ProbeTarget {
+                        instance_id,
+                        base_provider_id,
+                        label: target.label.map(|label| label.trim().to_string()),
+                    })
                 })
                 .collect()
         }
-        None => plugins,
+        None => match plugin_ids {
+            Some(ids) => ids
+                .into_iter()
+                .map(|id| {
+                    let id = id.trim().to_string();
+                    ProbeTarget {
+                        instance_id: id.clone(),
+                        base_provider_id: id,
+                        label: None,
+                    }
+                })
+                .collect(),
+            None => plugins
+                .iter()
+                .map(|plugin| ProbeTarget {
+                    instance_id: plugin.manifest.id.clone(),
+                    base_provider_id: plugin.manifest.id.clone(),
+                    label: None,
+                })
+                .collect(),
+        },
+    };
+
+    let selected_plugins = {
+        let by_id: HashMap<String, plugin_engine::manifest::LoadedPlugin> = plugins
+                .into_iter()
+                .map(|plugin| (plugin.manifest.id.clone(), plugin))
+                .collect();
+        selected_targets
+            .into_iter()
+            .filter_map(|target| {
+                by_id.get(&target.base_provider_id).cloned().map(|plugin| {
+                    let credential = provider_accounts::get_account(&app_data_dir, &target.instance_id)
+                        .ok()
+                        .flatten()
+                        .map(|account| account.credential)
+                        .filter(|credential| !credential.is_empty());
+                    let label = target
+                        .label
+                        .filter(|label| !label.trim().is_empty())
+                        .unwrap_or_else(|| target.instance_id.clone());
+                    let account_context = provider_accounts::ProviderAccountContext {
+                        instance_id: target.instance_id,
+                        base_provider_id: target.base_provider_id,
+                        label,
+                        credential,
+                        store_path: Some(provider_accounts::store_path(&app_data_dir)),
+                    };
+                    (plugin, account_context)
+                })
+            })
+            .collect::<Vec<_>>()
     };
 
     let response_plugin_ids: Vec<String> = selected_plugins
         .iter()
-        .map(|plugin| plugin.manifest.id.clone())
+        .map(|(_, account)| account.instance_id.clone())
         .collect();
 
     log::info!(
@@ -405,7 +626,7 @@ async fn start_probe_batch(
     }
 
     let remaining = Arc::new(AtomicUsize::new(selected_plugins.len()));
-    for plugin in selected_plugins {
+    for (plugin, account_context) in selected_plugins {
         let handle = app_handle.clone();
         let completion_handle = app_handle.clone();
         let bid = batch_id.clone();
@@ -415,9 +636,23 @@ async fn start_probe_batch(
         let counter = Arc::clone(&remaining);
 
         tauri::async_runtime::spawn_blocking(move || {
-            let plugin_id = plugin.manifest.id.clone();
+            let plugin_id = account_context.instance_id.clone();
+            let probe_display_name = if account_context.label.trim().is_empty() {
+                plugin.manifest.name.clone()
+            } else {
+                format!(
+                    "{} ({})",
+                    plugin.manifest.name,
+                    account_context.label.trim()
+                )
+            };
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                plugin_engine::runtime::run_probe(&plugin, &data_dir, &version)
+                plugin_engine::runtime::run_probe_with_account(
+                    &plugin,
+                    &data_dir,
+                    &version,
+                    Some(account_context),
+                )
             }));
 
             match result {
@@ -445,6 +680,19 @@ async fn start_probe_batch(
                 }
                 Err(_) => {
                     log::error!("probe {} panicked", plugin_id);
+                    let output = plugin_engine::runtime::probe_fault_output(
+                        &plugin,
+                        &plugin_id,
+                        &probe_display_name,
+                        "The probe crashed. Try again or update the app.".to_string(),
+                    );
+                    let _ = handle.emit(
+                        "probe:result",
+                        ProbeResult {
+                            batch_id: bid,
+                            output,
+                        },
+                    );
                 }
             }
 
@@ -625,11 +873,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_positioner::init());
-        
+
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_nspanel::init());
-    
-    builder.plugin(
+
+    builder
+        .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
                     Target::new(TargetKind::Stdout),
@@ -653,6 +902,9 @@ pub fn run() {
             set_liquid_glass_enabled,
             open_devtools,
             start_probe_batch,
+            list_provider_accounts,
+            save_provider_account,
+            delete_provider_account,
             list_plugins,
             get_log_path,
             get_platform,
@@ -685,11 +937,20 @@ pub fn run() {
             spawn_daily_active_rollover_tracker(app.handle().clone());
 
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
-            let resource_dir = app.path().resource_dir().expect("no resource dir");
+            // `tauri dev` often has no packaged `resource_dir()` (returns Err) — do not panic;
+            // `initialize_plugins` falls back to repo `plugins/` via `find_dev_plugins_dir()` and/or
+            // copies from bundled resources when a root exists (release / portable).
+            let resource_dir = app.path().resource_dir().ok();
+            if resource_dir.is_none() {
+                log::warn!(
+                    "resource_dir unavailable (common in tauri dev); using dev plugins dir / app data only"
+                );
+            }
             log::debug!("app_data_dir: {:?}", app_data_dir);
+            log::debug!("resource_dir: {:?}", resource_dir);
 
             let (_, plugins) =
-                plugin_engine::initialize_plugins(&app_data_dir, Some(resource_dir.as_path()));
+                plugin_engine::initialize_plugins(&app_data_dir, resource_dir.as_deref());
             let known_plugin_ids: Vec<String> =
                 plugins.iter().map(|p| p.manifest.id.clone()).collect();
             local_http_api::init(&app_data_dir, known_plugin_ids);
@@ -702,6 +963,15 @@ pub fn run() {
             }));
 
             tray::create(app.handle())?;
+
+            // Main window defaults to `visible: false` in `tauri.conf.json`. Windows already
+            // shows it here; Linux needs the same so `tauri dev` is usable without hunting the
+            // tray first (especially when the shell job is easy to confuse with a crash).
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            {
+                panel::init(app.handle())?;
+                panel::show_panel(app.handle());
+            }
 
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;

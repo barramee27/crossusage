@@ -19,6 +19,55 @@ describe("cursor plugin", () => {
     vi.resetModules()
   })
 
+  it("uses injected provider account credentials before sqlite/keychain discovery", async () => {
+    const ctx = makeCtx()
+    const accountToken = makeJwt({ exp: 9999999999, sub: "user_123" })
+    ctx.host.credentials = {
+      get: vi.fn(() => JSON.stringify({ accessToken: accountToken })),
+      update: vi.fn(),
+    }
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([
+      { key: "cursorAuth/accessToken", value: makeJwt({ exp: 9999999999, sub: "local" }) },
+    ]))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        enabled: true,
+        planUsage: { totalSpend: 1200, limit: 2400 },
+      }),
+    })
+    const plugin = await loadPlugin()
+
+    plugin.probe(ctx)
+
+    expect(ctx.host.http.request.mock.calls[0][0].headers.Authorization).toBe(
+      "Bearer " + accountToken
+    )
+  })
+
+  it("skips Cursor HTTP when CrossUsage dev mock provider credentials are injected", async () => {
+    const ctx = makeCtx()
+    ctx.host.credentials = {
+      get: vi.fn(() =>
+        JSON.stringify({
+          accessToken: "crossusage-dev-mock-access-token",
+          refreshToken: "crossusage-dev-mock-refresh-token",
+          sessionKey: "crossusage-dev-mock-session:Work",
+        })
+      ),
+      update: vi.fn(),
+    }
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.http.request).not.toHaveBeenCalled()
+    expect(result.plan).toBe("Dev mock")
+    expect(result.lines.some((line) => line.label === "Data source")).toBe(true)
+    expect(result.lines.some((line) => line.label === "Total usage")).toBe(true)
+    expect(result.lines.some((line) => line.label === "Credits")).toBe(true)
+    expect(result.lines.some((line) => line.label === "Requests")).toBe(true)
+  })
+
   it("throws when no token", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([]))

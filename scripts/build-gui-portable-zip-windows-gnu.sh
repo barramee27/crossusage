@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Portable **GUI** Windows bundle from Linux: crossusage.exe + crossusage-cli.exe + resources/
-# (Same layout as scripts/build-gui-portable-windows.ps1 on Windows, but uses the MinGW cross target.)
+# Portable **GUI** Windows bundle from Linux: **crossusage.exe** (tiny launcher) +
+# **crossusage_gui.exe** (Tauri app) + **crossusage-cli.exe** + **WebView2Loader.dll** + **resources/**
+# The launcher writes WebView2Loader.dll from embedded bytes before starting the GUI, so the bundle
+# still works when users copy only `crossusage.exe` (the DLL is recreated next to it on first run).
 #
 # This is **not** the CLI-only zip — that is scripts/build-cli-zip-windows-gnu.sh (crossusage-cli.exe only).
 #
@@ -9,7 +11,7 @@
 #   rustup target add x86_64-pc-windows-gnu
 #   bun install
 #
-# 1) Build the Windows GUI (produces target/x86_64-pc-windows-gnu/release/*.exe):
+# 1) Build the Windows GUI (produces target/x86_64-pc-windows-gnu/release/crossusage.exe + WebView2Loader.dll):
 #      bun run tauri build --target x86_64-pc-windows-gnu
 # 2) Then:
 #      ./scripts/build-gui-portable-zip-windows-gnu.sh
@@ -38,19 +40,35 @@ if ! command -v zip >/dev/null 2>&1; then
   exit 1
 fi
 
-GUI="${ROOT}/target/${TARGET}/release/crossusage.exe"
+TAURI_GUI="${ROOT}/target/${TARGET}/release/crossusage.exe"
 CLI="${ROOT}/target/${TARGET}/release/crossusage-cli.exe"
+WV2="${ROOT}/target/${TARGET}/release/WebView2Loader.dll"
 RES="${ROOT}/src-tauri/resources"
+ICONS="${ROOT}/src-tauri/icons"
 
-if [[ ! -f "$GUI" ]]; then
-  echo "Missing $GUI" >&2
+if [[ ! -f "$TAURI_GUI" ]]; then
+  echo "Missing $TAURI_GUI" >&2
   echo "Build the Windows GUI first, e.g.: bun run tauri build --target ${TARGET}" >&2
+  exit 1
+fi
+
+if [[ ! -f "$WV2" ]]; then
+  echo "Missing $WV2 — required to embed into the portable launcher." >&2
   exit 1
 fi
 
 if [[ ! -f "$CLI" ]]; then
   echo "Missing $CLI — building crossusage-cli for ${TARGET} …"
   cargo build --release -p crossusage-cli --target "${TARGET}"
+fi
+
+echo "==> Building crossusage-win-launcher for ${TARGET} …"
+cargo build --release -p crossusage-win-launcher --target "${TARGET}"
+
+LAUNCHER="${ROOT}/target/${TARGET}/release/crossusage-win-launcher.exe"
+if [[ ! -f "$LAUNCHER" ]]; then
+  echo "Missing launcher output $LAUNCHER" >&2
+  exit 1
 fi
 
 if [[ ! -d "$RES/bundled_plugins" ]]; then
@@ -61,8 +79,13 @@ fi
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "${STAGE}/root"
-cp -f "$GUI" "$CLI" "${STAGE}/root/"
+cp -f "$TAURI_GUI" "${STAGE}/root/crossusage_gui.exe"
+cp -f "$LAUNCHER" "${STAGE}/root/crossusage.exe"
+cp -f "$CLI" "${STAGE}/root/"
+cp -f "$WV2" "${STAGE}/root/"
 cp -a "$RES" "${STAGE}/root/resources"
+cp -a "$ICONS" "${STAGE}/root/icons"
+cp -f "${ROOT}/src-tauri/resources/WINDOWS-PORTABLE.txt" "${STAGE}/root/README-Windows.txt"
 
 OUT="${ROOT}/crossusage_${VERSION}_windows_${TAG}.zip"
 rm -f "$OUT"

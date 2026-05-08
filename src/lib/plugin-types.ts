@@ -38,6 +38,10 @@ export type PluginOutput = {
 
 export type PluginMeta = {
   id: string
+  /** For account instances, the real plugin manifest id that provides plugin.js/icon/lines. */
+  baseProviderId?: string
+  /** User-visible account label for instances, e.g. Work or Personal. */
+  instanceLabel?: string
   name: string
   iconUrl: string
   brandColor?: string
@@ -54,4 +58,10 @@ export type PluginDisplayState = {
   error: string | null
   lastManualRefreshAt: number | null
   lastUpdatedAt: number | null
+}
+
+export type ProbeTarget = {
+  instanceId: string
+  baseProviderId: string
+  label?: string
 }

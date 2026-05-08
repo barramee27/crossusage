@@ -2,10 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "crossusage",
   "mainBinaryName": "crossusage",
-  "version": "1.0.7",
+  "version": "1.0.8-beta.1",
   "identifier": "com.barramee27.crossusage",
   "build": {
-    "beforeDevCommand": "bun run bundle:plugins && bun run dev",
+    "beforeDevCommand": "node scripts/tauri-before-dev.cjs",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run bundle:plugins && bun run build && bash scripts/prepare-cli-sidecar.sh",
     "frontendDist": "../dist"
@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "CrossUsage",
-        "width": 380,
-        "height": 700,
+        "width": 600,
+        "height": 800,
         "resizable": false,
         "decorations": false,
         "transparent": true,
@@ -70,6 +70,7 @@
     ],
     "resources": [
       "resources/bundled_plugins/**/*",
+      "resources/WINDOWS-PORTABLE.txt",
       "icons/tray-icon.png"
     ],
     "externalBin": [

@@ -2,4 +2,5 @@
 
 pub mod paths;
 pub mod plugin_engine;
+pub mod provider_accounts;
 pub mod proxy_config;

@@ -34,23 +34,26 @@ export function ProviderDetailPage({
     : rawLines
 
   return (
-    <ProviderCard
-      name={plugin.meta.name}
-      plan={plugin.data?.plan}
-      links={plugin.meta.links}
-      showSeparator={false}
-      loading={plugin.loading}
-      error={plugin.error}
-      lines={plugin.data?.lines ?? []}
-      skeletonLines={plugin.meta.lines}
-      lastManualRefreshAt={plugin.lastManualRefreshAt}
-      lastUpdatedAt={plugin.lastUpdatedAt ?? null}
-      onRetry={onRetry}
-      scopeFilter="all"
-      allowedLabels={allowedLabels}
-      displayMode={displayMode}
-      resetTimerDisplayMode={resetTimerDisplayMode}
-      onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
-    />
+    <div className="flex min-h-full w-full flex-col">
+      <ProviderCard
+        name={plugin.meta.name}
+        plan={plugin.data?.plan}
+        links={plugin.meta.links}
+        showSeparator={false}
+        loading={plugin.loading}
+        error={plugin.error}
+        lines={plugin.data?.lines ?? []}
+        skeletonLines={plugin.meta.lines}
+        lastManualRefreshAt={plugin.lastManualRefreshAt}
+        lastUpdatedAt={plugin.lastUpdatedAt ?? null}
+        onRetry={onRetry}
+        scopeFilter="all"
+        allowedLabels={allowedLabels}
+        displayMode={displayMode}
+        resetTimerDisplayMode={resetTimerDisplayMode}
+        onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+        layout="detailFill"
+      />
+    </div>
   )
 }

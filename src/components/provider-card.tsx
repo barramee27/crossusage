@@ -12,7 +12,7 @@ import { useNowTicker } from "@/hooks/use-now-ticker"
 import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode } from "@/lib/settings"
 import type { ManifestLine, MetricLine, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
-import { clamp01, formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
+import { clamp01, cn, formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
 import { calculateDeficit, calculatePaceStatus, type PaceStatus } from "@/lib/pace-status"
 import { buildPaceDetailText, formatDeficitText, formatRunsOutText, getPaceStatusText } from "@/lib/pace-tooltip"
 import { formatResetAbsoluteLabel, formatResetRelativeLabel, formatResetTooltipText } from "@/lib/reset-tooltip"
@@ -34,6 +34,8 @@ interface ProviderCardProps {
   displayMode: DisplayMode
   resetTimerDisplayMode?: ResetTimerDisplayMode
   onResetTimerDisplayModeToggle?: () => void
+  /** Detail view: stretch the card to fill the scroll viewport height. */
+  layout?: "default" | "detailFill"
 }
 
 const PACE_VISUALS: Record<PaceStatus, { dotClass: string }> = {
@@ -109,6 +111,7 @@ export function ProviderCard({
   displayMode,
   resetTimerDisplayMode = "relative",
   onResetTimerDisplayModeToggle,
+  layout = "default",
 }: ProviderCardProps) {
   const cooldownRemainingMs = useMemo(() => {
     if (!lastManualRefreshAt) return 0
@@ -209,8 +212,17 @@ export function ProviderCard({
   }
 
   return (
-    <div>
-      <div className="py-3 liquid-glass-card">
+    <div
+      className={cn(
+        layout === "detailFill" && "flex min-h-0 w-full flex-1 flex-col",
+      )}
+    >
+      <div
+        className={cn(
+          "py-3 liquid-glass-card",
+          layout === "detailFill" && "flex min-h-0 flex-1 flex-col",
+        )}
+      >
         <div className="flex items-center justify-between mb-2">
           <div className="relative flex items-center">
             <h2 className="text-lg font-semibold" style={{ transform: "translateZ(0)" }}>{name}</h2>
@@ -371,6 +383,8 @@ export function ProviderCard({
             No metrics selected in Settings. Open Settings and choose which lines to show for this provider.
           </p>
         )}
+
+        {layout === "detailFill" ? <div className="min-h-0 flex-1" aria-hidden /> : null}
 
       </div>
       {showSeparator && <Separator />}

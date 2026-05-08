@@ -127,4 +127,48 @@ describe("useAppPluginViews", () => {
 
     expect(result.current.selectedPlugin?.meta.id).toBe("codex")
   })
+
+  it("uses base provider metadata for account instances", () => {
+    const pluginSettings: PluginSettings = {
+      order: ["claude:work", "claude:personal"],
+      disabled: [],
+      providerInstances: {
+        "claude:work": { baseProviderId: "claude", label: "Work" },
+        "claude:personal": { baseProviderId: "claude", label: "Personal" },
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useAppPluginViews({
+        activeView: "claude:personal",
+        setActiveView: vi.fn(),
+        pluginSettings,
+        pluginsMeta: [createPluginMeta("claude", "Claude")],
+        pluginStates: {
+          "claude:work": {
+            data: null,
+            loading: false,
+            error: null,
+            lastManualRefreshAt: null,
+            lastUpdatedAt: null,
+          },
+          "claude:personal": {
+            data: null,
+            loading: false,
+            error: null,
+            lastManualRefreshAt: null,
+            lastUpdatedAt: null,
+          },
+        },
+      })
+    )
+
+    expect(result.current.navPlugins.map((plugin) => plugin.name)).toEqual([
+      "Claude (Work)",
+      "Claude (Personal)",
+    ])
+    expect(result.current.navPlugins[0]?.iconUrl).toBe("/claude.svg")
+    expect(result.current.selectedPlugin?.meta.id).toBe("claude:personal")
+    expect(result.current.selectedPlugin?.meta.baseProviderId).toBe("claude")
+  })
 })

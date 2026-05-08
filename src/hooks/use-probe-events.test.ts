@@ -43,6 +43,35 @@ describe("useProbeEvents", () => {
     expect(ids).toEqual(["a", "b"])
   })
 
+  it("sends probe targets for provider account instances", async () => {
+    const probeTargets = [
+      { instanceId: "claude:work", baseProviderId: "claude", label: "Work" },
+      { instanceId: "claude:personal", baseProviderId: "claude", label: "Personal" },
+    ]
+    invokeMock.mockImplementation(async (_cmd: string, args: any) => ({
+      batchId: args.batchId,
+      pluginIds: args.probeTargets.map((target: { instanceId: string }) => target.instanceId),
+    }))
+    const { result } = renderHook(() =>
+      useProbeEvents({
+        onResult: vi.fn(),
+        onBatchComplete: vi.fn(),
+        getProbeTargets: () => probeTargets,
+      })
+    )
+
+    const ids = await act(() => result.current.startBatch(["claude:work", "claude:personal"]))
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "start_probe_batch",
+      expect.objectContaining({
+        pluginIds: ["claude:work", "claude:personal"],
+        probeTargets,
+      })
+    )
+    expect(ids).toEqual(["claude:work", "claude:personal"])
+  })
+
   it("starts batch without plugin ids and uses fallback id", async () => {
     const originalCrypto = globalThis.crypto
     // @ts-expect-error test fallback path
@@ -130,6 +159,7 @@ describe("useProbeEvents", () => {
 
     completeListener?.({ payload: { batchId } })
     expect(onBatchComplete).toHaveBeenCalledTimes(1)
+    expect(onBatchComplete).toHaveBeenCalledWith(["a"])
 
     resultListener?.({ payload: { batchId, output } })
     expect(onResult).toHaveBeenCalledTimes(1)

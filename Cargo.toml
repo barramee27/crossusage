@@ -3,5 +3,6 @@ resolver = "2"
 members = [
     "crates/crossusage-core",
     "crates/crossusage-cli",
+    "crates/crossusage-win-launcher",
     "src-tauri",
 ]

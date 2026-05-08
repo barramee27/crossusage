@@ -14,6 +14,7 @@ import {
   DEFAULT_GLOBAL_SHORTCUT,
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
+  DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   getEnabledPluginIds,
@@ -30,6 +31,7 @@ import {
   loadThemeMode,
   normalizePluginSettings,
   savePluginSettings,
+  saveShowTrayIcon,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
@@ -149,11 +151,18 @@ export function useSettingsBootstrap({
           console.error("Failed to load start on login:", error)
         }
 
-        let storedShowTrayIcon = true
+        let storedShowTrayIcon = DEFAULT_SHOW_TRAY_ICON
         try {
           storedShowTrayIcon = await loadShowTrayIcon()
         } catch (error) {
           console.error("Failed to load show tray icon:", error)
+        }
+        if (!storedShowTrayIcon) {
+          try {
+            await saveShowTrayIcon(true)
+          } catch (error) {
+            console.error("Failed to migrate show tray icon to on:", error)
+          }
         }
 
         try {
@@ -193,7 +202,7 @@ export function useSettingsBootstrap({
           setMenubarIconStyle(storedMenubarIconStyle)
           setUIScale(storedUIScale)
 
-          setShowTrayIcon(storedShowTrayIcon)
+          setShowTrayIcon(true)
 
 
           const enabledIds = getEnabledPluginIds(normalized)

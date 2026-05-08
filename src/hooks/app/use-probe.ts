@@ -1,6 +1,7 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { useProbeEvents } from "@/hooks/use-probe-events"
 import {
+  getProbeTargets,
   type AutoUpdateIntervalMinutes,
   type PluginSettings,
 } from "@/lib/settings"
@@ -19,20 +20,34 @@ export function useProbe({
   autoUpdateInterval,
   onProbeResult,
 }: UseProbeArgs) {
+  const pluginSettingsRef = useRef(pluginSettings)
+  pluginSettingsRef.current = pluginSettings
+
   const {
     pluginStates,
     pluginStatesRef,
     manualRefreshIdsRef,
     setLoadingForPlugins,
     setErrorForPlugins,
+    finalizeStaleProbeLoading,
     handleProbeResult,
   } = useProbeState({ onProbeResult })
 
-  const handleBatchComplete = useCallback(() => {}, [])
+  const handleBatchComplete = useCallback(
+    (pluginIds: string[]) => {
+      finalizeStaleProbeLoading(pluginIds)
+    },
+    [finalizeStaleProbeLoading]
+  )
+  const resolveProbeTargets = useCallback(
+    (pluginIds?: string[]) => getProbeTargets(pluginIds, pluginSettingsRef.current),
+    []
+  )
 
   const { startBatch } = useProbeEvents({
     onResult: handleProbeResult,
     onBatchComplete: handleBatchComplete,
+    getProbeTargets: resolveProbeTargets,
   })
 
   const {

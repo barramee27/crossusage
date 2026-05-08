@@ -77,6 +77,25 @@ function mockClaudeUsageAndPromoClock(
 }
 
 describe("claude plugin", () => {
+  it("uses injected provider account credentials before local discovery", async () => {
+    const ctx = makeCtx()
+    ctx.host.credentials = {
+      get: vi.fn(() => JSON.stringify({ accessToken: "claude-work-token" })),
+      update: vi.fn(),
+    }
+    ctx.host.fs.exists = () => true
+    ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "local-token" } })
+    mockClaudeUsageAndPromoClock(ctx)
+    const plugin = await loadPlugin()
+
+    plugin.probe(ctx)
+
+    const usageCall = ctx.host.http.request.mock.calls.find(
+      ([opts]) => String(opts.url) !== "https://promoclock.co/api/status"
+    )
+    expect(usageCall?.[0].headers.Authorization).toBe("Bearer claude-work-token")
+  })
+
   it("throws when no credentials", async () => {
     const ctx = makeCtx()
     const plugin = await loadPlugin()

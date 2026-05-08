@@ -1,5 +1,6 @@
 use crate::plugin_engine::host_api;
 use crate::plugin_engine::manifest::LoadedPlugin;
+use crate::provider_accounts::ProviderAccountContext;
 use rquickjs::{Array, Context, Ctx, Error, Object, Promise, Runtime, Value};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -51,6 +52,15 @@ pub struct PluginOutput {
 }
 
 pub fn run_probe(plugin: &LoadedPlugin, app_data_dir: &PathBuf, app_version: &str) -> PluginOutput {
+    run_probe_with_account(plugin, app_data_dir, app_version, None)
+}
+
+pub fn run_probe_with_account(
+    plugin: &LoadedPlugin,
+    app_data_dir: &PathBuf,
+    app_version: &str,
+    account: Option<ProviderAccountContext>,
+) -> PluginOutput {
     let fallback = error_output(plugin, "runtime error".to_string());
 
     let rt = match Runtime::new() {
@@ -63,14 +73,34 @@ pub fn run_probe(plugin: &LoadedPlugin, app_data_dir: &PathBuf, app_version: &st
         Err(_) => return fallback,
     };
 
-    let plugin_id = plugin.manifest.id.clone();
-    let display_name = plugin.manifest.name.clone();
+    let plugin_id = account
+        .as_ref()
+        .map(|account| account.instance_id.clone())
+        .unwrap_or_else(|| plugin.manifest.id.clone());
+    let base_plugin_id = account
+        .as_ref()
+        .map(|account| account.base_provider_id.clone())
+        .unwrap_or_else(|| plugin.manifest.id.clone());
+    let display_name = account
+        .as_ref()
+        .filter(|account| !account.label.trim().is_empty())
+        .map(|account| format!("{} ({})", plugin.manifest.name, account.label.trim()))
+        .unwrap_or_else(|| plugin.manifest.name.clone());
     let entry_script = plugin.entry_script.clone();
     let icon_url = plugin.icon_data_url.clone();
     let app_data = app_data_dir.clone();
 
     ctx.with(|ctx| {
-        if host_api::inject_host_api(&ctx, &plugin_id, &app_data, app_version).is_err() {
+        if host_api::inject_host_api(
+            &ctx,
+            &base_plugin_id,
+            &plugin_id,
+            account.as_ref(),
+            &app_data,
+            app_version,
+        )
+        .is_err()
+        {
             return error_output(plugin, "host api injection failed".to_string());
         }
         if host_api::patch_http_wrapper(&ctx).is_err() {
@@ -444,6 +474,22 @@ fn error_output(plugin: &LoadedPlugin, message: String) -> PluginOutput {
     }
 }
 
+/// Error-shaped probe output for a specific provider instance (matches `run_probe_with_account` ids).
+pub fn probe_fault_output(
+    plugin: &LoadedPlugin,
+    provider_id: &str,
+    display_name: &str,
+    message: String,
+) -> PluginOutput {
+    PluginOutput {
+        provider_id: provider_id.to_string(),
+        display_name: display_name.to_string(),
+        plan: None,
+        lines: vec![error_line(message)],
+        icon_url: plugin.icon_data_url.clone(),
+    }
+}
+
 fn extract_error_string(ctx: &Ctx<'_>) -> String {
     let exc = ctx.catch();
     if exc.is_null() || exc.is_undefined() {
@@ -471,17 +517,23 @@ fn error_line(message: String) -> MetricLine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin_engine::host_api;
     use crate::plugin_engine::manifest::{LoadedPlugin, PluginManifest};
+    use crate::provider_accounts::{ProviderAccountContext, ProviderCredential};
     use serde_json::Value as JsonValue;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn test_plugin(entry_script: &str) -> LoadedPlugin {
+        test_plugin_with_id("test", "Test", entry_script)
+    }
+
+    fn test_plugin_with_id(id: &str, name: &str, entry_script: &str) -> LoadedPlugin {
         LoadedPlugin {
             manifest: PluginManifest {
                 schema_version: 1,
-                id: "test".to_string(),
-                name: "Test".to_string(),
+                id: id.to_string(),
+                name: name.to_string(),
                 version: "0.0.0".to_string(),
                 entry: "plugin.js".to_string(),
                 icon: "icon.svg".to_string(),
@@ -507,6 +559,21 @@ mod tests {
         match output.lines.first() {
             Some(MetricLine::Badge { text, .. }) => text.clone(),
             other => panic!("expected error badge, got {:?}", other),
+        }
+    }
+
+    fn account(instance_id: &str, base_provider_id: &str, label: &str, token: &str) -> ProviderAccountContext {
+        ProviderAccountContext {
+            instance_id: instance_id.to_string(),
+            base_provider_id: base_provider_id.to_string(),
+            label: label.to_string(),
+            credential: Some(ProviderCredential {
+                access_token: Some(token.to_string()),
+                refresh_token: None,
+                session_key: None,
+                expires_at: None,
+            }),
+            store_path: None,
         }
     }
 
@@ -558,6 +625,98 @@ mod tests {
         assert!(
             obj.get("resets_at").is_none(),
             "did not expect resets_at key"
+        );
+    }
+
+    #[test]
+    fn run_probe_routes_account_credentials_to_http_headers() {
+        let claude = test_plugin_with_id(
+            "claude",
+            "Claude",
+            r#"
+            globalThis.__openusage_plugin = {
+                probe(ctx) {
+                    const raw = ctx.host.credentials.get();
+                    const credential = JSON.parse(raw);
+                    ctx.host.http.request({
+                        method: "GET",
+                        url: "https://example.test/claude/" + ctx.host.account.instanceId,
+                        headers: { Authorization: "Bearer " + credential.accessToken }
+                    });
+                    return { lines: [{ type: "text", label: "Account", value: ctx.host.account.label }] };
+                }
+            };
+            "#,
+        );
+        let cursor = test_plugin_with_id(
+            "cursor",
+            "Cursor",
+            r#"
+            globalThis.__openusage_plugin = {
+                probe(ctx) {
+                    const raw = ctx.host.credentials.get();
+                    const credential = JSON.parse(raw);
+                    ctx.host.http.request({
+                        method: "POST",
+                        url: "https://example.test/cursor",
+                        headers: {
+                            Authorization: "Bearer " + credential.accessToken,
+                            Cookie: "WorkosCursorSessionToken=test-session"
+                        }
+                    });
+                    return { lines: [{ type: "text", label: "Account", value: ctx.account.label }] };
+                }
+            };
+            "#,
+        );
+        host_api::install_http_mock(vec![(200, "{}"), (200, "{}"), (200, "{}")]);
+
+        let dir = temp_app_dir("multi-account");
+        let out_work = run_probe_with_account(
+            &claude,
+            &dir,
+            "0.0.0",
+            Some(account("claude:work", "claude", "Work", "claude-work-token")),
+        );
+        let out_personal = run_probe_with_account(
+            &claude,
+            &dir,
+            "0.0.0",
+            Some(account(
+                "claude:personal",
+                "claude",
+                "Personal",
+                "claude-personal-token",
+            )),
+        );
+        let out_cursor = run_probe_with_account(
+            &cursor,
+            &dir,
+            "0.0.0",
+            Some(account("cursor:default", "cursor", "Default", "cursor-token")),
+        );
+
+        assert_eq!(out_work.provider_id, "claude:work");
+        assert_eq!(out_personal.provider_id, "claude:personal");
+        assert_eq!(out_cursor.provider_id, "cursor:default");
+
+        let requests = host_api::take_http_mock_requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(
+            requests[0].headers.get("Authorization").map(String::as_str),
+            Some("Bearer claude-work-token")
+        );
+        assert_eq!(
+            requests[1].headers.get("Authorization").map(String::as_str),
+            Some("Bearer claude-personal-token")
+        );
+        assert_eq!(
+            requests[2].headers.get("Authorization").map(String::as_str),
+            Some("Bearer cursor-token")
+        );
+        assert_eq!(
+            requests[2].headers.get("Cookie").map(String::as_str),
+            Some("WorkosCursorSessionToken=test-session")
         );
     }
 }

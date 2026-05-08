@@ -1,7 +1,7 @@
 import { useShallow } from "zustand/react/shallow"
 import { OverviewPage } from "@/pages/overview"
 import { ProviderDetailPage } from "@/pages/provider-detail"
-import { SettingsPage } from "@/pages/settings"
+import { SettingsPage, type ProviderAccountCredentialInput } from "@/pages/settings"
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon"
@@ -28,6 +28,10 @@ export type AppContentActionProps = {
   onReorder: (orderedIds: string[]) => void
   onToggle: (id: string) => void
   onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void
+  onAddProviderAccount: (baseProviderId: string, input: ProviderAccountCredentialInput) => void
+  onUpdateProviderAccountCredentials: (id: string, input: ProviderAccountCredentialInput) => void
+  onRenameProviderAccount: (id: string, label: string) => void
+  onRemoveProviderAccount: (id: string) => void
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void
   onThemeModeChange: (mode: ThemeMode) => void
   onDisplayModeChange: (mode: DisplayMode) => void
@@ -40,7 +44,7 @@ export type AppContentActionProps = {
 
   onUIScaleChange: (value: UIScale) => void
 
-  onShowTrayIconChange: (value: boolean) => void
+  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void
 
   /** null = loading / unknown; true = Cursor probe has Requests line; false = not available (e.g. Pro) */
   cursorRequestsLineAvailable: boolean | null
@@ -56,6 +60,10 @@ export function AppContent({
   onReorder,
   onToggle,
   onTrayLineToggle,
+  onAddProviderAccount,
+  onUpdateProviderAccountCredentials,
+  onRenameProviderAccount,
+  onRemoveProviderAccount,
   onAutoUpdateIntervalChange,
   onThemeModeChange,
   onDisplayModeChange,
@@ -68,7 +76,7 @@ export function AppContent({
 
   onUIScaleChange,
 
-  onShowTrayIconChange,
+  onSetCursorTrayMetricForAllAccounts,
 
   cursorRequestsLineAvailable,
 
@@ -90,8 +98,6 @@ export function AppContent({
 
     uiScale,
 
-    showTrayIcon,
-
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -103,8 +109,6 @@ export function AppContent({
       startOnLogin: state.startOnLogin,
 
       uiScale: state.uiScale,
-
-      showTrayIcon: state.showTrayIcon,
 
     }))
   )
@@ -128,6 +132,10 @@ export function AppContent({
         onReorder={onReorder}
         onToggle={onToggle}
         onTrayLineToggle={onTrayLineToggle}
+        onAddProviderAccount={onAddProviderAccount}
+        onUpdateProviderAccountCredentials={onUpdateProviderAccountCredentials}
+        onRenameProviderAccount={onRenameProviderAccount}
+        onRemoveProviderAccount={onRemoveProviderAccount}
         autoUpdateInterval={autoUpdateInterval}
         onAutoUpdateIntervalChange={onAutoUpdateIntervalChange}
         themeMode={themeMode}
@@ -147,11 +155,9 @@ export function AppContent({
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
 
-        showTrayIcon={showTrayIcon}
-        onShowTrayIconChange={onShowTrayIconChange}
+        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
 
         cursorRequestsLineAvailable={cursorRequestsLineAvailable}
-
       />
     )
   }

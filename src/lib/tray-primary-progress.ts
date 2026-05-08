@@ -1,5 +1,5 @@
 import type { PluginMeta, PluginOutput } from "@/lib/plugin-types"
-import type { PluginSettings } from "@/lib/settings"
+import { getProviderInstanceMeta, type PluginSettings } from "@/lib/settings"
 import { DEFAULT_DISPLAY_MODE, type DisplayMode } from "@/lib/settings"
 import { clamp01 } from "@/lib/utils"
 
@@ -9,9 +9,18 @@ type PluginState = {
   error: string | null
 }
 
+export type TrayPrimaryBarItem = {
+  label: string
+  fraction?: number
+  /** When dollars, `used` / `limit` match the plugin progress line (dollar amounts). */
+  valueKind?: "dollars"
+  used?: number
+  limit?: number
+}
+
 export type TrayPrimaryBar = {
   id: string
-  items: { label: string; fraction?: number }[]
+  items: TrayPrimaryBarItem[]
 }
 
 type ProgressLine = Extract<
@@ -41,7 +50,6 @@ export function getTrayPrimaryBars(args: {
   } = args
   if (!pluginSettings) return []
 
-  const metaById = new Map(pluginsMeta.map((p) => [p.id, p]))
   const disabled = new Set(pluginSettings.disabled)
   const orderedIds = pluginId
     ? [pluginId]
@@ -50,7 +58,7 @@ export function getTrayPrimaryBars(args: {
   const out: TrayPrimaryBar[] = []
   for (const id of orderedIds) {
     if (disabled.has(id)) continue
-    const meta = metaById.get(id)
+    const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
     if (!meta) continue
 
     // Skip if no primary candidates defined
@@ -59,7 +67,7 @@ export function getTrayPrimaryBars(args: {
     const state = pluginStates[id]
     const data = state?.data ?? null
 
-    let items: { label: string; fraction?: number }[] = []
+    let items: TrayPrimaryBarItem[] = []
     if (data) {
       const configuredLabels = pluginSettings.trayLines?.[id]
       
@@ -88,7 +96,17 @@ export function getTrayPrimaryBars(args: {
                 : line.limit - line.used
             fraction = clamp01(shownAmount / line.limit)
           }
-          items.push({ label: targetLabel, fraction })
+          if (line.format?.kind === "dollars") {
+            items.push({
+              label: targetLabel,
+              fraction,
+              valueKind: "dollars",
+              used: line.used,
+              limit: line.limit,
+            })
+          } else {
+            items.push({ label: targetLabel, fraction })
+          }
         }
       }
     }
@@ -111,7 +129,17 @@ export function getTrayPrimaryBars(args: {
               ? primaryLine.used
               : primaryLine.limit - primaryLine.used
           const fraction = clamp01(shownAmount / primaryLine.limit)
-          items.push({ label: primaryLabel, fraction })
+          if (primaryLine.format?.kind === "dollars") {
+            items.push({
+              label: primaryLabel,
+              fraction,
+              valueKind: "dollars",
+              used: primaryLine.used,
+              limit: primaryLine.limit,
+            })
+          } else {
+            items.push({ label: primaryLabel, fraction })
+          }
         }
       }
     }

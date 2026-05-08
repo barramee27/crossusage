@@ -15,6 +15,7 @@ const {
   loadMenubarIconStyleMock,
   loadPluginSettingsMock,
   loadResetTimerDisplayModeMock,
+  loadShowTrayIconMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUIScaleMock,
@@ -35,6 +36,7 @@ const {
   loadMenubarIconStyleMock: vi.fn(),
   loadPluginSettingsMock: vi.fn(),
   loadResetTimerDisplayModeMock: vi.fn(),
+  loadShowTrayIconMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
@@ -61,11 +63,12 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_GLOBAL_SHORTCUT: null,
   DEFAULT_MENUBAR_ICON_STYLE: "provider",
   DEFAULT_RESET_TIMER_DISPLAY_MODE: "relative",
+  DEFAULT_SHOW_TRAY_ICON: true,
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_SCALE: "normal",
   getEnabledPluginIds: getEnabledPluginIdsMock,
-  loadShowTrayIcon: vi.fn(),
+  loadShowTrayIcon: loadShowTrayIconMock,
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
   loadDisplayMode: loadDisplayModeMock,
   loadGlobalShortcut: loadGlobalShortcutMock,
@@ -94,6 +97,7 @@ function createArgs() {
     setStartOnLogin: vi.fn(),
     setMenubarIconStyle: vi.fn(),
     setUIScale: vi.fn(),
+    setShowTrayIcon: vi.fn(),
     setLoadingForPlugins: vi.fn(),
     setErrorForPlugins: vi.fn(),
     startBatch: vi.fn().mockResolvedValue(undefined),
@@ -115,6 +119,7 @@ describe("useSettingsBootstrap", () => {
     loadMenubarIconStyleMock.mockReset()
     loadPluginSettingsMock.mockReset()
     loadResetTimerDisplayModeMock.mockReset()
+    loadShowTrayIconMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUIScaleMock.mockReset()
@@ -145,6 +150,7 @@ describe("useSettingsBootstrap", () => {
     loadMenubarIconStyleMock.mockResolvedValue("provider")
     loadStartOnLoginMock.mockResolvedValue(true)
     loadUIScaleMock.mockResolvedValue("normal")
+    loadShowTrayIconMock.mockResolvedValue(true)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     getEnabledPluginIdsMock.mockReturnValue(["codex"])

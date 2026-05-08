@@ -41,13 +41,22 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: () => "" } },
 }))
 
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn(() => Promise.resolve()),
+}))
+
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { SettingsPage } from "@/pages/settings"
 
 const defaultProps = {
-  plugins: [{ id: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] }],
+  plugins: [{ id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] }],
   onReorder: vi.fn(),
   onToggle: vi.fn(),
   onTrayLineToggle: vi.fn(),
+  onAddProviderAccount: vi.fn(),
+  onUpdateProviderAccountCredentials: vi.fn(),
+  onRenameProviderAccount: vi.fn(),
+  onRemoveProviderAccount: vi.fn(),
   autoUpdateInterval: 15 as const,
   onAutoUpdateIntervalChange: vi.fn(),
   themeMode: "system" as const,
@@ -62,6 +71,7 @@ const defaultProps = {
     bars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
     providerBars: [{ id: "a", items: [{ label: "Primary", fraction: 0.7 }] }],
     providerIconUrl: "icon-a",
+    providerIconUrls: { a: "icon-a" },
     providerPercentText: "70%",
   },
   globalShortcut: null,
@@ -70,8 +80,7 @@ const defaultProps = {
   onStartOnLoginChange: vi.fn(),
   uiScale: "normal" as const,
   onUIScaleChange: vi.fn(),
-  showTrayIcon: true,
-  onShowTrayIconChange: vi.fn(),
+  onSetCursorTrayMetricForAllAccounts: vi.fn(),
   cursorRequestsLineAvailable: null as boolean | null,
 }
 
@@ -86,7 +95,7 @@ describe("SettingsPage", () => {
       <SettingsPage
         {...defaultProps}
         plugins={[
-          { id: "b", name: "Beta", enabled: false, primaryCandidates: [], trayLines: [] },
+          { id: "b", baseProviderId: "b", name: "Beta", enabled: false, primaryCandidates: [], trayLines: [] },
         ]}
         onToggle={onToggle}
       />
@@ -102,8 +111,8 @@ describe("SettingsPage", () => {
       <SettingsPage
         {...defaultProps}
         plugins={[
-          { id: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] },
-          { id: "b", name: "Beta", enabled: true, primaryCandidates: [], trayLines: [] },
+          { id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] },
+          { id: "b", baseProviderId: "b", name: "Beta", enabled: true, primaryCandidates: [], trayLines: [] },
         ]}
         onReorder={onReorder}
       />
@@ -123,6 +132,85 @@ describe("SettingsPage", () => {
     latestOnDragEnd?.({ active: { id: "a" }, over: null })
     latestOnDragEnd?.({ active: { id: "a" }, over: { id: "a" } })
     expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it("shows account controls and submits inline account forms", async () => {
+    const user = userEvent.setup()
+    const onAddProviderAccount = vi.fn()
+    const onUpdateProviderAccountCredentials = vi.fn()
+    const onRenameProviderAccount = vi.fn()
+    const onRemoveProviderAccount = vi.fn()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        plugins={[
+          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
+          {
+            id: "claude:work",
+            baseProviderId: "claude",
+            instanceLabel: "Work",
+            name: "Claude (Work)",
+            enabled: true,
+            primaryCandidates: [],
+            trayLines: [],
+          },
+        ]}
+        onAddProviderAccount={onAddProviderAccount}
+        onUpdateProviderAccountCredentials={onUpdateProviderAccountCredentials}
+        onRenameProviderAccount={onRenameProviderAccount}
+        onRemoveProviderAccount={onRemoveProviderAccount}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: "Add account" }))
+    await user.type(screen.getByLabelText("Access token"), "claude-work-token")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await user.click(screen.getAllByRole("button", { name: "Set credentials" })[1])
+    await user.clear(screen.getByLabelText("Account label"))
+    await user.type(screen.getByLabelText("Account label"), "Work")
+    await user.type(screen.getByLabelText("Access token"), "updated-token")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await user.click(screen.getByRole("button", { name: "Rename" }))
+    await user.clear(screen.getByLabelText("Account label"))
+    await user.type(screen.getByLabelText("Account label"), "Personal")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await user.click(screen.getByRole("button", { name: "Remove account" }))
+
+    expect(onAddProviderAccount).toHaveBeenCalledWith("claude", {
+      label: "Work",
+      accessToken: "claude-work-token",
+      refreshToken: "",
+      sessionKey: "",
+    })
+    expect(onUpdateProviderAccountCredentials).toHaveBeenCalledWith("claude:work", {
+      label: "Work",
+      accessToken: "updated-token",
+      refreshToken: "",
+      sessionKey: "",
+    })
+    expect(onRenameProviderAccount).toHaveBeenCalledWith("claude:work", "Personal")
+    expect(onRemoveProviderAccount).toHaveBeenCalledWith("claude:work")
+  })
+
+  it("opens GitHub tutorial when adding a Claude account", async () => {
+    const user = userEvent.setup()
+    vi.mocked(openUrl).mockClear()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        plugins={[
+          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
+        ]}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Add account" }))
+    await user.click(screen.getByRole("button", { name: "Step-by-step: where to copy tokens (opens GitHub)" }))
+    expect(openUrl).toHaveBeenCalledWith(
+      "https://github.com/barramee27/crossusage/blob/HEAD/docs/providers/multi-account-credentials.md"
+    )
   })
 
   it("updates auto-update interval", async () => {
@@ -218,7 +306,7 @@ describe("SettingsPage", () => {
     ).toBeInTheDocument()
   })
 
-  it("clicking Bars triggers onMenubarIconStyleChange(\"bars\")", async () => {
+  it("clicking Battery bars triggers onMenubarIconStyleChange(\"bars\")", async () => {
     const onMenubarIconStyleChange = vi.fn()
     render(
       <SettingsPage
@@ -226,11 +314,11 @@ describe("SettingsPage", () => {
         onMenubarIconStyleChange={onMenubarIconStyleChange}
       />
     )
-    await userEvent.click(screen.getByRole("radio", { name: "Bars" }))
+    await userEvent.click(screen.getByRole("radio", { name: "Battery bars" }))
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("bars")
   })
 
-  it("clicking Donut triggers onMenubarIconStyleChange(\"donut\")", async () => {
+  it("clicking Pie chart triggers onMenubarIconStyleChange(\"donut\")", async () => {
     const onMenubarIconStyleChange = vi.fn()
     render(
       <SettingsPage
@@ -238,8 +326,52 @@ describe("SettingsPage", () => {
         onMenubarIconStyleChange={onMenubarIconStyleChange}
       />
     )
-    await userEvent.click(screen.getByRole("radio", { name: "Donut" }))
+    await userEvent.click(screen.getByRole("radio", { name: "Pie chart" }))
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("donut")
+  })
+
+  it("opens Cursor tray metric dialog when choosing Pie with Cursor enabled", async () => {
+    const onMenubarIconStyleChange = vi.fn()
+    const onSetCursorTrayMetricForAllAccounts = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        menubarIconStyle="bars"
+        plugins={[
+          {
+            id: "cursor",
+            baseProviderId: "cursor",
+            name: "Cursor",
+            enabled: true,
+            primaryCandidates: ["Total usage"],
+            trayLines: ["Total usage"],
+          },
+        ]}
+        onMenubarIconStyleChange={onMenubarIconStyleChange}
+        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
+      />
+    )
+    await user.click(screen.getByRole("radio", { name: "Pie chart" }))
+    expect(screen.getByRole("dialog", { name: "Cursor tray readout" })).toBeInTheDocument()
+    await user.click(screen.getByRole("radio", { name: "Credits" }))
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+    expect(onSetCursorTrayMetricForAllAccounts).toHaveBeenCalledWith("Credits")
+    expect(onMenubarIconStyleChange).toHaveBeenCalledWith("donut")
+  })
+
+  it("clicking Logo fill and All logos triggers tray style changes", async () => {
+    const onMenubarIconStyleChange = vi.fn()
+    render(
+      <SettingsPage
+        {...defaultProps}
+        onMenubarIconStyleChange={onMenubarIconStyleChange}
+      />
+    )
+    await userEvent.click(screen.getByRole("radio", { name: "Logo fill" }))
+    await userEvent.click(screen.getByRole("radio", { name: "All logos" }))
+    expect(onMenubarIconStyleChange).toHaveBeenCalledWith("logoBar")
+    expect(onMenubarIconStyleChange).toHaveBeenCalledWith("logoGrid")
   })
 
   it("does not render removed bar icon controls", () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   getEnabledPluginIds,
   type AutoUpdateIntervalMinutes,
@@ -22,14 +22,22 @@ export function useProbeAutoUpdate({
 }: UseProbeAutoUpdateArgs) {
   const [autoUpdateNextAt, setAutoUpdateNextAt] = useState<number | null>(null)
   const [autoUpdateResetToken, setAutoUpdateResetToken] = useState(0)
+  const pluginSettingsRef = useRef(pluginSettings)
+  pluginSettingsRef.current = pluginSettings
+
+  /** Tray line / unrelated settings changes must not reset the interval (was re-probing constantly). */
+  const autoProbeScheduleKey = pluginSettings
+    ? `${autoUpdateInterval}|${getEnabledPluginIds(pluginSettings).join("\u0001")}`
+    : ""
 
   useEffect(() => {
-    if (!pluginSettings) {
+    const current = pluginSettingsRef.current
+    if (!current) {
       setAutoUpdateNextAt(null)
       return
     }
 
-    const enabledIds = getEnabledPluginIds(pluginSettings)
+    const enabledIds = getEnabledPluginIds(current)
     if (enabledIds.length === 0) {
       setAutoUpdateNextAt(null)
       return
@@ -40,19 +48,23 @@ export function useProbeAutoUpdate({
     scheduleNext()
 
     const interval = setInterval(() => {
-      setLoadingForPlugins(enabledIds)
-      startBatch(enabledIds).catch((error) => {
+      const latest = pluginSettingsRef.current
+      if (!latest) return
+      const ids = getEnabledPluginIds(latest)
+      if (ids.length === 0) return
+      setLoadingForPlugins(ids)
+      startBatch(ids).catch((error) => {
         console.error("Failed to start auto-update batch:", error)
-        setErrorForPlugins(enabledIds, "Failed to start probe")
+        setErrorForPlugins(ids, "Failed to start probe")
       })
       scheduleNext()
     }, intervalMs)
 
     return () => clearInterval(interval)
   }, [
-    autoUpdateInterval,
+    autoProbeScheduleKey,
     autoUpdateResetToken,
-    pluginSettings,
+    autoUpdateInterval,
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,

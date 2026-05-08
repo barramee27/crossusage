@@ -1,10 +1,12 @@
 import { useMemo } from "react"
 import type { PluginMeta } from "@/lib/plugin-types"
-import type { PluginSettings } from "@/lib/settings"
+import { getProviderInstanceMeta, type PluginSettings } from "@/lib/settings"
 import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
 
 export type SettingsPluginState = {
   id: string
+  baseProviderId: string
+  instanceLabel?: string
   name: string
   enabled: boolean
   primaryCandidates: string[]
@@ -19,26 +21,26 @@ type UseSettingsPluginListArgs = {
 export function useSettingsPluginList({ pluginSettings, pluginsMeta }: UseSettingsPluginListArgs) {
   return useMemo<SettingsPluginState[]>(() => {
     if (!pluginSettings) return []
-    const pluginMap = new Map(pluginsMeta.map((plugin) => [plugin.id, plugin]))
 
     return pluginSettings.order
-      .map((id) => {
-        const meta = pluginMap.get(id)
-        if (!meta) return null
+      .flatMap((id) => {
+        const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
+        if (!meta) return []
         const primaryCandidates = meta.primaryCandidates || []
         const trayLines = getEffectiveTrayLines(
           id,
           pluginSettings,
           primaryCandidates
         )
-        return {
+        return [{
           id,
+          baseProviderId: meta.baseProviderId ?? meta.id,
+          instanceLabel: meta.instanceLabel,
           name: meta.name,
           enabled: !pluginSettings.disabled.includes(id),
           primaryCandidates,
           trayLines,
-        }
+        }]
       })
-      .filter((plugin): plugin is SettingsPluginState => Boolean(plugin))
   }, [pluginSettings, pluginsMeta])
 }

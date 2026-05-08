@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react"
 import type { ActiveView, NavPlugin } from "@/components/side-nav"
 import type { PluginMeta } from "@/lib/plugin-types"
-import type { PluginSettings } from "@/lib/settings"
+import { getProviderInstanceMeta, type PluginSettings } from "@/lib/settings"
 import type { PluginState } from "@/hooks/app/types"
 
 export type DisplayPluginState = { meta: PluginMeta } & PluginState
@@ -24,12 +24,11 @@ export function useAppPluginViews({
   const displayPlugins = useMemo<DisplayPluginState[]>(() => {
     if (!pluginSettings) return []
     const disabledSet = new Set(pluginSettings.disabled)
-    const metaById = new Map(pluginsMeta.map((plugin) => [plugin.id, plugin]))
 
     return pluginSettings.order
       .filter((id) => !disabledSet.has(id))
       .map((id) => {
-        const meta = metaById.get(id)
+        const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
         if (!meta) return null
         const state =
           pluginStates[id] ?? {
@@ -47,11 +46,10 @@ export function useAppPluginViews({
   const navPlugins = useMemo<NavPlugin[]>(() => {
     if (!pluginSettings) return []
     const disabledSet = new Set(pluginSettings.disabled)
-    const metaById = new Map(pluginsMeta.map((plugin) => [plugin.id, plugin]))
 
     return pluginSettings.order
       .filter((id) => !disabledSet.has(id))
-      .map((id) => metaById.get(id))
+      .map((id) => getProviderInstanceMeta(id, pluginSettings, pluginsMeta))
       .filter((plugin): plugin is PluginMeta => Boolean(plugin))
       .map((plugin) => ({
         id: plugin.id,
@@ -64,7 +62,7 @@ export function useAppPluginViews({
   useEffect(() => {
     if (activeView === "home" || activeView === "settings") return
     if (!pluginSettings) return
-    const isKnownPlugin = pluginsMeta.some((plugin) => plugin.id === activeView)
+    const isKnownPlugin = Boolean(getProviderInstanceMeta(activeView, pluginSettings, pluginsMeta))
     if (!isKnownPlugin) return
     const isStillEnabled = navPlugins.some((plugin) => plugin.id === activeView)
     if (!isStillEnabled) {

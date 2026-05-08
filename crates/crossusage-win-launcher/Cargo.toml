@@ -1,0 +1,12 @@
+[package]
+name = "crossusage-win-launcher"
+version = "0.1.0"
+edition = "2024"
+description = "Tiny Windows stub: materialize WebView2Loader.dll then exec crossusage_gui.exe (GNU MinGW cannot delay-load WebView2Loader in-process)."
+publish = false
+
+[[bin]]
+name = "crossusage-win-launcher"
+path = "src/main.rs"
+
+[dependencies]

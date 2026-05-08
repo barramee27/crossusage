@@ -10,7 +10,7 @@ export type UpdateStatus =
   | { status: "up-to-date" }
   | { status: "downloading"; progress: number } // 0-100, or -1 if indeterminate
   | { status: "installing" }
-  | { status: "ready" }
+  | { status: "ready"; version: string }
   | { status: "error"; message: string }
 
 interface UseAppUpdateReturn {
@@ -86,11 +86,11 @@ export function useAppUpdate(): UseAppUpdateReturn {
                 const pct = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
                 setStatus({ status: "downloading", progress: pct })
               }
-            } else if (event.event === "Finished") {
-              setStatus({ status: "ready" })
             }
           })
-          setStatus({ status: "ready" })
+          if (mountedRef.current) {
+            setStatus({ status: "ready", version: update.version })
+          }
         } catch (err) {
           console.error("Update download failed:", err)
           setStatus({ status: "error", message: "Download failed" })

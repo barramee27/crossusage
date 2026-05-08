@@ -37,8 +37,46 @@ describe("useSettingsPluginList", () => {
     )
 
     expect(result.current).toEqual([
-      { id: "codex", name: "Codex", enabled: true, primaryCandidates: [], trayLines: [] },
-      { id: "cursor", name: "Cursor", enabled: false, primaryCandidates: [], trayLines: [] },
+      { id: "codex", baseProviderId: "codex", name: "Codex", enabled: true, primaryCandidates: [], trayLines: [] },
+      { id: "cursor", baseProviderId: "cursor", name: "Cursor", enabled: false, primaryCandidates: [], trayLines: [] },
+    ])
+  })
+
+  it("shows provider account instances with base metadata", () => {
+    const pluginSettings: PluginSettings = {
+      order: ["claude", "claude:work"],
+      disabled: [],
+      providerInstances: {
+        "claude:work": { baseProviderId: "claude", label: "Work" },
+      },
+      trayLines: { "claude:work": ["Usage"] },
+    }
+
+    const { result } = renderHook(() =>
+      useSettingsPluginList({
+        pluginSettings,
+        pluginsMeta: [createPluginMeta("claude", "Claude", ["Usage"])],
+      })
+    )
+
+    expect(result.current).toEqual([
+      {
+        id: "claude",
+        baseProviderId: "claude",
+        name: "Claude",
+        enabled: true,
+        primaryCandidates: ["Usage"],
+        trayLines: ["Usage"],
+      },
+      {
+        id: "claude:work",
+        baseProviderId: "claude",
+        instanceLabel: "Work",
+        name: "Claude (Work)",
+        enabled: true,
+        primaryCandidates: ["Usage"],
+        trayLines: ["Usage"],
+      },
     ])
   })
 
@@ -59,6 +97,7 @@ describe("useSettingsPluginList", () => {
     expect(result.current).toEqual([
       {
         id: "codex",
+        baseProviderId: "codex",
         name: "Codex",
         enabled: true,
         primaryCandidates: ["Session", "Weekly"],

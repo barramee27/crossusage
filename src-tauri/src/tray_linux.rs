@@ -13,10 +13,11 @@ use libappindicator_sys as sys;
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::tray::TrayIcon;
 use tauri::Wry;
+use tauri::tray::TrayIcon;
 
-const _: () = assert!(std::mem::size_of::<AppIndicator>() == std::mem::size_of::<*mut std::ffi::c_void>());
+const _: () =
+    assert!(std::mem::size_of::<AppIndicator>() == std::mem::size_of::<*mut std::ffi::c_void>());
 
 pub fn wire_tray_extras(tray: &TrayIcon<Wry>) -> tauri::Result<()> {
     tray.with_inner_tray_icon(move |inner| {

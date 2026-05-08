@@ -9,7 +9,10 @@ import {
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   arePluginSettingsEqual,
+  getBaseProviderId,
   getEnabledPluginIds,
+  getProviderDisplayName,
+  getProviderInstanceMeta,
   loadAutoUpdateInterval,
   loadDisplayMode,
   loadGlobalShortcut,
@@ -71,11 +74,12 @@ describe("settings", () => {
       order: ["a"],
       disabled: [],
       trayLines: {},
+      providerInstances: {},
     })
   })
 
   it("saves settings", async () => {
-    const settings = { order: ["a"], disabled: ["b"], trayLines: { a: ["Session"] } }
+    const settings = { order: ["a"], disabled: ["b"], trayLines: { a: ["Session"] }, providerInstances: {} }
     await savePluginSettings(settings)
     await expect(loadPluginSettings()).resolves.toEqual(settings)
   })
@@ -89,7 +93,51 @@ describe("settings", () => {
       { order: ["b", "b", "c"], disabled: ["c", "a"], trayLines: { "a": ["x"], "c": ["y"] } },
       plugins
     )
-    expect(normalized).toEqual({ order: ["b", "a"], disabled: ["a"], trayLines: { "a": ["x"] } })
+    expect(normalized).toEqual({
+      order: ["b", "a"],
+      disabled: ["a"],
+      trayLines: { "a": ["x"] },
+      providerInstances: {},
+    })
+  })
+
+  it("normalizes multiple account instances for the same provider", () => {
+    const plugins: PluginMeta[] = [
+      { id: "claude", name: "Claude", iconUrl: "icon", lines: [], primaryCandidates: ["Usage"] },
+      { id: "cursor", name: "Cursor", iconUrl: "cursor-icon", lines: [], primaryCandidates: ["Requests"] },
+    ]
+    const normalized = normalizePluginSettings(
+      {
+        order: ["claude:personal", "cursor", "claude:work", "missing"],
+        disabled: ["claude:personal", "missing"],
+        trayLines: {
+          "claude:work": ["Usage"],
+          missing: ["Usage"],
+        },
+        providerInstances: {
+          "claude:work": { baseProviderId: "claude", label: "Work" },
+          "claude:personal": { baseProviderId: "claude", label: "Personal" },
+          "bad": { baseProviderId: "missing", label: "Bad" },
+        },
+      },
+      plugins
+    )
+
+    expect(normalized.order).toEqual(["claude:personal", "cursor", "claude:work", "claude"])
+    expect(normalized.disabled).toEqual(["claude:personal"])
+    expect(normalized.trayLines).toEqual({ "claude:work": ["Usage"] })
+    expect(normalized.providerInstances).toEqual({
+      "claude:personal": { baseProviderId: "claude", label: "Personal" },
+      "claude:work": { baseProviderId: "claude", label: "Work" },
+    })
+    expect(getBaseProviderId("claude:work", normalized)).toBe("claude")
+    expect(getProviderDisplayName("claude:work", normalized, plugins)).toBe("Claude (Work)")
+    expect(getProviderInstanceMeta("claude:work", normalized, plugins)).toMatchObject({
+      id: "claude:work",
+      baseProviderId: "claude",
+      instanceLabel: "Work",
+      iconUrl: "icon",
+    })
   })
 
   it("normalizes trayLines: strips __NONE__ when mixed with real labels", () => {
@@ -291,6 +339,14 @@ describe("settings", () => {
   it("saves menubar donut icon style", async () => {
     await saveMenubarIconStyle("donut")
     await expect(loadMenubarIconStyle()).resolves.toBe("donut")
+  })
+
+  it("loads and saves logo-based menubar icon styles", async () => {
+    storeState.set("menubarIconStyle", "logoBar")
+    await expect(loadMenubarIconStyle()).resolves.toBe("logoBar")
+
+    await saveMenubarIconStyle("logoGrid")
+    await expect(loadMenubarIconStyle()).resolves.toBe("logoGrid")
   })
 
   it("falls back to default for invalid menubar icon style", async () => {

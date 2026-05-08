@@ -38,12 +38,12 @@ pub fn init(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
         let _ = window.set_closable(true);
         let _ = window.set_resizable(true);
         let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-            width: 320.0,
-            height: 420.0,
+            width: 400.0,
+            height: 480.0,
         })));
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: 380.0,
-            height: 700.0,
+            width: 600.0,
+            height: 800.0,
         }));
 
         let handle = app_handle.clone();

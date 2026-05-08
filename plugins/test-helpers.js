@@ -77,6 +77,10 @@ export const makeCtx = () => {
       http: {
         request: vi.fn(),
       },
+      credentials: {
+        get: vi.fn(() => null),
+        update: vi.fn(),
+      },
       ls: {
         discover: vi.fn(() => null),
       },

@@ -2,7 +2,7 @@ import { useCallback } from "react"
 import { track } from "@/lib/analytics"
 import type { PluginMeta } from "@/lib/plugin-types"
 import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
-import { savePluginSettings, type PluginSettings } from "@/lib/settings"
+import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
 
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
 
@@ -99,7 +99,7 @@ export function useSettingsPluginActions({
     if (!pluginSettings) return
     const prevTrayLines = pluginSettings.trayLines || {}
     const primaryCandidates =
-      pluginsMeta.find((p) => p.id === id)?.primaryCandidates ?? []
+      getProviderInstanceMeta(id, pluginSettings, pluginsMeta)?.primaryCandidates ?? []
     // Baseline matches Settings UI + tray default when trayLines[id] is undefined.
     const currentLinesForPlugin = getEffectiveTrayLines(
       id,
@@ -128,7 +128,7 @@ export function useSettingsPluginActions({
       ...pluginSettings,
       trayLines: nextTrayLines,
     }
-    
+
     setPluginSettings(nextSettings)
     scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
     void savePluginSettings(nextSettings).catch((error) => {
@@ -141,9 +141,34 @@ export function useSettingsPluginActions({
     setPluginSettings,
   ])
 
+  const handleSetCursorTrayMetricForAllAccounts = useCallback(
+    (lineLabel: string) => {
+      if (!pluginSettings) return
+      const nextTrayLines = { ...pluginSettings.trayLines }
+      for (const id of pluginSettings.order) {
+        if (pluginSettings.disabled.includes(id)) continue
+        const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
+        const base = meta?.baseProviderId ?? meta?.id
+        if (base !== "cursor") continue
+        nextTrayLines[id] = [lineLabel]
+      }
+      const nextSettings: PluginSettings = {
+        ...pluginSettings,
+        trayLines: nextTrayLines,
+      }
+      setPluginSettings(nextSettings)
+      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+      void savePluginSettings(nextSettings).catch((error) => {
+        console.error("Failed to save Cursor tray metric:", error)
+      })
+    },
+    [pluginSettings, pluginsMeta, scheduleTrayIconUpdate, setPluginSettings],
+  )
+
   return {
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
+    handleSetCursorTrayMetricForAllAccounts,
   }
 }

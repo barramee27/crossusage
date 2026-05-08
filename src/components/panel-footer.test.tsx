@@ -105,12 +105,12 @@ describe("PanelFooter", () => {
       <PanelFooter
         version="0.0.0"
         autoUpdateNextAt={null}
-        updateStatus={{ status: "ready" }}
+        updateStatus={{ status: "ready", version: "2.0.0" }}
         onUpdateInstall={onInstall}
         {...footerProps}
       />
     )
-    const button = screen.getByText("Restart to update")
+    const button = screen.getByRole("button", { name: /Ready to update/i })
     expect(button).toBeTruthy()
     await userEvent.click(button)
     expect(onInstall).toHaveBeenCalledTimes(1)

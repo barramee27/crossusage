@@ -58,6 +58,10 @@ function createProps(): AppContentProps {
     onRetryPlugin: vi.fn(),
     onReorder: vi.fn(),
     onToggle: vi.fn(),
+    onAddProviderAccount: vi.fn(),
+    onUpdateProviderAccountCredentials: vi.fn(),
+    onRenameProviderAccount: vi.fn(),
+    onRemoveProviderAccount: vi.fn(),
     onAutoUpdateIntervalChange: vi.fn(),
     onThemeModeChange: vi.fn(),
     onDisplayModeChange: vi.fn(),
@@ -70,10 +74,11 @@ function createProps(): AppContentProps {
     traySettingsPreview: {
       bars: [],
       providerBars: [],
+      providerIconUrls: {},
       providerPercentText: "--%",
     },
     onUIScaleChange: vi.fn(),
-    onShowTrayIconChange: vi.fn(),
+    onSetCursorTrayMetricForAllAccounts: vi.fn(),
     cursorRequestsLineAvailable: null,
   }
 }

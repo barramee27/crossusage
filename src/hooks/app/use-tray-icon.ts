@@ -4,13 +4,15 @@ import { resolveResource } from "@tauri-apps/api/path"
 import { TrayIcon } from "@tauri-apps/api/tray"
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { DisplayMode, MenubarIconStyle, PluginSettings } from "@/lib/settings"
-import { getEnabledPluginIds } from "@/lib/settings"
+import { getEnabledPluginIds, getProviderInstanceMeta } from "@/lib/settings"
 
-import { getTrayIconSizePx, renderTrayBarsIcon, type TrayGridCell } from "@/lib/tray-bars-icon"
+import { getTrayForegroundHex, renderTrayBarsIcon, type TrayProviderIcon } from "@/lib/tray-bars-icon"
+import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
-import { formatTrayPercentText, formatTrayTooltip } from "@/lib/tray-tooltip"
+import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
 
 import type { PluginState } from "@/hooks/app/types"
+import { useSystemDarkMode } from "@/hooks/use-system-dark-mode"
 
 type TrayUpdateReason = "probe" | "settings" | "init"
 
@@ -21,19 +23,20 @@ type UseTrayIconArgs = {
   displayMode: DisplayMode
   menubarIconStyle: MenubarIconStyle
   activeView: string
-  showTrayIcon: boolean
 }
 
 export type TraySettingsPreview = {
   bars: TrayPrimaryBar[]
   providerBars: TrayPrimaryBar[]
   providerIconUrl?: string
+  providerIconUrls: Record<string, string | undefined>
   providerPercentText: string
 }
 
 const EMPTY_TRAY_SETTINGS_PREVIEW: TraySettingsPreview = {
   bars: [],
   providerBars: [],
+  providerIconUrls: {},
   providerPercentText: "--%",
 }
 
@@ -48,6 +51,14 @@ function mirrorTrayUsageSummaryToBackend(summary: string) {
 function isSameTraySettingsPreview(a: TraySettingsPreview, b: TraySettingsPreview): boolean {
   if (a.providerIconUrl !== b.providerIconUrl) return false
   if (a.providerPercentText !== b.providerPercentText) return false
+  const aIconIds = Object.keys(a.providerIconUrls).sort()
+  const bIconIds = Object.keys(b.providerIconUrls).sort()
+  if (aIconIds.length !== bIconIds.length) return false
+  for (let i = 0; i < aIconIds.length; i += 1) {
+    const id = aIconIds[i]
+    if (id !== bIconIds[i]) return false
+    if (a.providerIconUrls[id] !== b.providerIconUrls[id]) return false
+  }
   if (a.bars.length !== b.bars.length) return false
   if (a.providerBars.length !== b.providerBars.length) return false
   for (let i = 0; i < a.bars.length; i += 1) {
@@ -61,6 +72,15 @@ function isSameTraySettingsPreview(a: TraySettingsPreview, b: TraySettingsPrevie
   return true
 }
 
+function getProviderPercentText(args: {
+  providerBars: TrayPrimaryBar[]
+  displayMode: DisplayMode
+}): string {
+  const first = args.providerBars[0]?.items?.[0]
+  if (!first) return "--%"
+  return formatTrayItemCaption(first, args.displayMode)
+}
+
 export function useTrayIcon({
   pluginsMeta,
   pluginSettings,
@@ -68,7 +88,6 @@ export function useTrayIcon({
   displayMode,
   menubarIconStyle,
   activeView,
-  showTrayIcon,
 }: UseTrayIconArgs) {
   const trayRef = useRef<TrayIcon | null>(null)
   const trayGaugeIconPathRef = useRef<string | null>(null)
@@ -86,8 +105,13 @@ export function useTrayIcon({
   const displayModeRef = useRef(displayMode)
   const menubarIconStyleRef = useRef(menubarIconStyle)
   const activeViewRef = useRef(activeView)
-  const showTrayIconRef = useRef(showTrayIcon)
   const lastTrayProviderIdRef = useRef<string | null>(null)
+
+  const systemDark = useSystemDarkMode()
+  const systemDarkRef = useRef(systemDark)
+  useEffect(() => {
+    systemDarkRef.current = systemDark
+  }, [systemDark])
 
   useEffect(() => {
     pluginsMetaRef.current = pluginsMeta
@@ -112,10 +136,6 @@ export function useTrayIcon({
   useEffect(() => {
     activeViewRef.current = activeView
   }, [activeView])
-
-  useEffect(() => {
-    showTrayIconRef.current = showTrayIcon
-  }, [showTrayIcon])
 
   const scheduleTrayIconUpdate = useCallback((
     _reason: TrayUpdateReason,
@@ -146,6 +166,10 @@ export function useTrayIcon({
         finalizeUpdate()
         return
       }
+
+      const ink = getTrayForegroundHex(systemDarkRef.current)
+      /** macOS template expects dark silhouette; Linux/Windows show raster as-is (white on dark panels). */
+      const rasterUsesTemplate = ink === "#000000"
 
       const maybeSetTitle =
         (tray as TrayIcon & { setTitle?: (value: string | null) => Promise<void> }).setTitle
@@ -247,14 +271,28 @@ export function useTrayIcon({
         : []
 
       const providerIconUrl = trayProviderId
-        ? pluginsMetaRef.current.find((plugin) => plugin.id === trayProviderId)?.iconUrl
+        ? getProviderInstanceMeta(trayProviderId, currentSettings, pluginsMetaRef.current)?.iconUrl
         : undefined
-      const providerPercentText = formatTrayPercentText(providerBars[0]?.items?.[0]?.fraction)
+      const providerIconUrls = Object.fromEntries(
+        barsForPreview.map((bar) => [
+          bar.id,
+          getProviderInstanceMeta(bar.id, currentSettings, pluginsMetaRef.current)?.iconUrl,
+        ])
+      )
+      const providerIcons: TrayProviderIcon[] = barsForPreview.map((bar) => ({
+        id: bar.id,
+        iconUrl: providerIconUrls[bar.id],
+      }))
+      const providerPercentText = getProviderPercentText({
+        providerBars,
+        displayMode: displayModeRef.current,
+      })
 
       const nextPreview: TraySettingsPreview = {
         bars: barsForPreview,
         providerBars,
         providerIconUrl,
+        providerIconUrls,
         providerPercentText,
       }
       setTraySettingsPreview((prev) =>
@@ -268,7 +306,11 @@ export function useTrayIcon({
         maxBars: 20,
         displayMode: displayModeRef.current,
       })
-      const tooltip = formatTrayTooltip(tooltipBars, pluginsMetaRef.current)
+      const tooltip = formatTrayTooltip(
+        tooltipBars,
+        pluginsMetaRef.current,
+        displayModeRef.current
+      )
       mirrorTrayUsageSummaryToBackend(tooltip)
       const updateTooltip = () => setTrayTooltip(tooltip)
 
@@ -277,10 +319,34 @@ export function useTrayIcon({
           bars: barsForPreview,
           sizePx,
           style: "bars",
+          foregroundHex: ink,
         })
           .then(async (img) => {
             await tray.setIcon(img)
-            await tray.setIconAsTemplate(true)
+            await tray.setIconAsTemplate(rasterUsesTemplate)
+            await setTrayTitle("")
+            await updateTooltip()
+          })
+          .catch((e) => {
+            console.error("Failed to update tray icon:", e)
+          })
+          .finally(() => {
+            finalizeUpdate()
+          })
+        return
+      }
+
+      if (style === "logoGrid") {
+        renderTrayBarsIcon({
+          bars: barsForPreview,
+          sizePx,
+          style: "logoGrid",
+          providerIcons: providerIcons,
+          foregroundHex: ink,
+        })
+          .then(async (img) => {
+            await tray.setIcon(img)
+            await tray.setIconAsTemplate(rasterUsesTemplate)
             await setTrayTitle("")
             await updateTooltip()
           })
@@ -306,10 +372,11 @@ export function useTrayIcon({
           sizePx,
           style: "donut",
           providerIconUrl,
+          foregroundHex: ink,
         })
           .then(async (img) => {
             await tray.setIcon(img)
-            await tray.setIconAsTemplate(true)
+            await tray.setIconAsTemplate(rasterUsesTemplate)
             await setTrayTitle("")
             await updateTooltip()
           })
@@ -322,42 +389,30 @@ export function useTrayIcon({
         return
       }
 
-      const bars = getTrayPrimaryBars({
-        pluginsMeta: pluginsMetaRef.current,
-        pluginSettings: currentSettings,
-        pluginStates: pluginStatesRef.current,
-        maxBars: 1,
-        displayMode: displayModeRef.current,
-        pluginId: trayProviderId,
-      })
-
-      const items = bars[0]?.items || []
-
-      let gridCellsToRender: TrayGridCell[] = []
-      let providerIconUrlToRender = pluginsMetaRef.current.find((plugin) => plugin.id === trayProviderId)?.iconUrl
-
-      if (items.length > 0) {
-        gridCellsToRender = items.map(item => {
-          const hasFraction = typeof item.fraction === "number" && Number.isFinite(item.fraction)
-          const clampedFraction = hasFraction ? Math.max(0, Math.min(1, item.fraction!)) : undefined
-          const valStr = typeof clampedFraction === "number" ? `${Math.round(clampedFraction * 100)}%` : "--%"
-
-          if (items.length === 1) {
-            return { text: valStr }
-          }
-
-          let shortLabel = item.label
-          const words = shortLabel.split(" ")
-          if (words.length > 1) {
-            shortLabel = words[words.length - 1] // e.g. "Gemini Flash" -> "Flash"
-          }
-          if (shortLabel.length > 5) {
-            shortLabel = shortLabel.substring(0, 3) // e.g. "Session" -> "Ses", "Weekly" -> "Wee"
-          }
-          // The user specifically requested a space here ("加一个空格以美化展示效果")
-          return { text: `${shortLabel} ${valStr}` }
+      if (style === "logoBar") {
+        renderTrayBarsIcon({
+          bars: providerBars,
+          sizePx,
+          style: "logoBar",
+          providerIconUrl: providerIconUrl,
+          foregroundHex: ink,
         })
+          .then(async (img) => {
+            await tray.setIcon(img)
+            await tray.setIconAsTemplate(rasterUsesTemplate)
+            await setTrayTitle("")
+            await updateTooltip()
+          })
+          .catch((e) => {
+            console.error("Failed to update tray icon:", e)
+          })
+          .finally(() => {
+            finalizeUpdate()
+          })
+        return
       }
+
+      const providerIconUrlToRender = providerIconUrl
 
       renderTrayBarsIcon({
         bars: providerBars,
@@ -366,14 +421,15 @@ export function useTrayIcon({
         style: "provider",
         percentText: providerPercentText,
 
-        gridCells: gridCellsToRender,
-        providerIconUrl: showTrayIconRef.current ? providerIconUrlToRender : undefined,
-        hideIcon: !showTrayIconRef.current,
+        gridCells: [{ text: providerPercentText }],
+        providerIconUrl: providerIconUrlToRender,
+        hideIcon: false,
+        foregroundHex: ink,
 
       })
         .then(async (img) => {
           await tray.setIcon(img)
-          await tray.setIconAsTemplate(true)
+          await tray.setIconAsTemplate(rasterUsesTemplate)
 
           await setTrayTitle(providerPercentText)
 
@@ -429,7 +485,12 @@ export function useTrayIcon({
   useEffect(() => {
     if (!trayReady) return
     scheduleTrayIconUpdate("settings", 0)
-  }, [activeView, menubarIconStyle, scheduleTrayIconUpdate, trayReady])
+  }, [activeView, displayMode, menubarIconStyle, scheduleTrayIconUpdate, trayReady])
+
+  useEffect(() => {
+    if (!trayReady) return
+    scheduleTrayIconUpdate("settings", 0)
+  }, [scheduleTrayIconUpdate, systemDark, trayReady])
 
   useEffect(() => {
     return () => {

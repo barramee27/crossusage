@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatTrayPercentText, formatTrayTooltip } from "./tray-tooltip"
+import { formatTrayItemCaption, formatTrayPercentText, formatTrayTooltip } from "./tray-tooltip"
 import type { PluginMeta } from "./plugin-types"
 import type { TrayPrimaryBar } from "./tray-primary-progress"
 
@@ -27,11 +27,41 @@ describe("tray-tooltip", () => {
     })
   })
 
+  describe("formatTrayItemCaption", () => {
+    it("formats dollar progress used/limit when usage mode is used", () => {
+      expect(
+        formatTrayItemCaption(
+          { label: "Credits", fraction: 0.5, valueKind: "dollars", used: 5, limit: 20 },
+          "used"
+        )
+      ).toBe("$5.00 / $20.00")
+    })
+
+    it("formats dollar progress as remaining when usage mode is left", () => {
+      expect(
+        formatTrayItemCaption(
+          { label: "Credits", fraction: 0.5, valueKind: "dollars", used: 5, limit: 20 },
+          "left"
+        )
+      ).toBe("$15.00 left")
+    })
+  })
+
   describe("formatTrayTooltip", () => {
     const mockMeta: PluginMeta[] = [
       { id: "p1", name: "Plugin 1", iconUrl: "", lines: [], links: [], primaryCandidates: [] },
       { id: "p2", name: "Plugin 2", iconUrl: "", lines: [], links: [], primaryCandidates: [] },
     ]
+
+    it("formats dollar lines in tooltip when displayMode is used", () => {
+      const bars: TrayPrimaryBar[] = [
+        {
+          id: "p1",
+          items: [{ label: "Credits", fraction: 0.25, valueKind: "dollars", used: 2.5, limit: 10 }],
+        },
+      ]
+      expect(formatTrayTooltip(bars, mockMeta, "used")).toBe("CrossUsage\nPlugin 1: $2.50 / $10.00")
+    })
 
     it("should show app name when no bars", () => {
       expect(formatTrayTooltip([], mockMeta)).toBe("CrossUsage")

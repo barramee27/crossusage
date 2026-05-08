@@ -82,7 +82,7 @@ describe("useTrayRestartBridge", () => {
     })
 
     invokeMock.mockClear()
-    rerender({ status: { status: "ready" } as const })
+    rerender({ status: { status: "ready", version: "1.0.0" } as const })
 
     await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith("set_tray_restart_label", {
@@ -93,7 +93,7 @@ describe("useTrayRestartBridge", () => {
 
   it("calls triggerInstall when tray event fires and status is ready", async () => {
     renderHook(() =>
-      useTrayRestartBridge({ status: "ready" }, triggerInstall),
+      useTrayRestartBridge({ status: "ready", version: "1.0.0" }, triggerInstall),
     )
 
     await waitFor(() => expect(trayRestartCallback).toBeDefined())
