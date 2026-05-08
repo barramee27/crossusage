@@ -1,13 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getEnabledPluginIdsMock, trackMock } = vi.hoisted(() => ({
-  trackMock: vi.fn(),
+const { getEnabledPluginIdsMock } = vi.hoisted(() => ({
   getEnabledPluginIdsMock: vi.fn(),
-}))
-
-vi.mock("@/lib/analytics", () => ({
-  track: trackMock,
 }))
 
 vi.mock("@/lib/settings", () => ({
@@ -19,7 +14,6 @@ import { useProbeRefreshActions } from "@/hooks/app/use-probe-refresh-actions"
 
 describe("useProbeRefreshActions", () => {
   beforeEach(() => {
-    trackMock.mockReset()
     getEnabledPluginIdsMock.mockReset()
     getEnabledPluginIdsMock.mockImplementation((settings: { order: string[]; disabled: string[] }) =>
       settings.order.filter((id) => !settings.disabled.includes(id))
@@ -47,7 +41,6 @@ describe("useProbeRefreshActions", () => {
       result.current.handleRetryPlugin("codex")
     })
 
-    expect(trackMock).toHaveBeenCalledWith("provider_refreshed", { provider_id: "codex" })
     expect(setLoadingForPlugins).toHaveBeenCalledWith(["codex"])
     expect(startBatch).toHaveBeenCalledWith(["codex"])
     expect(manualRefreshIdsRef.current.has("codex")).toBe(true)

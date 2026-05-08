@@ -1,16 +1,8 @@
-import { trackEvent } from "@aptabase/tauri"
-import { isTauri } from "@tauri-apps/api/core"
-
 /**
- * Aptabase analytics (string/number props only). Requires `aptabase:allow-track-event` in Tauri capabilities.
+ * UI-side Aptabase custom events were removed (OpenUsage v0.6.23 parity).
+ * Rust still may emit lifecycle events (e.g. `app_started`); the frontend does not call Aptabase.
  */
 export function track(
-  event: string,
-  props?: Record<string, string | number>,
-) {
-  if (!isTauri()) {
-    return
-  }
-
-  void trackEvent(event, props)
-}
+  _event: string,
+  _props?: Record<string, string | number>,
+): void {}

@@ -1166,7 +1166,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage"
-version = "1.0.8-beta.1"
+version = "1.0.8"
 dependencies = [
  "crossusage-core",
  "dirs 6.0.0",
@@ -1203,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-cli"
-version = "1.0.8-beta.1"
+version = "1.0.8"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1235,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-core"
-version = "1.0.8-beta.1"
+version = "1.0.8"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

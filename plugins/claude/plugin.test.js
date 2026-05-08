@@ -22,24 +22,7 @@ beforeEach(() => {
 
 const loadPlugin = async () => plugin
 
-const SAMPLE_PROMOCLOCK_RESPONSE = {
-  status: "off_peak",
-  isPeak: false,
-  isOffPeak: true,
-  isWeekend: false,
-  sessionLimitSpeed: "normal",
-  emoji: "🟢",
-  label: "Off-Peak — Normal Speed",
-  peakHours: "Weekdays 1pm–7pm UTC / 1:00 PM–7:00 PM GMT",
-  nextChange: "2026-04-09T13:00:00.000Z",
-  minutesUntilChange: 720,
-  timestamp: "2026-04-09T01:00:00.000Z",
-  utcHour: 1,
-  utcDay: 4,
-  note: "No known end date for peak hours adjustment. Weekly limits unchanged.",
-}
-
-function mockClaudeUsageAndPromoClock(
+function mockClaudeUsage(
   ctx,
   {
     usageBody = {
@@ -47,24 +30,9 @@ function mockClaudeUsageAndPromoClock(
       seven_day: { utilization: 20, resets_at: "2099-01-01T00:00:00.000Z" },
     },
     usageStatus = 200,
-    promoClockBody = SAMPLE_PROMOCLOCK_RESPONSE,
-    promoClockStatus = 200,
-    promoClockBodyText,
   } = {}
 ) {
-  ctx.host.http.request.mockImplementation((opts) => {
-    const url = String(opts && opts.url ? opts.url : "")
-    if (url === "https://promoclock.co/api/status") {
-      return {
-        status: promoClockStatus,
-        headers: {},
-        bodyText:
-          promoClockBodyText !== undefined
-            ? promoClockBodyText
-            : JSON.stringify(promoClockBody),
-      }
-    }
-
+  ctx.host.http.request.mockImplementation(() => {
     return {
       status: usageStatus,
       headers: {},
@@ -85,14 +53,12 @@ describe("claude plugin", () => {
     }
     ctx.host.fs.exists = () => true
     ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "local-token" } })
-    mockClaudeUsageAndPromoClock(ctx)
+    mockClaudeUsage(ctx)
     const plugin = await loadPlugin()
 
     plugin.probe(ctx)
 
-    const usageCall = ctx.host.http.request.mock.calls.find(
-      ([opts]) => String(opts.url) !== "https://promoclock.co/api/status"
-    )
+    const usageCall = ctx.host.http.request.mock.calls[0]
     expect(usageCall?.[0].headers.Authorization).toBe("Bearer claude-work-token")
   })
 
@@ -469,120 +435,6 @@ describe("claude plugin", () => {
     expect(result.plan).toBe("Pro")
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
     expect(result.lines.find((line) => line.label === "Weekly")).toBeTruthy()
-  })
-
-  describe("PromoClock integration", () => {
-    it("maps the real off-peak endpoint payload to the compact badge", async () => {
-      const ctx = makeCtx()
-      ctx.host.fs.readText = () =>
-        JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
-      ctx.host.fs.exists = () => true
-      mockClaudeUsageAndPromoClock(ctx)
-
-      const plugin = await loadPlugin()
-      const result = plugin.probe(ctx)
-
-      expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
-      expect(result.lines.find((line) => line.label === "Weekly")).toBeTruthy()
-      expect(result.lines.find((line) => line.label === "Peak Hours")).toEqual({
-        type: "badge",
-        label: "Peak Hours",
-        text: "Off-Peak",
-        color: "#22c55e",
-      })
-      expect(result.lines.find((line) => line.label === "Next change")).toBeUndefined()
-    })
-
-    it("maps peak PromoClock responses into the badge-only UI", async () => {
-      const ctx = makeCtx()
-      ctx.host.fs.readText = () =>
-        JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
-      ctx.host.fs.exists = () => true
-      mockClaudeUsageAndPromoClock(ctx, {
-        promoClockBody: {
-          ...SAMPLE_PROMOCLOCK_RESPONSE,
-          status: "peak",
-          isPeak: true,
-          isOffPeak: false,
-          emoji: "🔴",
-          label: "Peak Hours — Limits Drain Faster",
-          nextChange: "2026-04-08T19:00:00.000Z",
-          minutesUntilChange: 111,
-          timestamp: "2026-04-08T17:08:33.089Z",
-          utcHour: 17,
-        },
-      })
-
-      const plugin = await loadPlugin()
-      const result = plugin.probe(ctx)
-
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.text).toBe("Peak")
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.color).toBe("#ef4444")
-    })
-
-    it("treats weekend as off-peak", async () => {
-      const ctx = makeCtx()
-      ctx.host.fs.readText = () =>
-        JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
-      ctx.host.fs.exists = () => true
-      mockClaudeUsageAndPromoClock(ctx, {
-        promoClockBody: {
-          ...SAMPLE_PROMOCLOCK_RESPONSE,
-          status: "weekend",
-          isPeak: false,
-          isOffPeak: false,
-          isWeekend: true,
-          label: "Weekend — Normal Speed",
-        },
-      })
-
-      const plugin = await loadPlugin()
-      const result = plugin.probe(ctx)
-
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.text).toBe("Off-Peak")
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.color).toBe("#22c55e")
-    })
-
-    it("ignores PromoClock failures and still returns Claude usage lines", async () => {
-      const ctx = makeCtx()
-      ctx.host.fs.readText = () =>
-        JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
-      ctx.host.fs.exists = () => true
-      mockClaudeUsageAndPromoClock(ctx, {
-        promoClockStatus: 503,
-        promoClockBody: { error: "temporarily unavailable" },
-      })
-
-      const plugin = await loadPlugin()
-      const result = plugin.probe(ctx)
-
-      expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
-      expect(result.lines.find((line) => line.label === "Weekly")).toBeTruthy()
-      expect(result.lines.find((line) => line.label === "Peak Hours")).toBeUndefined()
-      expect(result.lines.find((line) => line.label === "Next change")).toBeUndefined()
-    })
-
-    it("falls back to status string when boolean flags are absent", async () => {
-      const ctx = makeCtx()
-      ctx.host.fs.readText = () =>
-        JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
-      ctx.host.fs.exists = () => true
-      mockClaudeUsageAndPromoClock(ctx, {
-        promoClockBody: {
-          ...SAMPLE_PROMOCLOCK_RESPONSE,
-          status: "off_peak",
-          isPeak: undefined,
-          isOffPeak: undefined,
-          isWeekend: undefined,
-        },
-      })
-
-      const plugin = await loadPlugin()
-      const result = plugin.probe(ctx)
-
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.text).toBe("Off-Peak")
-      expect(result.lines.find((line) => line.label === "Peak Hours")?.color).toBe("#22c55e")
-    })
   })
 
   it("appends max rate limit tier to the plan label when present", async () => {
@@ -2058,8 +1910,6 @@ describe("claude plugin", () => {
         const ctx = makeCtx()
         ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "token" } })
         ctx.host.fs.exists = () => true
-        // Isolate Promoclock so it doesn't add extra calls to ctx.host.http.request
-        ctx.util.requestJson = vi.fn(() => ({ resp: { status: 200, bodyText: "{}", headers: {} }, json: {} }))
         ctx.host.http.request.mockReturnValue({
           status: 429,
           bodyText: "",
@@ -2090,8 +1940,6 @@ describe("claude plugin", () => {
         const ctx = makeCtx()
         ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "token" } })
         ctx.host.fs.exists = () => true
-        // Isolate Promoclock so it doesn't add extra calls to ctx.host.http.request
-        ctx.util.requestJson = vi.fn(() => ({ resp: { status: 200, bodyText: "{}", headers: {} }, json: {} }))
         const usageBody = JSON.stringify({ five_hour: { utilization: 50, resets_at: null } })
         ctx.host.http.request
           .mockReturnValueOnce({ status: 429, bodyText: "", headers: { "Retry-After": "60" } })
@@ -2120,8 +1968,6 @@ describe("claude plugin", () => {
         const ctx = makeCtx()
         ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "token" } })
         ctx.host.fs.exists = () => true
-        // Isolate Promoclock so it doesn't add extra calls to ctx.host.http.request
-        ctx.util.requestJson = vi.fn(() => ({ resp: { status: 200, bodyText: "{}", headers: {} }, json: {} }))
         ctx.host.http.request.mockReturnValue({ status: 200, bodyText: "{}", headers: {} })
         const plugin = await loadPlugin()
 
@@ -2179,8 +2025,6 @@ describe("claude plugin", () => {
         const ctx = makeCtx()
         ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: { accessToken: "token" } })
         ctx.host.fs.exists = () => true
-        // Isolate Promoclock so it doesn't add extra calls to ctx.host.http.request
-        ctx.util.requestJson = vi.fn(() => ({ resp: { status: 200, bodyText: "{}", headers: {} }, json: {} }))
         ctx.host.http.request
           .mockReturnValueOnce({ status: 429, bodyText: "", headers: {} }) // no Retry-After
           .mockReturnValue({ status: 200, bodyText: "{}", headers: {} })

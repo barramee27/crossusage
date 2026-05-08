@@ -1,6 +1,6 @@
 [package]
 name = "crossusage-cli"
-version = "1.0.8-beta.1"
+version = "1.0.8"
 description = "CrossUsage CLI — terminal interface for the same plugin engine as the GUI"
 edition = "2021"
 

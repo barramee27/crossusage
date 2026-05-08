@@ -13,7 +13,6 @@ import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
 import { useAppUpdate } from "@/hooks/use-app-update"
-import { track } from "@/lib/analytics"
 import {
   buildProviderInstanceId,
   getBaseProviderId,
@@ -273,7 +272,6 @@ function App() {
       const alreadyDisabled = currentSettings.disabled.includes(pluginId)
       if (alreadyDisabled) return
 
-      track("provider_toggled", { provider_id: pluginId, enabled: "false" })
       const nextSettings = {
         ...currentSettings,
         disabled: [...currentSettings.disabled, pluginId],

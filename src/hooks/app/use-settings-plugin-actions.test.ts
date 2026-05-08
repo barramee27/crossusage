@@ -1,13 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { savePluginSettingsMock, trackMock } = vi.hoisted(() => ({
-  trackMock: vi.fn(),
+const { savePluginSettingsMock } = vi.hoisted(() => ({
   savePluginSettingsMock: vi.fn(),
-}))
-
-vi.mock("@/lib/analytics", () => ({
-  track: trackMock,
 }))
 
 vi.mock("@/lib/settings", () => ({
@@ -30,7 +25,6 @@ const codexMeta: PluginMeta = {
 
 describe("useSettingsPluginActions", () => {
   beforeEach(() => {
-    trackMock.mockReset()
     savePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockResolvedValue(undefined)
   })
@@ -55,7 +49,6 @@ describe("useSettingsPluginActions", () => {
       result.current.handleReorder(["b", "a"])
     })
 
-    expect(trackMock).toHaveBeenCalledWith("providers_reordered", { count: 2 })
     expect(setPluginSettings).toHaveBeenCalledWith({ order: ["b", "a"], disabled: [] })
     expect(savePluginSettingsMock).toHaveBeenCalledWith({ order: ["b", "a"], disabled: [] })
     expect(scheduleTrayIconUpdate).toHaveBeenCalledWith("settings", 2000)
@@ -208,7 +201,6 @@ describe("useSettingsPluginActions", () => {
     act(() => {
       result.current.handleToggle("b")
     })
-    expect(trackMock).toHaveBeenCalledWith("provider_toggled", { provider_id: "b", enabled: "true" })
     expect(setLoadingForPlugins).toHaveBeenCalledWith(["b"])
     expect(startBatch).toHaveBeenCalledWith(["b"])
     expect(setPluginSettings).toHaveBeenNthCalledWith(1, { order: ["a", "b"], disabled: [] })
@@ -216,7 +208,6 @@ describe("useSettingsPluginActions", () => {
     act(() => {
       result.current.handleToggle("a")
     })
-    expect(trackMock).toHaveBeenCalledWith("provider_toggled", { provider_id: "a", enabled: "false" })
     expect(setPluginSettings).toHaveBeenNthCalledWith(2, { order: ["a", "b"], disabled: ["b", "a"] })
   })
 
@@ -242,7 +233,6 @@ describe("useSettingsPluginActions", () => {
 
     expect(setPluginSettings).not.toHaveBeenCalled()
     expect(savePluginSettingsMock).not.toHaveBeenCalled()
-    expect(trackMock).not.toHaveBeenCalled()
   })
 
   it("logs errors when enabling probe start fails", async () => {

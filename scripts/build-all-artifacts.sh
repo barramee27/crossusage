@@ -18,6 +18,7 @@ echo "  deb:       target/release/bundle/deb/crossusage_*_amd64.deb (includes cr
 echo "  rpm:       target/release/bundle/rpm/crossusage-*.rpm"
 echo "  appimage:  target/release/bundle/appimage/crossusage_*_amd64.AppImage"
 echo "  win exe:   target/x86_64-pc-windows-gnu/release/crossusage.exe"
+echo "  win dll:   target/x86_64-pc-windows-gnu/release/WebView2Loader.dll  (keep next to crossusage.exe for portable GNU builds)"
 echo "  win setup: target/x86_64-pc-windows-gnu/release/bundle/nsis/crossusage_*_x64-setup.exe"
 echo ""
 echo "Portable archives (optional, after this script or a normal tauri build):"

@@ -2,21 +2,15 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
-  trackMock,
   saveDisplayModeMock,
   saveResetTimerDisplayModeMock,
   saveThemeModeMock,
   saveUIScaleMock,
 } = vi.hoisted(() => ({
-  trackMock: vi.fn(),
   saveThemeModeMock: vi.fn(),
   saveDisplayModeMock: vi.fn(),
   saveResetTimerDisplayModeMock: vi.fn(),
   saveUIScaleMock: vi.fn(),
-}))
-
-vi.mock("@/lib/analytics", () => ({
-  track: trackMock,
 }))
 
 vi.mock("@/lib/settings", () => ({
@@ -30,7 +24,6 @@ import { useSettingsDisplayActions } from "@/hooks/app/use-settings-display-acti
 
 describe("useSettingsDisplayActions", () => {
   beforeEach(() => {
-    trackMock.mockReset()
     saveThemeModeMock.mockReset()
     saveDisplayModeMock.mockReset()
     saveResetTimerDisplayModeMock.mockReset()
@@ -41,7 +34,7 @@ describe("useSettingsDisplayActions", () => {
     saveUIScaleMock.mockResolvedValue(undefined)
   })
 
-  it("tracks and applies display-related setting changes", () => {
+  it("applies display-related setting changes", () => {
     const setThemeMode = vi.fn()
     const setDisplayMode = vi.fn()
     const setResetTimerDisplayMode = vi.fn()
@@ -63,16 +56,6 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleThemeModeChange("glass")
       result.current.handleDisplayModeChange("used")
       result.current.handleResetTimerDisplayModeChange("absolute")
-    })
-
-    expect(trackMock).toHaveBeenCalledWith("setting_changed", { setting: "theme", value: "glass" })
-    expect(trackMock).toHaveBeenCalledWith("setting_changed", {
-      setting: "display_mode",
-      value: "used",
-    })
-    expect(trackMock).toHaveBeenCalledWith("setting_changed", {
-      setting: "reset_timer_display_mode",
-      value: "absolute",
     })
 
     expect(setThemeMode).toHaveBeenCalledWith("glass")
@@ -148,7 +131,7 @@ describe("useSettingsDisplayActions", () => {
     errorSpy.mockRestore()
   })
 
-  it("tracks and persists UI scale change", async () => {
+  it("persists UI scale change", async () => {
     const setUIScale = vi.fn()
 
     const { result } = renderHook(() =>
@@ -166,7 +149,6 @@ describe("useSettingsDisplayActions", () => {
       result.current.handleUIScaleChange("compact")
     })
 
-    expect(trackMock).toHaveBeenCalledWith("setting_changed", { setting: "ui_scale", value: "compact" })
     expect(setUIScale).toHaveBeenCalledWith("compact")
 
     await waitFor(() => {

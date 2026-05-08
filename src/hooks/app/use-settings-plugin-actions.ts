@@ -1,5 +1,4 @@
 import { useCallback } from "react"
-import { track } from "@/lib/analytics"
 import type { PluginMeta } from "@/lib/plugin-types"
 import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
 import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
@@ -29,7 +28,6 @@ export function useSettingsPluginActions({
 }: UseSettingsPluginActionsArgs) {
   const handleReorder = useCallback((orderedIds: string[]) => {
     if (!pluginSettings) return
-    track("providers_reordered", { count: orderedIds.length })
     // orderedIds may be a subset (e.g. nav-only, excluding disabled plugins).
     // Re-insert any missing IDs from the previous order at their original
     // relative positions so disabled plugins are not dropped.
@@ -63,7 +61,6 @@ export function useSettingsPluginActions({
   const handleToggle = useCallback((id: string) => {
     if (!pluginSettings) return
     const wasDisabled = pluginSettings.disabled.includes(id)
-    track("provider_toggled", { provider_id: id, enabled: wasDisabled ? "true" : "false" })
     const disabled = new Set(pluginSettings.disabled)
 
     if (wasDisabled) {

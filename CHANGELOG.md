@@ -12,10 +12,20 @@
 - **Cursor:** Default tray **percentage / bars primary line** is **Total usage** (not Credits), via `primaryOrder` in the Cursor plugin manifest. Custom tray line selections in Settings are unchanged.
 - **Windows / Linux:** Default panel size increased from **380×700** to **600×800** logical px so Settings and provider views stay readable (resolution/display scaling does not widen a fixed window).
 
+### Upstream parity ([OpenUsage v0.6.23](https://github.com/robinebers/openusage/releases/tag/v0.6.23))
+
+- **Claude (plugin):** Removed PromoClock / “Peak Hours” supplemental badge and `promoclock.co` fetch; docs trimmed accordingly.
+- **Codex (plugin):** “Usage dashboard” link now points to ChatGPT Codex usage (`https://chatgpt.com/codex/settings/usage`).
+- **Analytics:** Dropped UI-side Aptabase custom events (`provider_refreshed`, `providers_reordered`, `setting_changed`, `update_accepted`, `provider_toggled`); removed `@aptabase/tauri` from the frontend bundle (Rust may still emit lifecycle events such as `app_started`).
+
 ### Fix
 
 - **Windows portable / GNU:** Added a **single-file** portable exe build (`release:gui-portable-onefile-windows-gnu`) where **crossusage.exe** embeds the Tauri GUI, CLI, resources, and **WebView2Loader.dll**, extracts them to temp, then starts the GUI. Optional unique output names: `release:gui-portable-onefile-windows-gnu:unique`, `CROSSUSAGE_ONEFILE_TAG`, or `CROSSUSAGE_UNIQUE_ONEFILE=1`. The zip build still supports the folder layout. NSIS installer unchanged.
 - **Windows startup:** Windows release builds now show the main window on launch instead of relying only on the tray icon, and tray startup falls back to an embedded tray icon if the packaged resource is missing.
+
+## 1.0.8
+
+Stable **1.0.8** — version bump (`package.json`, Tauri config, `crossusage`, `crossusage-cli`, `crossusage-core`). Release bundles: Linux `.deb`, `.rpm`, `.AppImage`; Windows `crossusage.exe` and NSIS `crossusage_1.0.8_x64-setup.exe` (from `scripts/build-all-artifacts.sh` on Linux with GNU Windows target + NSIS).
 
 ## 1.0.8-beta.1
 
