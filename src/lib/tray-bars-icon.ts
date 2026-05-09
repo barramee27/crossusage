@@ -282,8 +282,8 @@ function getSvgLayout(args: {
       }
     }
 
-    // Icon (top ~52%) + percent (bottom ~42%) inside a square bitmap.
-    const iconAreaH = Math.round(sizePx * 0.52)
+    // Icon (top ~58%) + percent (bottom) inside a square bitmap — favours logo readability.
+    const iconAreaH = Math.round(sizePx * 0.58)
     const stackedIconSize = Math.max(8, iconAreaH - stackPad)
     const stackedIconX = Math.round((sizePx - stackedIconSize) / 2)
     const stackedIconY = stackPad

@@ -122,7 +122,7 @@ function SortableNavPlugin({ plugin, isActive, isDark, onClick, onContextMenu }:
         <span
           role="img"
           aria-label={plugin.name}
-          className="size-8 inline-block"
+          className="size-10 inline-block"
           style={{
             backgroundColor: getIconColor(plugin.brandColor, isDark),
             WebkitMaskImage: `url(${plugin.iconUrl})`,
@@ -216,14 +216,14 @@ export function SideNav({
   )
 
   return (
-    <nav className="app-side-nav flex flex-col w-14 min-w-14 border-r py-3">
+    <nav className="app-side-nav flex flex-col w-16 min-w-16 border-r py-3">
       {/* Home */}
       <NavButton
         isActive={activeView === "home"}
         onClick={() => onViewChange("home")}
         aria-label="Home"
       >
-        <GaugeIcon className="size-8 dark:text-page-accent" />
+        <GaugeIcon className="size-10 dark:text-page-accent" />
       </NavButton>
 
       {/* Plugin icons */}
@@ -261,7 +261,7 @@ export function SideNav({
         }}
         aria-label="Help"
       >
-        <CircleHelp className="size-8" />
+        <CircleHelp className="size-10" />
       </NavButton>
 
       {/* Settings */}
@@ -270,7 +270,7 @@ export function SideNav({
         onClick={() => onViewChange("settings")}
         aria-label="Settings"
       >
-        <Settings className="size-8" />
+        <Settings className="size-10" />
       </NavButton>
     </nav>
   )
