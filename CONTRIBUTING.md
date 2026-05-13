@@ -11,11 +11,7 @@ If you're unsure whether your idea fits, open an issue first.
 ## Ground Rules
 
 - No feature creep. If it's not about usage tracking, it doesn't belong here.
-- **Commit messages:** Write a short, accurate **conventional** subject (`fix:`, `feat:`, `docs:`, …) and optional body. If an **AI assistant** (e.g. Cursor) materially wrote the patch, add this trailer so attribution is clear (GitHub shows co-authors on commits and PRs):
-  ```
-  Co-authored-by: Cursor <cursoragent@cursor.com>
-  ```
-  Put trailers after a blank line at the end of the message. You can still edit the wording to match what you actually changed.
+- **Commit messages:** Use a short, accurate **conventional** subject (`fix:`, `feat:`, `docs:`, …) and an optional body explaining *why* when it helps reviewers.
 - Test your changes. If it touches UI, include before/after screenshots.
 - Keep it simple. Don't over-engineer.
 - **PR scope:** Prefer **one logical concern per PR** (easier review and bisect). Small **related** fixes in the same PR are fine if the description lists them. Avoid unrelated drive-by refactors.
