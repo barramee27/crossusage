@@ -11,10 +11,10 @@ If you're unsure whether your idea fits, open an issue first.
 ## Ground Rules
 
 - No feature creep. If it's not about usage tracking, it doesn't belong here.
-- No AI-generated commit messages. Write your own.
+- **Commit messages:** Use a short, accurate **conventional** subject (`fix:`, `feat:`, `docs:`, …) and an optional body explaining *why* when it helps reviewers.
 - Test your changes. If it touches UI, include before/after screenshots.
 - Keep it simple. Don't over-engineer.
-- One PR per concern. Don't bundle unrelated changes.
+- **PR scope:** Prefer **one logical concern per PR** (easier review and bisect). Small **related** fixes in the same PR are fine if the description lists them. Avoid unrelated drive-by refactors.
 - Match the existing design language. OpenUsage has a specific look and feel.
 
 ## License Agreement
@@ -29,7 +29,7 @@ By submitting a pull request, you agree that your contribution is licensed under
 2. Create a branch (`feat/my-change`, `fix/some-bug`, etc.)
 3. Make your changes
 4. Run `bun run build` and `bun run test` to verify nothing is broken
-5. Open a PR against `main`
+5. Open a PR against `main`. **CI** (GitHub Actions) runs automatically on PRs to `main`; wait for checks to pass before merging when possible.
 
 ### Add a provider plugin
 
