@@ -1,5 +1,8 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
-  - name: General Question
+  - name: Upstream OpenUsage (original project)
     url: https://github.com/robinebers/openusage/discussions
-    about: Ask questions and discuss ideas in GitHub Discussions
+    about: Questions about the original macOS-first OpenUsage by Robin Ebers
+  - name: CrossUsage fork discussions
+    url: https://github.com/barramee27/crossusage/discussions
+    about: Ideas and questions specific to this Linux & Windows fork

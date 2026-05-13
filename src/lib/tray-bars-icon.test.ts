@@ -155,6 +155,7 @@ describe("tray-bars-icon", () => {
 
     expect(svg).toContain("<image ")
     expect(svg).toContain('href="data:image/svg+xml;base64,ABC"')
+    expect(svg).toContain('x="-8" y="-8" width="52" height="52"')
     const viewBox = svg.match(/viewBox="0 0 (\d+) (\d+)"/)
     expect(viewBox).toBeTruthy()
     if (viewBox) {
@@ -220,6 +221,64 @@ describe("tray-bars-icon", () => {
     expect(svg).toContain('color="#ffffff"')
     expect(svg).toContain('fill="currentColor"')
     expect(svg).not.toContain("<image ")
+  })
+
+  it("uses provider brand color for currentColor provider tray icons", () => {
+    const icon = encodeURIComponent(
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z" fill="currentColor"/></svg>'
+    )
+    const svg = makeTrayBarsSvg({
+      sizePx: 30,
+      style: "provider",
+      providerIconUrl: `data:image/svg+xml,${icon}`,
+      providerColor: "#74AA9C",
+      foregroundHex: "#ffffff",
+    })
+
+    expect(svg).toContain('color="#74AA9C"')
+  })
+
+  it("uses tray ink for near-black brandColor on dark UI so currentColor glyphs stay visible", () => {
+    const icon = encodeURIComponent(
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z" fill="currentColor"/></svg>'
+    )
+    const svg = makeTrayBarsSvg({
+      sizePx: 30,
+      style: "provider",
+      providerIconUrl: `data:image/svg+xml,${icon}`,
+      providerColor: "#000000",
+      foregroundHex: "#ffffff",
+    })
+    expect(svg).toContain('color="#ffffff"')
+  })
+
+  it("uses tray ink for near-white brandColor on light UI so currentColor glyphs stay visible", () => {
+    const icon = encodeURIComponent(
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z" fill="currentColor"/></svg>'
+    )
+    const svg = makeTrayBarsSvg({
+      sizePx: 30,
+      style: "provider",
+      providerIconUrl: `data:image/svg+xml,${icon}`,
+      providerColor: "#fefefe",
+      foregroundHex: "#000000",
+    })
+    expect(svg).toContain('color="#000000"')
+  })
+
+  it("uses each provider color for tray bars", () => {
+    const svg = makeTrayBarsSvg({
+      sizePx: 30,
+      style: "bars",
+      foregroundHex: "#ffffff",
+      bars: [
+        { id: "cursor", color: "#000000", items: [{ label: "Credits", fraction: 0.7 }] },
+        { id: "claude", color: "#DE7356", items: [{ label: "Session", fraction: 0.4 }] },
+      ],
+    })
+
+    expect(svg).toContain('fill="#000000"')
+    expect(svg).toContain('fill="#DE7356"')
   })
 
   it("renders at most four grid cells in bars mode", () => {

@@ -8,6 +8,7 @@ import { getEnabledPluginIds, getProviderInstanceMeta } from "@/lib/settings"
 
 import { getTrayForegroundHex, renderTrayBarsIcon, type TrayProviderIcon } from "@/lib/tray-bars-icon"
 import { getTrayIconSizePx } from "@/lib/tray-icon-size"
+import { formatTrayIssuesAppendage } from "@/lib/tray-health"
 import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
 import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
 
@@ -168,8 +169,8 @@ export function useTrayIcon({
       }
 
       const ink = getTrayForegroundHex(systemDarkRef.current)
-      /** macOS template expects dark silhouette; Linux/Windows show raster as-is (white on dark panels). */
-      const rasterUsesTemplate = ink === "#000000"
+      /** Dynamic tray icons now use provider brand colors, so keep raster colors as-is. */
+      const rasterUsesTemplate = false
 
       const maybeSetTitle =
         (tray as TrayIcon & { setTitle?: (value: string | null) => Promise<void> }).setTitle
@@ -270,9 +271,11 @@ export function useTrayIcon({
           })
         : []
 
-      const providerIconUrl = trayProviderId
-        ? getProviderInstanceMeta(trayProviderId, currentSettings, pluginsMetaRef.current)?.iconUrl
-        : undefined
+      const providerMeta = trayProviderId
+        ? getProviderInstanceMeta(trayProviderId, currentSettings, pluginsMetaRef.current)
+        : null
+      const providerIconUrl = providerMeta?.iconUrl
+      const providerColor = providerMeta?.brandColor
       const providerIconUrls = Object.fromEntries(
         barsForPreview.map((bar) => [
           bar.id,
@@ -282,6 +285,7 @@ export function useTrayIcon({
       const providerIcons: TrayProviderIcon[] = barsForPreview.map((bar) => ({
         id: bar.id,
         iconUrl: providerIconUrls[bar.id],
+        color: getProviderInstanceMeta(bar.id, currentSettings, pluginsMetaRef.current)?.brandColor,
       }))
       const providerPercentText = getProviderPercentText({
         providerBars,
@@ -306,11 +310,17 @@ export function useTrayIcon({
         maxBars: 20,
         displayMode: displayModeRef.current,
       })
-      const tooltip = formatTrayTooltip(
+      const baseTooltip = formatTrayTooltip(
         tooltipBars,
         pluginsMetaRef.current,
         displayModeRef.current
       )
+      const issuesLine = formatTrayIssuesAppendage({
+        pluginsMeta: pluginsMetaRef.current,
+        pluginSettings: currentSettings,
+        pluginStates: pluginStatesRef.current,
+      })
+      const tooltip = issuesLine ? `${baseTooltip}\n${issuesLine}` : baseTooltip
       mirrorTrayUsageSummaryToBackend(tooltip)
       const updateTooltip = () => setTrayTooltip(tooltip)
 
@@ -372,6 +382,7 @@ export function useTrayIcon({
           sizePx,
           style: "donut",
           providerIconUrl,
+          providerColor,
           foregroundHex: ink,
         })
           .then(async (img) => {
@@ -395,6 +406,7 @@ export function useTrayIcon({
           sizePx,
           style: "logoBar",
           providerIconUrl: providerIconUrl,
+          providerColor,
           foregroundHex: ink,
         })
           .then(async (img) => {
@@ -419,10 +431,8 @@ export function useTrayIcon({
         sizePx,
 
         style: "provider",
-        percentText: providerPercentText,
-
-        gridCells: [{ text: providerPercentText }],
         providerIconUrl: providerIconUrlToRender,
+        providerColor,
         hideIcon: false,
         foregroundHex: ink,
 
@@ -431,9 +441,10 @@ export function useTrayIcon({
           await tray.setIcon(img)
           await tray.setIconAsTemplate(rasterUsesTemplate)
 
-          await setTrayTitle(providerPercentText)
-
-          await setTrayTitle(null) // Disabling native Title clipping entirely
+          // Keep the tray slot for the logo only. Native titles clip badly in
+          // Windows/Linux trays, and drawing the percent into the bitmap makes
+          // provider icons too small at tray size.
+          await setTrayTitle(null)
           await updateTooltip()
         })
         .catch((e) => {

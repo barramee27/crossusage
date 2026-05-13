@@ -38,6 +38,7 @@ tauri-plugin-autostart = "2.5.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tauri-plugin-liquid-glass = "0.1.6"
 tauri-plugin-positioner = { version = "2.3.1", features = ["tray-icon"] }
+tauri-plugin-clipboard-manager = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

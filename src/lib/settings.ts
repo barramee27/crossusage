@@ -45,7 +45,6 @@ const UI_SCALE_KEY = "uiScale";
 
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
 
-
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 export const DEFAULT_DISPLAY_MODE: DisplayMode = "left";
@@ -518,5 +517,43 @@ export async function loadShowTrayIcon(): Promise<boolean> {
 export async function saveShowTrayIcon(value: boolean): Promise<void> {
   await store.set(SHOW_TRAY_ICON_KEY, value);
 
+  await store.save();
+}
+
+const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
+
+/** When true, successful probes write normalized snapshots to local SQLite (`usage_history.sqlite3` in app data). */
+export async function loadPersistUsageHistory(): Promise<boolean> {
+  const stored = await store.get<unknown>(PERSIST_USAGE_HISTORY_KEY);
+  return typeof stored === "boolean" ? stored : false;
+}
+
+export async function savePersistUsageHistory(value: boolean): Promise<void> {
+  await store.set(PERSIST_USAGE_HISTORY_KEY, value);
+  await store.save();
+}
+
+const ONBOARDING_COMPLETE_V1_KEY = "onboardingCompleteV1";
+
+function hasLegacyMultiAccount(providerInstances: PluginSettings["providerInstances"]): boolean {
+  if (!providerInstances) return false;
+  return Object.keys(providerInstances).some((id) => id.includes(":"));
+}
+
+/** `storedPluginSettings` should be the raw loaded settings (before normalize) used for legacy migration. */
+export async function resolveOnboardingComplete(storedPluginSettings: PluginSettings): Promise<boolean> {
+  const raw = await store.get<unknown>(ONBOARDING_COMPLETE_V1_KEY);
+  if (raw === true) return true;
+  if (raw === false) return false;
+  if (hasLegacyMultiAccount(storedPluginSettings.providerInstances)) {
+    await store.set(ONBOARDING_COMPLETE_V1_KEY, true);
+    await store.save();
+    return true;
+  }
+  return false;
+}
+
+export async function saveOnboardingCompleteV1(done: boolean): Promise<void> {
+  await store.set(ONBOARDING_COMPLETE_V1_KEY, done);
   await store.save();
 }

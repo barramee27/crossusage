@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow"
 import { invoke, isTauri } from "@tauri-apps/api/core"
 import { X } from "lucide-react"
 import { AppContent, type AppContentActionProps } from "@/components/app/app-content"
+import { OnboardingWizard } from "@/components/onboarding-wizard"
 import { LiquidGlassFilter } from "@/components/liquid-glass-filter"
 import { PanelFooter } from "@/components/panel-footer"
 import { SideNav, type NavPlugin, type PluginContextAction } from "@/components/side-nav"
@@ -29,6 +30,10 @@ type AppShellProps = {
   onUpdateInstall: () => void
   onUpdateCheck: () => void
   appContentProps: AppContentActionProps
+
+  showOnboardingWizard: boolean
+  onOnboardingGetStarted: () => void
+  onOnboardingSkip: () => void
 }
 
 export function AppShell({
@@ -45,6 +50,9 @@ export function AppShell({
   onUpdateInstall,
   onUpdateCheck,
   appContentProps,
+  showOnboardingWizard,
+  onOnboardingGetStarted,
+  onOnboardingSkip,
 }: AppShellProps) {
   const { themeMode } = useAppPreferencesStore(
     useShallow((state) => ({ themeMode: state.themeMode }))
@@ -118,6 +126,9 @@ export function AppShell({
               </button>
             ) : null}
             <div className="relative flex min-h-0 flex-1 flex-col">
+              {showOnboardingWizard ? (
+                <OnboardingWizard onGetStarted={onOnboardingGetStarted} onSkip={onOnboardingSkip} />
+              ) : null}
               <div
                 ref={scrollRef}
                 className="min-h-0 flex-1 overflow-y-auto scrollbar-none"

@@ -22,6 +22,7 @@ const {
   migrateLegacyTraySettingsMock,
   normalizePluginSettingsMock,
   savePluginSettingsMock,
+  resolveOnboardingCompleteMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   isTauriMock: vi.fn(),
@@ -43,6 +44,7 @@ const {
   migrateLegacyTraySettingsMock: vi.fn(),
   normalizePluginSettingsMock: vi.fn(),
   savePluginSettingsMock: vi.fn(),
+  resolveOnboardingCompleteMock: vi.fn(),
 }))
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -81,6 +83,7 @@ vi.mock("@/lib/settings", () => ({
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
   normalizePluginSettings: normalizePluginSettingsMock,
   savePluginSettings: savePluginSettingsMock,
+  resolveOnboardingComplete: resolveOnboardingCompleteMock,
 }))
 
 import { useSettingsBootstrap } from "@/hooks/app/use-settings-bootstrap"
@@ -98,6 +101,7 @@ function createArgs() {
     setMenubarIconStyle: vi.fn(),
     setUIScale: vi.fn(),
     setShowTrayIcon: vi.fn(),
+    setOnboardingComplete: vi.fn(),
     setLoadingForPlugins: vi.fn(),
     setErrorForPlugins: vi.fn(),
     startBatch: vi.fn().mockResolvedValue(undefined),
@@ -126,6 +130,7 @@ describe("useSettingsBootstrap", () => {
     migrateLegacyTraySettingsMock.mockReset()
     normalizePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockReset()
+    resolveOnboardingCompleteMock.mockReset()
 
     isTauriMock.mockReturnValue(true)
     isAutostartEnabledMock.mockResolvedValue(true)
@@ -153,7 +158,19 @@ describe("useSettingsBootstrap", () => {
     loadShowTrayIconMock.mockResolvedValue(true)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
+    resolveOnboardingCompleteMock.mockResolvedValue(true)
     getEnabledPluginIdsMock.mockReturnValue(["codex"])
+  })
+
+  it("sets onboarding preference from resolveOnboardingComplete", async () => {
+    resolveOnboardingCompleteMock.mockResolvedValueOnce(false)
+    const args = createArgs()
+    renderHook(() => useSettingsBootstrap(args))
+
+    await waitFor(() => {
+      expect(resolveOnboardingCompleteMock).toHaveBeenCalledWith({ order: ["codex"], disabled: [] })
+      expect(args.setOnboardingComplete).toHaveBeenCalledWith(false)
+    })
   })
 
   it("disables autostart when applyStartOnLogin receives false", async () => {

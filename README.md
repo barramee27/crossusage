@@ -9,6 +9,8 @@ If you cite or redistribute builds from this repo, **name OpenUsage and Robin Eb
 
 See your usage at a glance from your menu bar. No digging through dashboards.
 
+Optional **local usage history** (Settings → *Usage history*): when enabled, successful provider refreshes append normalized rows to SQLite in app data only (not uploaded). Debounced (~32s per account) to limit disk writes.
+
 ![CrossUsage screenshot](screenshot.png)
 
 ## Download
@@ -201,6 +203,8 @@ Plugins are bundled with the app today; the plugin API continues to evolve upstr
 - **Request a feature.** Prefer **[fork issues](https://github.com/barramee27/crossusage/issues)** for Linux/Windows packaging; use **[upstream](https://github.com/robinebers/openusage/issues)** for core product/plugin API work.
 
 Keep it simple. No feature creep, no AI-generated commit messages, test your changes.
+
+**Bug reports:** In the desktop app, open **Settings** → **Troubleshooting** → **Copy log tail** for redacted recent log text only; add your description in a [CrossUsage issue](https://github.com/barramee27/crossusage/issues). The **Bug Report** template on GitHub lists the fields we find most useful.
 
 ## Testing
 

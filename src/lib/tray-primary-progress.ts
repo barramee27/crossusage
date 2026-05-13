@@ -20,6 +20,7 @@ export type TrayPrimaryBarItem = {
 
 export type TrayPrimaryBar = {
   id: string
+  color?: string
   items: TrayPrimaryBarItem[]
 }
 
@@ -144,7 +145,7 @@ export function getTrayPrimaryBars(args: {
       }
     }
 
-    out.push({ id, items })
+    out.push({ id, color: meta.brandColor, items })
     if (out.length >= maxBars) break
   }
 

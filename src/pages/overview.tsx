@@ -18,7 +18,7 @@ export function OverviewPage({
   resetTimerDisplayMode,
   onResetTimerDisplayModeToggle,
 }: OverviewPageProps) {
-  const pluginSettings = useAppPluginStore(state => state.pluginSettings)
+  const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
 
   if (plugins.length === 0) {
     return (
@@ -32,12 +32,12 @@ export function OverviewPage({
     <div>
       {plugins.map((plugin, index) => {
         const rawLines = pluginSettings?.trayLines?.[plugin.meta.id]
-        // null/undefined/[] = never configured → show all
-        // ['__NONE__'] = sentinel for explicitly empty → show none
-        // [...] = user selection
-        const allowedLabels = (rawLines == null || rawLines.length === 0) ? null
-          : rawLines[0] === '__NONE__' ? []
-          : rawLines
+        const allowedLabels =
+          rawLines == null || rawLines.length === 0
+            ? null
+            : rawLines[0] === "__NONE__"
+              ? []
+              : rawLines
 
         return (
           <ProviderCard
