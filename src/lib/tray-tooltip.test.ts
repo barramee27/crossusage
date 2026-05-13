@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { formatTrayItemCaption, formatTrayPercentText, formatTrayTooltip } from "./tray-tooltip"
+import {
+  formatTrayItemCaption,
+  formatTrayPercentText,
+  formatTrayTooltip,
+} from "./tray-tooltip"
 import type { PluginMeta } from "./plugin-types"
 import type { TrayPrimaryBar } from "./tray-primary-progress"
 

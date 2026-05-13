@@ -12,6 +12,8 @@ use crossusage_core::{plugin_engine, provider_accounts};
 #[cfg(target_os = "windows")]
 use panel_windows as panel;
 mod local_http_api;
+mod os_diagnostics;
+mod support_bundle;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod popover_platform;
 mod tray;
@@ -626,12 +628,14 @@ async fn start_probe_batch(
     }
 
     let remaining = Arc::new(AtomicUsize::new(selected_plugins.len()));
+    let history_dir = app_data_dir.clone();
     for (plugin, account_context) in selected_plugins {
         let handle = app_handle.clone();
         let completion_handle = app_handle.clone();
         let bid = batch_id.clone();
         let completion_bid = batch_id.clone();
         let data_dir = app_data_dir.clone();
+        let history_dir_spawn = history_dir.clone();
         let version = app_version.clone();
         let counter = Arc::clone(&remaining);
 
@@ -669,6 +673,14 @@ async fn start_probe_batch(
                             output.lines.len()
                         );
                         local_http_api::cache_successful_output(&output);
+                        if persist_usage_history_enabled(&handle) {
+                            if let Err(e) = crossusage_core::usage_history::append_probe_snapshot(
+                                &history_dir_spawn,
+                                &output,
+                            ) {
+                                log::debug!("usage history append: {}", e);
+                            }
+                        }
                     }
                     let _ = handle.emit(
                         "probe:result",
@@ -714,11 +726,9 @@ async fn start_probe_batch(
     })
 }
 
-#[tauri::command]
-fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
+pub(crate) fn resolve_log_file_path(app_handle: &tauri::AppHandle) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
-        // macOS log directory: ~/Library/Logs/{bundleIdentifier}
         let home = dirs::home_dir().ok_or("no home dir")?;
         let bundle_id = app_handle.config().identifier.clone();
         let log_dir = home.join("Library").join("Logs").join(&bundle_id);
@@ -728,11 +738,15 @@ fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     #[cfg(not(target_os = "macos"))]
     {
         use tauri::Manager;
-        // Linux/Windows log directory
         let log_dir = app_handle.path().app_log_dir().map_err(|e| e.to_string())?;
         let log_file = log_dir.join(format!("{}.log", app_handle.package_info().name));
         Ok(log_file.to_string_lossy().to_string())
     }
+}
+
+#[tauri::command]
+fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
+    resolve_log_file_path(&app_handle)
 }
 
 /// Returns `std::env::consts::OS` for the **built** target (e.g. `linux`, `windows`, `macos`).
@@ -741,10 +755,52 @@ fn get_platform() -> String {
     std::env::consts::OS.to_string()
 }
 
+#[tauri::command]
+fn get_os_diagnostics() -> os_diagnostics::OsDiagnostics {
+    os_diagnostics::collect()
+}
+
 /// Linux: updates disabled tray menu rows that mirror the dynamic usage tooltip. Other OS: no-op.
 #[tauri::command]
 fn update_tray_usage_summary(summary: String) {
     tray::update_tray_usage_summary(&summary);
+}
+
+#[tauri::command]
+fn get_support_bundle_json(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    support_bundle::build_support_bundle(&app_handle)
+}
+
+fn persist_usage_history_enabled(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    match app.store("settings.json") {
+        Ok(store) => store
+            .get("persistUsageHistory")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+#[tauri::command]
+fn list_usage_history(
+    state: tauri::State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+) -> Result<Vec<crossusage_core::usage_history::UsageHistoryRow>, String> {
+    let dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    crossusage_core::usage_history::list_recent(&dir, limit.unwrap_or(80)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_usage_history(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
+    let dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    crossusage_core::usage_history::clear_all(&dir).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -872,6 +928,7 @@ pub fn run() {
         .plugin(tauri_plugin_aptabase::Builder::new(APTABASE_APP_KEY).build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_positioner::init());
 
     #[cfg(target_os = "macos")]
@@ -907,7 +964,11 @@ pub fn run() {
             delete_provider_account,
             list_plugins,
             get_log_path,
+            get_support_bundle_json,
+            list_usage_history,
+            clear_usage_history,
             get_platform,
+            get_os_diagnostics,
             update_tray_usage_summary,
             set_tray_restart_label,
             update_global_shortcut
@@ -925,7 +986,13 @@ pub fn run() {
             use tauri::Manager;
 
             let version = app.package_info().version.to_string();
-            log::info!("CrossUsage v{} starting", version);
+            log::info!(
+                "CrossUsage v{} starting | Tauri {} | id {} | {}",
+                version,
+                tauri::VERSION,
+                app.config().identifier,
+                os_diagnostics::log_summary_one_line()
+            );
 
             ensure_crossusage_user_config_file();
 

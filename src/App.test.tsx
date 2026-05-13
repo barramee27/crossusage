@@ -44,6 +44,8 @@ const state = vi.hoisted(() => ({
   traySetTitleMock: vi.fn(),
   traySetTooltipMock: vi.fn(),
   resolveResourceMock: vi.fn(),
+  resolveOnboardingCompleteMock: vi.fn(),
+  saveOnboardingCompleteV1Mock: vi.fn(),
 }))
 
 const dndState = vi.hoisted(() => ({
@@ -251,6 +253,8 @@ vi.mock("@/lib/settings", async () => {
     saveGlobalShortcut: state.saveGlobalShortcutMock,
     loadStartOnLogin: state.loadStartOnLoginMock,
     saveStartOnLogin: state.saveStartOnLoginMock,
+    resolveOnboardingComplete: state.resolveOnboardingCompleteMock,
+    saveOnboardingCompleteV1: state.saveOnboardingCompleteV1Mock,
   }
 })
 
@@ -289,6 +293,8 @@ describe("App", () => {
     state.saveGlobalShortcutMock.mockReset()
     state.loadStartOnLoginMock.mockReset()
     state.saveStartOnLoginMock.mockReset()
+    state.resolveOnboardingCompleteMock.mockReset()
+    state.saveOnboardingCompleteV1Mock.mockReset()
     state.autostartEnableMock.mockReset()
     state.autostartDisableMock.mockReset()
     state.autostartIsEnabledMock.mockReset()
@@ -327,6 +333,8 @@ describe("App", () => {
     state.saveGlobalShortcutMock.mockResolvedValue(undefined)
     state.loadStartOnLoginMock.mockResolvedValue(false)
     state.saveStartOnLoginMock.mockResolvedValue(undefined)
+    state.resolveOnboardingCompleteMock.mockResolvedValue(true)
+    state.saveOnboardingCompleteV1Mock.mockResolvedValue(undefined)
     state.autostartEnableMock.mockResolvedValue(undefined)
     state.autostartDisableMock.mockResolvedValue(undefined)
     state.autostartIsEnabledMock.mockResolvedValue(false)
@@ -701,8 +709,8 @@ describe("App", () => {
     await waitFor(() => expect(state.renderTrayBarsIconMock).toHaveBeenCalled())
 
     const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
-    expect(firstCall.gridCells).toEqual([{ text: "--%" }])
-    expect(firstCall.percentText).toBe("--%")
+    expect(firstCall.style).toBe("provider")
+    expect(firstCall.providerIconUrl).toBe("icon-a")
     expect(state.traySetTitleMock).not.toHaveBeenCalled()
   })
 
@@ -1821,8 +1829,7 @@ describe("App", () => {
       await vi.waitFor(() =>
         expect(state.renderTrayBarsIconMock).toHaveBeenCalledWith(expect.objectContaining({
           sizePx: expect.any(Number),
-          gridCells: [{ text: "--%" }],
-          percentText: "--%",
+          style: "provider",
           providerIconUrl: "icon-a",
           hideIcon: false,
         }))
@@ -1859,7 +1866,7 @@ describe("App", () => {
     resolveResourcePath?.("/resource/icons/tray-icon.png")
 
     await waitFor(() => expect(state.traySetIconMock).toHaveBeenCalledWith({}))
-    expect(state.traySetIconAsTemplateMock).toHaveBeenCalledWith(true)
+    expect(state.traySetIconAsTemplateMock).toHaveBeenCalledWith(false)
     expect(state.traySetTitleMock).toHaveBeenCalledWith(null)
   })
 

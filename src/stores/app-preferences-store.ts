@@ -31,6 +31,9 @@ type AppPreferencesStore = {
 
   showTrayIcon: boolean
 
+  /** `null` until bootstrap resolves onboarding (avoids flash). */
+  onboardingComplete: boolean | null
+
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
   setDisplayMode: (value: DisplayMode) => void
@@ -42,6 +45,7 @@ type AppPreferencesStore = {
   setUIScale: (value: UIScale) => void
 
   setShowTrayIcon: (value: boolean) => void
+  setOnboardingComplete: (value: boolean) => void
 
   resetState: () => void
 }
@@ -59,6 +63,7 @@ const initialState = {
 
   showTrayIcon: DEFAULT_SHOW_TRAY_ICON,
 
+  onboardingComplete: null,
 }
 
 export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
@@ -74,6 +79,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setUIScale: (value) => set({ uiScale: value }),
 
   setShowTrayIcon: (value) => set({ showTrayIcon: value }),
+  setOnboardingComplete: (value) => set({ onboardingComplete: value }),
 
   resetState: () => set(initialState),
 }))

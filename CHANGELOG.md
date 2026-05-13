@@ -6,6 +6,7 @@
 
 ### App
 
+- **Usage history (optional):** Settings → *Usage history* — local SQLite (`usage_history.sqlite3` in app data) stores normalized snapshots after successful probes when enabled; ~32s debounce per account; clear from Settings. Not uploaded by CrossUsage.
 - **Updates:** When an update has downloaded, the footer replaces **CrossUsage `<version>`** with **Ready to update** (click to restart and install). No separate Settings section or “check for updates” control—tray **Restart to update** still applies the pending build.
 - **Tray:** Dynamic tray icons pick **white or black** raster ink from the **system** dark/light preference, independent of CrossUsage App Theme; provider PNG logos are unchanged. Indicator placement on GNOME is shell-controlled.
 - **Glass:** stronger panel, nav, and card opacity so text stays readable over terminal/editor backgrounds.

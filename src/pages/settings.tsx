@@ -15,8 +15,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { GripVertical } from "lucide-react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { GlobalShortcutSection } from "@/components/global-shortcut-section";
@@ -36,7 +38,12 @@ import {
   type ResetTimerDisplayMode,
   type ThemeMode,
   type UIScale,
+  loadPersistUsageHistory,
+  savePersistUsageHistory,
 } from "@/lib/settings";
+import { formatLogTailClipboard } from "@/lib/support-issue-paste";
+import type { UsageHistoryRow } from "@/lib/usage-history";
+import { UsageHistoryChart, usageHistoryInstanceOptions } from "@/components/usage-history-chart";
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon";
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list";
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress";
@@ -44,9 +51,11 @@ import {
   buildDevMockProviderCredentials,
   shouldApplyProviderAccountDevMock,
 } from "@/lib/provider-account-dev-mock";
+import { formatOsDiagnosticsLine, type OsDiagnosticsPayload } from "@/lib/os-diagnostics-format";
 import { cn } from "@/lib/utils";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
+import { FORK_REPO_URL } from "@/lib/fork-meta";
 
 const MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK = new Set<MenubarIconStyle>([
   "provider",
@@ -646,6 +655,205 @@ function ProviderAccountForm({
   );
 }
 
+function UsageHistorySection() {
+  const [persist, setPersist] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [rows, setRows] = useState<UsageHistoryRow[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [chartInstanceFilter, setChartInstanceFilter] = useState<string>("all");
+
+  const reload = useCallback(async () => {
+    if (!isTauri()) return;
+    setMsg(null);
+    try {
+      const data = await invoke<UsageHistoryRow[]>("list_usage_history", { limit: 500 });
+      setRows(data);
+    } catch (e) {
+      console.error("list_usage_history:", e);
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPersistUsageHistory()
+      .then((p) => {
+        setPersist(p);
+        setHydrated(true);
+      })
+      .catch((e) => {
+        console.error("loadPersistUsageHistory:", e);
+        setHydrated(true);
+      });
+  }, []);
+
+  const instanceIdsForChart = useMemo(() => usageHistoryInstanceOptions(rows), [rows]);
+
+  useEffect(() => {
+    if (chartInstanceFilter === "all") return;
+    if (!instanceIdsForChart.includes(chartInstanceFilter)) {
+      setChartInstanceFilter("all");
+    }
+  }, [chartInstanceFilter, instanceIdsForChart]);
+
+  useEffect(() => {
+    if (!hydrated || !persist) return;
+    void reload();
+  }, [hydrated, persist, reload]);
+
+  const onPersistChange = async (checked: boolean) => {
+    const prev = persist;
+    setPersist(checked);
+    try {
+      await savePersistUsageHistory(checked);
+      if (checked) await reload();
+      else setRows([]);
+    } catch (e) {
+      console.error(e);
+      setPersist(prev);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">Usage history</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        Optional local SQLite log of successful usage snapshots (normalized %, tokens, cost when
+        available). Stored only on this device in app data — never uploaded by CrossUsage. At most one
+        sample per account per ~32s to limit disk writes.{" "}
+        <strong>Primary %</strong> is the highest <em>percent-type</em> usage bar from that refresh (best-effort);{" "}
+        <strong>0%</strong> usually means the provider returned no percent rows (only counts, dollars, or text).
+      </p>
+      <label className="flex items-center gap-2 text-sm select-none text-foreground mb-3">
+        <Checkbox
+          checked={persist}
+          disabled={!isTauri()}
+          onCheckedChange={(checked) => void onPersistChange(checked === true)}
+        />
+        Save usage snapshots after successful refreshes
+      </label>
+      {!isTauri() ? (
+        <p className="text-xs text-muted-foreground">History is only available in the desktop app.</p>
+      ) : null}
+      {msg ? <p className="text-xs text-destructive mb-2">{msg}</p> : null}
+      {persist && isTauri() ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void reload()}>
+              Refresh list
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-destructive border-destructive/50 hover:bg-destructive/10"
+              onClick={async () => {
+                if (!window.confirm("Delete all saved usage history on this device?")) return;
+                try {
+                  await invoke("clear_usage_history");
+                  setRows([]);
+                } catch (e) {
+                  console.error(e);
+                  setMsg(e instanceof Error ? e.message : String(e));
+                }
+              }}
+            >
+              Clear history
+            </Button>
+          </div>
+          {rows.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-foreground/90">
+                <span className="text-muted-foreground">Chart account</span>
+                <select
+                  className={cn(
+                    "min-w-[10rem] rounded-md border border-border px-2 py-1.5 text-xs font-medium outline-none focus:border-ring",
+                    "bg-secondary text-secondary-foreground",
+                  )}
+                  value={chartInstanceFilter}
+                  onChange={(e) => setChartInstanceFilter(e.target.value)}
+                >
+                  <option value="all">All accounts</option>
+                  {instanceIdsForChart.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
+          <UsageHistoryChart rows={rows} instanceFilter={chartInstanceFilter} />
+          <div className="max-h-64 overflow-auto rounded-md border border-border text-xs">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                <tr className="text-left text-muted-foreground">
+                  <th className="p-2 font-medium">Time</th>
+                  <th className="p-2 font-medium">Account</th>
+                  <th
+                    className="p-2 font-medium max-w-[14rem]"
+                    title="Highest percent-style progress row from that snapshot (same heuristic as charts). Not a bill or invoice total."
+                  >
+                    Usage
+                  </th>
+                  <th className="p-2 font-medium">Plan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-3 text-muted-foreground">
+                      No rows yet — enable above and wait for a successful provider refresh.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.id} className="border-t border-border/60">
+                      <td className="p-2 whitespace-nowrap font-mono">
+                        {new Date(r.capturedAtMs).toLocaleString()}
+                      </td>
+                      <td className="p-2">
+                        <div className="font-medium">{r.displayName}</div>
+                        <div className="text-muted-foreground">{r.instanceId}</div>
+                      </td>
+                      <td className="p-2 align-top">
+                        <div className="tabular-nums font-medium text-foreground">
+                          {r.primaryPercent.toFixed(1)}%
+                        </div>
+                        <div className="mt-1 space-y-0.5 text-muted-foreground font-normal normal-case">
+                          {r.inputTokens != null || r.outputTokens != null ? (
+                            <div>
+                              In {r.inputTokens != null ? r.inputTokens.toLocaleString() : "—"} · Out{" "}
+                              {r.outputTokens != null ? r.outputTokens.toLocaleString() : "—"}
+                            </div>
+                          ) : null}
+                          {r.cost != null ? (
+                            <div
+                              className="text-foreground/90"
+                              title="Dollar snapshot from a dollars-type progress row. For Cursor’s Credits row, this is dollars remaining on that bar (limit − used there), not the same as the % columns."
+                            >
+                              ≈ ${r.cost.toFixed(2)}
+                            </div>
+                          ) : null}
+                          {r.quotaSummary ? (
+                            <div className="line-clamp-2 break-words" title={r.quotaSummary}>
+                              {r.quotaSummary}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="p-2 text-muted-foreground">{r.plan ?? "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 interface SettingsPageProps {
   plugins: SettingsPluginState[];
   onReorder: (orderedIds: string[]) => void;
@@ -709,6 +917,8 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
+  const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
+  const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
   const [cursorTrayIconDialog, setCursorTrayIconDialog] = useState<{
     nextStyle: MenubarIconStyle;
     selectedLine: string;
@@ -719,6 +929,23 @@ export function SettingsPage({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await invoke<OsDiagnosticsPayload>("get_os_diagnostics");
+        if (cancelled) return;
+        setTroubleshootingOsLine(formatOsDiagnosticsLine(raw));
+      } catch (e) {
+        console.error("get_os_diagnostics:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleMenubarIconStyleOptionClick = (style: MenubarIconStyle) => {
     if (style === menubarIconStyle) return;
@@ -1042,6 +1269,72 @@ export function SettingsPage({
           />
           Start on login
         </label>
+      </section>
+      <UsageHistorySection />
+      <section>
+        <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          <strong>Copy log tail</strong> copies plain text: a short header (version, OS, enabled accounts) plus
+          the redacted recent log (no JSON, no issue template). Lines tagged for provider accounts you have
+          disabled are omitted from the tail when your enabled list is non-empty. Add your own description when
+          opening an issue on{" "}
+          <button
+            type="button"
+            className="inline cursor-pointer border-0 bg-transparent p-0 font-inherit text-sm text-primary underline-offset-2 hover:underline align-baseline"
+            onClick={() => openUrl(`${FORK_REPO_URL}/issues`).catch(console.error)}
+          >
+            GitHub
+          </button>
+          . Redaction is best-effort. A suffix like <span className="tabular-nums">(×12)</span> means the same
+          log line repeated 12 times in a row.
+        </p>
+        {troubleshootingOsLine ? (
+          <p className="text-xs font-mono text-muted-foreground mb-2">{troubleshootingOsLine}</p>
+        ) : null}
+        <div className="bg-muted/50 rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={async () => {
+              setSupportBundleMessage(null);
+              if (!isTauri()) {
+                setSupportBundleMessage("Support bundle is only available in the desktop app.");
+                return;
+              }
+              let bundle: Record<string, unknown>;
+              try {
+                bundle = await invoke<Record<string, unknown>>("get_support_bundle_json");
+              } catch (e) {
+                console.error("get_support_bundle_json:", e);
+                const msg = e instanceof Error ? e.message : String(e);
+                setSupportBundleMessage(`Could not build bundle: ${msg}`);
+                return;
+              }
+              const text = formatLogTailClipboard(bundle);
+              try {
+                await writeText(text);
+                setSupportBundleMessage("Copied redacted log tail.");
+              } catch (e) {
+                console.error("clipboard writeText (Tauri):", e);
+                try {
+                  await navigator.clipboard.writeText(text);
+                  setSupportBundleMessage("Copied to clipboard (browser API fallback).");
+                } catch (e2) {
+                  console.error("navigator.clipboard.writeText:", e2);
+                  const msg = e instanceof Error ? e.message : String(e);
+                  setSupportBundleMessage(`Bundle built but clipboard failed: ${msg}`);
+                }
+              }
+            }}
+          >
+            Copy log tail
+          </Button>
+          {supportBundleMessage ? (
+            <span className="text-xs text-muted-foreground">{supportBundleMessage}</span>
+          ) : null}
+        </div>
       </section>
       <section>
         <h3 className="text-lg font-semibold mb-0">Plugins</h3>

@@ -30,6 +30,7 @@ import {
   loadStartOnLogin,
   loadThemeMode,
   normalizePluginSettings,
+  resolveOnboardingComplete,
   savePluginSettings,
   saveShowTrayIcon,
   type AutoUpdateIntervalMinutes,
@@ -57,6 +58,8 @@ type UseSettingsBootstrapArgs = {
 
   setShowTrayIcon: (value: boolean) => void
 
+  setOnboardingComplete: (value: boolean) => void
+
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
   startBatch: (pluginIds?: string[]) => Promise<string[] | undefined>
@@ -76,6 +79,8 @@ export function useSettingsBootstrap({
   setUIScale,
 
   setShowTrayIcon,
+
+  setOnboardingComplete,
 
   setLoadingForPlugins,
   setErrorForPlugins,
@@ -104,6 +109,14 @@ export function useSettingsBootstrap({
         setPluginsMeta(availablePlugins)
 
         const storedSettings = await loadPluginSettings()
+
+        let onboardingDone = false
+        try {
+          onboardingDone = await resolveOnboardingComplete(storedSettings)
+        } catch (error) {
+          console.error("Failed to resolve onboarding state:", error)
+        }
+
         const normalized = normalizePluginSettings(storedSettings, availablePlugins)
         if (!arePluginSettingsEqual(storedSettings, normalized)) {
           await savePluginSettings(normalized)
@@ -204,6 +217,7 @@ export function useSettingsBootstrap({
 
           setShowTrayIcon(true)
 
+          setOnboardingComplete(onboardingDone)
 
           const enabledIds = getEnabledPluginIds(normalized)
           setLoadingForPlugins(enabledIds)
@@ -218,6 +232,9 @@ export function useSettingsBootstrap({
         }
       } catch (e) {
         console.error("Failed to load plugin settings:", e)
+        if (isMounted) {
+          setOnboardingComplete(true)
+        }
       }
     }
 
@@ -235,11 +252,11 @@ export function useSettingsBootstrap({
     setGlobalShortcut,
     setLoadingForPlugins,
     setMenubarIconStyle,
-    migrateLegacyTraySettings,
     setPluginSettings,
     setPluginsMeta,
     setResetTimerDisplayMode,
     setShowTrayIcon,
+    setOnboardingComplete,
     setStartOnLogin,
     setThemeMode,
     startBatch,

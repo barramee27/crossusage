@@ -4,7 +4,13 @@ import { OverviewPage } from "@/pages/overview"
 
 describe("OverviewPage", () => {
   it("renders empty state", () => {
-    render(<OverviewPage plugins={[]} displayMode="used" resetTimerDisplayMode="relative" />)
+    render(
+      <OverviewPage
+        plugins={[]}
+        displayMode="used"
+        resetTimerDisplayMode="relative"
+      />
+    )
     expect(screen.getByText("No providers enabled")).toBeInTheDocument()
   })
 
@@ -19,7 +25,13 @@ describe("OverviewPage", () => {
         lastUpdatedAt: null,
       },
     ]
-    render(<OverviewPage plugins={plugins} displayMode="used" resetTimerDisplayMode="relative" />)
+    render(
+      <OverviewPage
+        plugins={plugins}
+        displayMode="used"
+        resetTimerDisplayMode="relative"
+      />
+    )
     expect(screen.getByText("Alpha")).toBeInTheDocument()
   })
 
@@ -50,7 +62,13 @@ describe("OverviewPage", () => {
         lastUpdatedAt: null,
       },
     ]
-    render(<OverviewPage plugins={plugins} displayMode="used" resetTimerDisplayMode="relative" />)
+    render(
+      <OverviewPage
+        plugins={plugins}
+        displayMode="used"
+        resetTimerDisplayMode="relative"
+      />
+    )
     expect(screen.getByText("Primary")).toBeInTheDocument()
     expect(screen.getByText("Shown")).toBeInTheDocument()
     expect(screen.queryByText("Secondary")).not.toBeInTheDocument()
@@ -75,7 +93,13 @@ describe("OverviewPage", () => {
       },
     ]
 
-    render(<OverviewPage plugins={plugins} displayMode="used" resetTimerDisplayMode="relative" />)
+    render(
+      <OverviewPage
+        plugins={plugins}
+        displayMode="used"
+        resetTimerDisplayMode="relative"
+      />
+    )
     expect(screen.queryByRole("button", { name: /status/i })).toBeNull()
   })
 })

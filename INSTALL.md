@@ -4,7 +4,7 @@
 
 ## One-line install from GitHub
 
-Scripts live under [`scripts/`](scripts/): they query the [latest GitHub release](https://github.com/barramee27/crossusage/releases/latest), pick an artifact for your OS, install it, and run basic checks.
+Scripts live under `[scripts/](scripts/)`: they query the [latest GitHub release](https://github.com/barramee27/crossusage/releases/latest), pick an artifact for your OS, install it, and run basic checks.
 
 ### Linux (`install.sh`)
 
@@ -16,7 +16,7 @@ Scripts live under [`scripts/`](scripts/): they query the [latest GitHub release
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 ```
 
-- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script prefers a matching asset on the **latest GitHub Release**, then `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (`INSTALL_GIT_REF`) via `raw.githubusercontent.com`. The extracted layout must keep **`crossusage-cli`** and **`resources/bundled_plugins/`** side by side (install puts them under `~/.local/lib/crossusage/`). A bare `cargo install` of the CLI **does not** ship that folder — use this install mode, or set **`CROSSUSAGE_RESOURCES`**. Build with `bun run release:cli-tarball` on Linux, upload the tarball to a release and/or copy into `releases/`, commit, and push.
+- **CLI-only (standalone portable bundle — binary + `resources/bundled_plugins`):** the script prefers a matching asset on the **latest GitHub Release**, then `releases/crossusage-cli_<version>_linux_<arch>.tar.gz` on the branch (`INSTALL_GIT_REF`) via `raw.githubusercontent.com`. The extracted layout must keep `**crossusage-cli`** and `**resources/bundled_plugins/**` side by side (install puts them under `~/.local/lib/crossusage/`). A bare `cargo install` of the CLI **does not** ship that folder — use this install mode, or set `**CROSSUSAGE_RESOURCES`**. Build with `bun run release:cli-tarball` on Linux, upload the tarball to a release and/or copy into `releases/`, commit, and push.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | INSTALL_MODE=cli bash
@@ -24,22 +24,21 @@ curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-wi
 
 If you installed the full `.deb` but `/usr/bin/crossusage-cli` is missing (older build), the script will **automatically** add the portable CLI under `~/.local/lib/crossusage` when that tarball exists on the branch or release.
 
-- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` for **fallback** `releases/` URLs on `raw.githubusercontent.com` (defaults to **`feat/linux-windows-native-support`** in this fork’s `install.sh`).
+- **Environment:** `GITHUB_REPO` (default `barramee27/crossusage`); `INSTALL_KIND=deb|rpm|appimage` to force a format (full mode); `INSTALL_MODE=cli` for tarball-only; `INSTALL_GIT_REF` for **fallback** `releases/` URLs on `raw.githubusercontent.com` (defaults to `**feat/linux-windows-native-support`** in this fork’s `install.sh`).
 
-**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. The installer tries, in order: `INSTALL_CLI_URL` override → **latest GitHub Release** asset matching `crossusage-cli_.+_darwin_<arch>.tar.gz` → versioned `releases/crossusage-cli_<version>_darwin_<arch>.tar.gz` on the branch (`INSTALL_GIT_REF`) → legacy unversioned name on the branch. The CLI resolves plugins via the real binary path (symlinks in `~/.local/bin` are OK); it will **not** use the shell’s current directory as a fake resource root. If you copy only the binary out of the tarball, set **`CROSSUSAGE_RESOURCES`** to the folder that still contains **`resources/bundled_plugins`** (or point it at `…/Contents/Resources` inside a `.app`).
+**macOS (CLI only):** use the same command with `INSTALL_MODE=cli`. The installer tries, in order: `INSTALL_CLI_URL` override → **latest GitHub Release** asset matching `crossusage-cli_.+_darwin_<arch>.tar.gz` → versioned `releases/crossusage-cli_<version>_darwin_<arch>.tar.gz` on the branch (`INSTALL_GIT_REF`) → legacy unversioned name on the branch. The CLI resolves plugins via the real binary path (symlinks in `~/.local/bin` are OK); it will **not** use the shell’s current directory as a fake resource root. If you copy only the binary out of the tarball, set `**CROSSUSAGE_RESOURCES`** to the folder that still contains `**resources/bundled_plugins**` (or point it at `…/Contents/Resources` inside a `.app`).
 
-- **Apple Silicon (`arm64`):** build locally with `bun run release:cli-tarball` / `./scripts/build-cli-tarball.sh` (after `bun install` and `bun run bundle:plugins`), **or** run **Actions → macOS CLI tarball** (workflow_dispatch). Prefer **Upload to latest GitHub Release** so `install.sh` with `INSTALL_MODE=cli` picks it up **without** committing the tarball under [`releases/`](releases/README.md); branch `releases/` remains a fallback. A GitHub Release must already exist.
+- **Apple Silicon (`arm64`):** build locally with `bun run release:cli-tarball` / `./scripts/build-cli-tarball.sh` (after `bun install` and `bun run bundle:plugins`), **or** run **Actions → macOS CLI tarball** (workflow_dispatch). Prefer **Upload to latest GitHub Release** so `install.sh` with `INSTALL_MODE=cli` picks it up **without** committing the tarball under `[releases/](releases/README.md)`; branch `releases/` remains a fallback. A GitHub Release must already exist.
 - **Intel (`amd64`):** GitHub’s macOS runners only produce `darwin_arm64`; build `crossusage-cli_<version>_darwin_amd64.tar.gz` on an Intel Mac with the same scripts, then publish it the same way (branch `releases/` and/or release asset).
 
 This fork does not ship a macOS **desktop** installer here; for a macOS GUI, see [upstream OpenUsage](https://github.com/robinebers/openusage/releases/latest).
 
-**Git Bash / MSYS on Windows:** `install.sh` tells you to use PowerShell and [`install.ps1`](scripts/install.ps1) instead.
+**Git Bash / MSYS on Windows:** `install.sh` tells you to use PowerShell and `[install.ps1](scripts/install.ps1)` instead.
 
 ### Windows (`install.ps1`)
 
 - **Full app (default):** downloads the latest `*x64-setup.exe` (NSIS) and runs it (silent `/S` unless `INSTALL_SILENT=0`).
-- **CLI-only (portable bundle — same idea as `INSTALL_MODE=cli` on Linux):** downloads `releases/crossusage-cli_<version>_windows_<arch>.zip` (or `.tar.gz`) from the branch, extracts to `%USERPROFILE%\.local\lib\crossusage\`, adds `%USERPROFILE%\.local\bin\crossusage-cli.cmd` to your **user** `PATH`, and verifies `crossusage-cli list`. Build the zip on Windows with [`scripts/build-cli-windows.ps1`](scripts/build-cli-windows.ps1), commit under `releases/`, then push.
-
+- **CLI-only (portable bundle — same idea as `INSTALL_MODE=cli` on Linux):** downloads `releases/crossusage-cli_<version>_windows_<arch>.zip` (or `.tar.gz`) from the branch, extracts to `%USERPROFILE%\.local\lib\crossusage\`, adds `%USERPROFILE%\.local\bin\crossusage-cli.cmd` to your **user** `PATH`, and verifies `crossusage-cli list`. Build the zip on Windows with `[scripts/build-cli-windows.ps1](scripts/build-cli-windows.ps1)`, commit under `releases/`, then push.
 - **Commands:**
 
 ```powershell
@@ -61,4 +60,4 @@ Review the scripts in this repo before piping to `bash` or `iex`. They use `http
 
 **Developers:** clone the repo and follow **Build from source** in the [README](README.md) (collapsed section at the bottom) for prerequisites, `bun install`, `cargo` / Tauri build, and `cargo run -p crossusage-cli`.
 
-For resource path overrides when running the CLI outside the installed app, see `CROSSUSAGE_RESOURCES` in [`crates/crossusage-core/src/paths.rs`](crates/crossusage-core/src/paths.rs).
+For resource path overrides when running the CLI outside the installed app, see `CROSSUSAGE_RESOURCES` in `[crates/crossusage-core/src/paths.rs](crates/crossusage-core/src/paths.rs)`.

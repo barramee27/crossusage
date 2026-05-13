@@ -18,6 +18,7 @@ import {
   getBaseProviderId,
   getProviderInstanceLabel,
   REFRESH_COOLDOWN_MS,
+  saveOnboardingCompleteV1,
   savePluginSettings,
 } from "@/lib/settings"
 import { type PluginContextAction } from "@/components/side-nav"
@@ -79,6 +80,9 @@ function App() {
 
     setShowTrayIcon,
 
+    onboardingComplete,
+    setOnboardingComplete,
+
   } = useAppPreferencesStore(
     useShallow((state) => ({
       autoUpdateInterval: state.autoUpdateInterval,
@@ -98,6 +102,9 @@ function App() {
       setUIScale: state.setUIScale,
 
       setShowTrayIcon: state.setShowTrayIcon,
+
+      onboardingComplete: state.onboardingComplete,
+      setOnboardingComplete: state.setOnboardingComplete,
 
     }))
   )
@@ -156,6 +163,8 @@ function App() {
     setUIScale,
 
     setShowTrayIcon,
+
+    setOnboardingComplete,
 
     setLoadingForPlugins,
     setErrorForPlugins,
@@ -259,6 +268,29 @@ function App() {
     pluginsMeta,
     pluginStates,
   })
+
+  const showOnboardingWizard = onboardingComplete === false && pluginSettings !== null
+
+  const handleOnboardingGetStarted = useCallback(() => {
+    void saveOnboardingCompleteV1(true)
+      .then(() => {
+        setOnboardingComplete(true)
+        setActiveView("settings")
+      })
+      .catch((error) => {
+        console.error("Failed to save onboarding completion:", error)
+      })
+  }, [setActiveView, setOnboardingComplete])
+
+  const handleOnboardingSkip = useCallback(() => {
+    void saveOnboardingCompleteV1(true)
+      .then(() => {
+        setOnboardingComplete(true)
+      })
+      .catch((error) => {
+        console.error("Failed to save onboarding completion:", error)
+      })
+  }, [setOnboardingComplete])
 
   const handlePluginContextAction = useCallback(
     (pluginId: string, action: PluginContextAction) => {
@@ -489,6 +521,9 @@ function App() {
       updateStatus={updateStatus}
       onUpdateInstall={triggerInstall}
       onUpdateCheck={checkForUpdates}
+      showOnboardingWizard={showOnboardingWizard}
+      onOnboardingGetStarted={handleOnboardingGetStarted}
+      onOnboardingSkip={handleOnboardingSkip}
       appContentProps={{
         onRetryPlugin: handleRetryPlugin,
         onReorder: handleReorder,
@@ -513,7 +548,6 @@ function App() {
         onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
 
         cursorRequestsLineAvailable,
-
       }}
     />
   )

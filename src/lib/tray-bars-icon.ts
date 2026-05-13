@@ -1,4 +1,5 @@
 import { Image } from "@tauri-apps/api/image"
+import { getRelativeLuminance } from "@/lib/color"
 import type { MenubarIconStyle } from "@/lib/settings"
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress"
 
@@ -9,12 +10,14 @@ export type TrayGridCell = {
 export type TrayProviderIcon = {
   id: string
   iconUrl?: string
+  color?: string
 }
 
 const BARS_TRACK_OPACITY = 0.16
 const BARS_REMAINDER_OPACITY = 0.24
 const BARS_FILL_OPACITY = 1
 const LOGO_REMAINDER_OPACITY = 0.18
+const PROVIDER_ICON_TRAY_SCALE = 1.45
 
 function rgbaToImageDataBytes(rgba: Uint8ClampedArray): Uint8Array {
   // Image.new expects Uint8Array. Uint8ClampedArray shares the same buffer layout.
@@ -75,17 +78,21 @@ function providerIconMarkup(args: {
   clipPathId?: string
 }): string {
   const { href, x, y, size, color, opacity = 1, clipPathId } = args
+  const bleed = Math.max(0, Math.round((size * (PROVIDER_ICON_TRAY_SCALE - 1)) / 2))
+  const drawX = x - bleed
+  const drawY = y - bleed
+  const drawSize = size + bleed * 2
   const svgText = href.length > 0 ? decodeSvgDataUrl(href) : null
-  const inlineSvg = svgText ? inlineSvgImage({ svgText, x, y, size, color }) : null
+  const inlineSvg = svgText ? inlineSvgImage({ svgText, x: drawX, y: drawY, size: drawSize, color }) : null
   const content = inlineSvg
     ? inlineSvg
     : href.length > 0
-      ? `<image x="${x}" y="${y}" width="${size}" height="${size}" href="${escapeXmlText(href)}" preserveAspectRatio="xMidYMid meet" />`
+      ? `<image x="${drawX}" y="${drawY}" width="${drawSize}" height="${drawSize}" href="${escapeXmlText(href)}" preserveAspectRatio="xMidYMid meet" />`
       : (() => {
           const cx = x + size / 2
           const cy = y + size / 2
-          const radius = Math.max(2, size / 2 - 1.5)
-          const strokeW = Math.max(1.5, Math.round(size * 0.14))
+          const radius = Math.max(2, drawSize / 2 - 1.5)
+          const strokeW = Math.max(1.5, Math.round(drawSize * 0.14))
           return `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${color}" stroke-width="${strokeW}" opacity="1" shape-rendering="geometricPrecision" />`
         })()
 
@@ -171,6 +178,20 @@ function normalizePercentText(percentText: string | undefined): string | undefin
 function estimateTextWidthPx(text: string, fontSize: number): number {
   // Empirical estimate for SF Pro bold numeric glyphs in tray-sized icons.
   return Math.ceil(text.length * fontSize * 0.62 + fontSize * 0.2)
+}
+
+function providerColor(color: string | undefined, fallback: string): string {
+  const trimmed = typeof color === "string" ? color.trim() : ""
+  return trimmed.length > 0 ? trimmed : fallback
+}
+
+/** currentColor-only logos (e.g. Cursor): pure brand black/white vanishes on real tray chrome — use tray ink. */
+function trayContrastBrandHex(brandHex: string, foregroundHex: string): string {
+  const fg = foregroundHex.trim().toLowerCase()
+  const lum = getRelativeLuminance(brandHex)
+  if ((fg === "#ffffff" || fg === "#fff") && lum < 0.08) return "#ffffff"
+  if ((fg === "#000000" || fg === "#000") && lum > 0.92) return "#000000"
+  return brandHex
 }
 
 function getSvgLayout(args: {
@@ -266,8 +287,9 @@ function getSvgLayout(args: {
     }
 
     if (!cellText) {
-      // Icon-only square.
-      const iconOnlySize = innerW
+      // Icon-only square. Use the full tray tile so provider logos match
+      // native tray icons instead of looking like a small glyph with padding.
+      const iconOnlySize = sizePx
       return {
         width: sizePx,
         height: sizePx,
@@ -276,14 +298,14 @@ function getSvgLayout(args: {
         barsX: stackPad,
         barsWidth: innerW,
         iconSize: iconOnlySize,
-        iconX: stackPad,
-        iconY: stackPad,
+        iconX: 0,
+        iconY: 0,
         texts: [],
       }
     }
 
-    // Icon (top ~52%) + percent (bottom ~42%) inside a square bitmap.
-    const iconAreaH = Math.round(sizePx * 0.52)
+    // Icon (top ~58%) + percent (bottom) inside a square bitmap — favours logo readability.
+    const iconAreaH = Math.round(sizePx * 0.58)
     const stackedIconSize = Math.max(8, iconAreaH - stackPad)
     const stackedIconX = Math.round((sizePx - stackedIconSize) / 2)
     const stackedIconY = stackPad
@@ -422,6 +444,7 @@ export type TrayBarsIconArgs = {
   style?: MenubarIconStyle
   percentText?: string
   providerIconUrl?: string
+  providerColor?: string
   providerIcons?: TrayProviderIcon[]
   gridCells?: TrayGridCell[]
   hideIcon?: boolean
@@ -577,11 +600,14 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
     style = "provider",
     percentText,
     providerIconUrl,
+    providerColor: singleProviderColor,
     providerIcons = [],
     gridCells = [],
     hideIcon = false,
     foregroundHex = "#000000",
   } = args
+  const resolvedProviderBrand = providerColor(singleProviderColor, foregroundHex)
+  const trayGlyphTint = trayContrastBrandHex(resolvedProviderBrand, foregroundHex)
   const barsForStyle = style === "bars" || style === "logoGrid" ? bars : bars.slice(0, 1)
   const n = Math.max(1, Math.min(4, barsForStyle.length || 1))
   const text = normalizePercentText(percentText)
@@ -614,17 +640,29 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
         y: layout.iconY ?? layout.pad,
         size: layout.iconSize,
         fraction: logoFraction(barsForStyle[0]),
-        color: foregroundHex,
+        color: trayContrastBrandHex(
+          providerColor(barsForStyle[0]?.color, trayGlyphTint),
+          foregroundHex
+        ),
         clipPathId: "tray-logo-fill",
       })
     )
   } else if (style === "logoGrid") {
-    const iconById = new Map(providerIcons.map((icon) => [icon.id, icon.iconUrl?.trim() ?? ""]))
+    const iconById = new Map(
+      providerIcons.map((icon) => [
+        icon.id,
+        {
+          url: icon.iconUrl?.trim() ?? "",
+          color: icon.color,
+        },
+      ])
+    )
     const cells = logoGridCells({ sizePx, count: barsForStyle.length || 1 })
     for (let i = 0; i < cells.length; i += 1) {
       const bar = barsForStyle[i]
       const cell = cells[i]
-      const href = bar ? (iconById.get(bar.id) ?? "") : ""
+      const provider = bar ? iconById.get(bar.id) : undefined
+      const href = provider?.url ?? ""
       parts.push(
         ...logoProgressParts({
           href,
@@ -632,7 +670,10 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
           y: cell.y,
           size: cell.size,
           fraction: logoFraction(bar),
-          color: foregroundHex,
+          color: trayContrastBrandHex(
+            providerColor(provider?.color ?? bar?.color, foregroundHex),
+            foregroundHex
+          ),
           clipPathId: `tray-logo-grid-fill-${i}`,
         })
       )
@@ -646,7 +687,10 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
         y: layout.iconY ?? layout.pad,
         size: layout.iconSize,
         fraction: logoFraction(barsForStyle[0]),
-        color: foregroundHex,
+        color: trayContrastBrandHex(
+          providerColor(barsForStyle[0]?.color, trayGlyphTint),
+          foregroundHex
+        ),
         clipPathId: "tray-logo-pie",
       })
     )
@@ -669,11 +713,12 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
 
     for (let i = 0; i < n; i += 1) {
       const bar = barsForStyle[i]
+      const barColor = providerColor(bar?.color, foregroundHex)
       const y = yOffset + i * (trackH + layout.gap) + 1
       const x = layout.barsX
 
       parts.push(
-        `<rect x="${x}" y="${y}" width="${trackW}" height="${trackH}" rx="${rx}" fill="${foregroundHex}" opacity="${trackOpacity}" />`
+        `<rect x="${x}" y="${y}" width="${trackW}" height="${trackH}" rx="${rx}" fill="${barColor}" opacity="${trackOpacity}" />`
       )
 
       const fraction = bar?.items?.[0]?.fraction
@@ -683,7 +728,7 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
           const movingEdgeRadius = Math.max(0, Math.floor(rx * 0.35))
           if (fillW >= trackW) {
             parts.push(
-              `<rect x="${x}" y="${y}" width="${fillW}" height="${trackH}" rx="${rx}" fill="${foregroundHex}" opacity="${fillOpacity}" />`
+              `<rect x="${x}" y="${y}" width="${fillW}" height="${trackH}" rx="${rx}" fill="${barColor}" opacity="${fillOpacity}" />`
             )
           } else {
             const fillPath = makeRoundedBarPath({
@@ -694,7 +739,7 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
               leftRadius: rx,
               rightRadius: movingEdgeRadius,
             })
-            parts.push(`<path d="${fillPath}" fill="${foregroundHex}" opacity="${fillOpacity}" />`)
+            parts.push(`<path d="${fillPath}" fill="${barColor}" opacity="${fillOpacity}" />`)
           }
         }
 
@@ -708,7 +753,7 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
             leftRadius: Math.max(0, Math.floor(rx * 0.2)),
             rightRadius: rx,
           })
-          parts.push(`<path d="${remainderPath}" fill="${foregroundHex}" opacity="${remainderOpacity}" />`)
+          parts.push(`<path d="${remainderPath}" fill="${barColor}" opacity="${remainderOpacity}" />`)
         }
       }
     }
@@ -719,7 +764,7 @@ export function makeTrayBarsSvg(args: TrayBarsIconArgs): string {
   const href = typeof providerIconUrl === "string" ? providerIconUrl.trim() : ""
 
   if (!hideIcon && style !== "bars" && style !== "logoBar" && style !== "logoGrid" && style !== "donut") {
-    parts.push(providerIconMarkup({ href, x, y, size: layout.iconSize, color: foregroundHex }))
+    parts.push(providerIconMarkup({ href, x, y, size: layout.iconSize, color: trayGlyphTint }))
   }
 
   for (const { x: tX, y: tY, text, fontSize, anchor: textAnchor, textLength } of layout.texts) {
@@ -787,6 +832,7 @@ export async function renderTrayBarsIcon(args: TrayBarsIconArgs): Promise<Image>
     style = "provider",
     percentText,
     providerIconUrl,
+    providerColor: singleProviderColor,
     providerIcons = [],
     gridCells = [],
     hideIcon = false,
@@ -799,6 +845,7 @@ export async function renderTrayBarsIcon(args: TrayBarsIconArgs): Promise<Image>
     style,
     percentText: text,
     providerIconUrl,
+    providerColor: singleProviderColor,
     providerIcons,
     gridCells,
     hideIcon,

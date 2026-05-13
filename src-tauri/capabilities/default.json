@@ -13,6 +13,7 @@
     "core:window:allow-scale-factor",
     "opener:default",
     "store:default",
+    "clipboard-manager:allow-write-text",
     "aptabase:allow-track-event",
     "updater:default",
     "process:allow-restart",

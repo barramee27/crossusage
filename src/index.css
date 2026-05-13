@@ -138,6 +138,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* WebKitGTK (Tauri Linux): native <select> / inputs follow color-scheme; without this, dropdown chrome can stay light while text follows the app theme → white-on-white. */
+  html.dark {
+    color-scheme: dark;
+  }
+  html:not(.dark) {
+    color-scheme: light;
+  }
 }
 
 /* UI scale: reduce font size and spacing globally */

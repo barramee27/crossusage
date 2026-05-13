@@ -23,6 +23,7 @@ import {
   migrateLegacyTraySettings,
   loadThemeMode,
   normalizePluginSettings,
+  resolveOnboardingComplete,
   saveAutoUpdateInterval,
   saveDisplayMode,
   saveGlobalShortcut,
@@ -31,6 +32,8 @@ import {
   saveResetTimerDisplayMode,
   saveStartOnLogin,
   saveThemeMode,
+  loadPersistUsageHistory,
+  savePersistUsageHistory,
 } from "@/lib/settings"
 import type { PluginMeta } from "@/lib/plugin-types"
 
@@ -431,5 +434,40 @@ describe("settings", () => {
   it("falls back to default for invalid start on login value", async () => {
     storeState.set("startOnLogin", "invalid")
     await expect(loadStartOnLogin()).resolves.toBe(DEFAULT_START_ON_LOGIN)
+  })
+
+  describe("resolveOnboardingComplete", () => {
+    it("returns true when store key is true", async () => {
+      storeState.set("onboardingCompleteV1", true)
+      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(true)
+    })
+
+    it("returns false when key missing and no colon instance ids", async () => {
+      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(false)
+    })
+
+    it("migrates and returns true when key missing but multi-account instance ids exist", async () => {
+      const settings = {
+        ...DEFAULT_PLUGIN_SETTINGS,
+        providerInstances: { "claude:work": { baseProviderId: "claude", label: "Work" } },
+      }
+      await expect(resolveOnboardingComplete(settings)).resolves.toBe(true)
+      expect(storeState.get("onboardingCompleteV1")).toBe(true)
+    })
+
+    it("returns false when store key is false", async () => {
+      storeState.set("onboardingCompleteV1", false)
+      await expect(resolveOnboardingComplete(DEFAULT_PLUGIN_SETTINGS)).resolves.toBe(false)
+    })
+  })
+
+  it("loads persist usage history default false", async () => {
+    await expect(loadPersistUsageHistory()).resolves.toBe(false)
+  })
+
+  it("saves and loads persist usage history", async () => {
+    await savePersistUsageHistory(true)
+    await expect(loadPersistUsageHistory()).resolves.toBe(true)
+    expect(storeState.get("persistUsageHistory")).toBe(true)
   })
 })

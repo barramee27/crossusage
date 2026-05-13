@@ -1,11 +1,11 @@
 name: Bug Report
-description: Report a bug in OpenUsage
+description: Report a bug in CrossUsage (Linux & Windows focus)
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. Please fill in the details below.
+        Thanks for reporting a bug. In the app: **Settings** → **Troubleshooting** → **Copy log tail** (plain redacted log). Paste it below with your description, or fill the fields. Template file: `.github/ISSUE_TEMPLATE/bug_report.yml`.
   - type: textarea
     id: description
     attributes:
@@ -20,10 +20,9 @@ body:
       label: Steps to Reproduce
       description: How can we reproduce this?
       placeholder: |
-        1. Open OpenUsage
+        1. Open CrossUsage
         2. Go to ...
-        3. Click on ...
-        4. See error
+        3. See error
     validations:
       required: true
   - type: textarea
@@ -43,20 +42,27 @@ body:
   - type: input
     id: version
     attributes:
-      label: OpenUsage Version
-      description: Which version are you running? (Check Settings or About)
-      placeholder: "e.g. 0.4.2"
+      label: CrossUsage version
+      description: From Settings footer, About, or the support bundle JSON `appVersion`.
+      placeholder: "e.g. 1.0.8"
     validations:
       required: true
   - type: dropdown
     id: os
     attributes:
       label: Operating System
+      description: CrossUsage targets Linux and Windows; pick the closest match.
       options:
-        - macOS (Apple Silicon)
-        - macOS (Intel)
+        - Linux
+        - Windows
+        - Other / upstream OpenUsage (macOS)
     validations:
       required: true
+  - type: textarea
+    id: log_tail
+    attributes:
+      label: Log tail (optional)
+      description: Paste from Settings → Troubleshooting → Copy log tail (optional).
   - type: textarea
     id: screenshots
     attributes:
@@ -66,4 +72,4 @@ body:
     id: additional
     attributes:
       label: Additional Context
-      description: Any other information that might be helpful.
+      description: Upstream OpenUsage vs this fork, desktop environment (Linux), etc.
