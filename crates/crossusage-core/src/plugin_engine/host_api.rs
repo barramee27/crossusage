@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
-const WHITELISTED_ENV_VARS: [&str; 17] = [
+const WHITELISTED_ENV_VARS: [&str; 19] = [
     "CODEX_HOME",
     "CLAUDE_CONFIG_DIR",
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -38,6 +38,8 @@ const WHITELISTED_ENV_VARS: [&str; 17] = [
     "SYNTHETIC_API_KEY",
     "PI_CODING_AGENT_DIR",
     "COMMAND_CODE_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_INITIAL_BALANCE",
 ];
 
 fn last_non_empty_trimmed_line(text: &str) -> Option<String> {
