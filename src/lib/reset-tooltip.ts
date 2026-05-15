@@ -48,13 +48,13 @@ export function formatResetRelativeLabel(nowMs: number, resetsAtIso: string): st
 export function formatResetAbsoluteLabel(
   nowMs: number,
   resetsAtIso: string,
-  timeFormat: TimeFormatMode = "auto",
+  timeFormatMode: TimeFormatMode = "auto",
 ): string | null {
   const resetsAtMs = parseResetTimestamp(resetsAtIso)
   if (resetsAtMs === null) return null
   if (resetsAtMs - nowMs <= 0) return "Resets soon"
   const dayDiff = getLocalDayIndex(resetsAtMs) - getLocalDayIndex(nowMs)
-  const timeText = getTimeFormatter(timeFormat).format(resetsAtMs)
+  const timeText = getTimeFormatter(timeFormatMode).format(resetsAtMs)
   if (dayDiff <= 0) return `Resets today at ${timeText}`
   if (dayDiff === 1) return `Resets tomorrow at ${timeText}`
   const dateText = formatMonthDay(resetsAtMs)
@@ -65,14 +65,14 @@ export function formatResetTooltipText({
   nowMs,
   resetsAtIso,
   visibleMode,
-  timeFormat = "auto",
+  timeFormatMode = "auto",
 }: {
   nowMs: number
   resetsAtIso: string
   visibleMode: ResetTimerDisplayMode
-  timeFormat?: TimeFormatMode
+  timeFormatMode?: TimeFormatMode
 }): string | null {
   return visibleMode === "absolute"
     ? formatResetRelativeLabel(nowMs, resetsAtIso)
-    : formatResetAbsoluteLabel(nowMs, resetsAtIso, timeFormat)
+    : formatResetAbsoluteLabel(nowMs, resetsAtIso, timeFormatMode)
 }

@@ -106,7 +106,7 @@ describe("reset-tooltip", () => {
     expect(expected12).not.toBe(expected24)
   })
 
-  it("threads timeFormat through formatResetTooltipText", () => {
+  it("threads timeFormatMode through formatResetTooltipText", () => {
     const nowMs = new Date(2026, 1, 3, 0, 0, 0).getTime()
     const resetsAtMs = new Date(2026, 1, 3, 14, 5, 0).getTime()
     const resetsAtIso = new Date(resetsAtMs).toISOString()
@@ -117,7 +117,7 @@ describe("reset-tooltip", () => {
         nowMs,
         resetsAtIso,
         visibleMode: "relative",
-        timeFormat: "24h",
+        timeFormatMode: "24h",
       })
     ).toBe(`Resets today at ${expected24}`)
   })

@@ -37,7 +37,7 @@ const AUTO_UPDATE_SETTINGS_KEY = "autoUpdateInterval";
 const THEME_MODE_KEY = "themeMode";
 const DISPLAY_MODE_KEY = "displayMode";
 const RESET_TIMER_DISPLAY_MODE_KEY = "resetTimerDisplayMode";
-const TIME_FORMAT_KEY = "timeFormatMode";
+const TIME_FORMAT_MODE_KEY = "timeFormatMode";
 const MENUBAR_ICON_STYLE_KEY = "menubarIconStyle";
 const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
@@ -352,13 +352,13 @@ function isTimeFormatMode(value: unknown): value is TimeFormatMode {
 }
 
 export async function loadTimeFormatMode(): Promise<TimeFormatMode> {
-  const stored = await store.get<unknown>(TIME_FORMAT_KEY);
+  const stored = await store.get<unknown>(TIME_FORMAT_MODE_KEY);
   if (isTimeFormatMode(stored)) return stored;
   return DEFAULT_TIME_FORMAT_MODE;
 }
 
 export async function saveTimeFormatMode(mode: TimeFormatMode): Promise<void> {
-  await store.set(TIME_FORMAT_KEY, mode);
+  await store.set(TIME_FORMAT_MODE_KEY, mode);
   await store.save();
 }
 

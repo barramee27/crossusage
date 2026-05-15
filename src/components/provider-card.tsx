@@ -487,7 +487,7 @@ function MetricLineRenderer({
           nowMs: now,
           resetsAtIso: line.resetsAt,
           visibleMode: resetTimerDisplayMode,
-          timeFormat: timeFormatMode,
+          timeFormatMode,
         })
       : null
 
