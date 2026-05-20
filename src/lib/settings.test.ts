@@ -97,7 +97,7 @@ describe("settings", () => {
       plugins
     )
     expect(normalized).toEqual({
-      order: ["a", "b"],
+      order: ["b", "a"],
       disabled: ["a"],
       trayLines: { "a": ["x"] },
       providerInstances: {},
@@ -178,20 +178,6 @@ describe("settings", () => {
     const result = normalizePluginSettings({ order: [], disabled: [] }, plugins)
     expect(result.order).toEqual(["claude", "copilot", "windsurf"])
     expect(result.disabled).toEqual(["copilot", "windsurf"])
-  })
-
-  it("inserts newly added plugins alphabetically relative to existing order", () => {
-    const plugins: PluginMeta[] = [
-      { id: "amp", name: "Amp", iconUrl: "", lines: [] },
-      { id: "antigravity", name: "Antigravity", iconUrl: "", lines: [] },
-      { id: "antigravity-ide", name: "Antigravity IDE", iconUrl: "", lines: [] },
-      { id: "claude", name: "Claude", iconUrl: "", lines: [] },
-    ]
-    const result = normalizePluginSettings(
-      { order: ["amp", "antigravity", "claude"], disabled: [] },
-      plugins
-    )
-    expect(result.order).toEqual(["amp", "antigravity", "antigravity-ide", "claude"])
   })
 
   it("compares settings equality", () => {

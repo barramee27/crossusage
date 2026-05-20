@@ -186,45 +186,15 @@ export function normalizePluginSettings(
   for (const id of knownBaseIds) {
     if (!seen.has(id)) {
       seen.add(id);
+      order.push(id);
       newlyAdded.push(id);
     }
   }
   for (const id of Object.keys(providerInstances).sort()) {
     if (!seen.has(id)) {
       seen.add(id);
-      newlyAdded.push(id);
-    }
-  }
-
-  const knownIds = [...knownInstanceIds].sort();
-  for (const id of newlyAdded) {
-    const sortedIdx = knownIds.indexOf(id);
-    let inserted = false;
-
-    for (let i = sortedIdx - 1; i >= 0; i--) {
-      const prevId = knownIds[i];
-      const idxInOrder = order.indexOf(prevId);
-      if (idxInOrder !== -1) {
-        order.splice(idxInOrder + 1, 0, id);
-        inserted = true;
-        break;
-      }
-    }
-
-    if (!inserted) {
-      for (let i = sortedIdx + 1; i < knownIds.length; i++) {
-        const nextId = knownIds[i];
-        const idxInOrder = order.indexOf(nextId);
-        if (idxInOrder !== -1) {
-          order.splice(idxInOrder, 0, id);
-          inserted = true;
-          break;
-        }
-      }
-    }
-
-    if (!inserted) {
       order.push(id);
+      newlyAdded.push(id);
     }
   }
 
