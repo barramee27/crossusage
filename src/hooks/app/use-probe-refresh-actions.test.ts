@@ -20,7 +20,7 @@ describe("useProbeRefreshActions", () => {
     )
   })
 
-  it("retries one plugin and tracks manual refresh", () => {
+  it("retries one plugin via manual refresh", () => {
     const manualRefreshIdsRef = { current: new Set<string>() }
     const startBatch = vi.fn().mockResolvedValue(undefined)
     const setLoadingForPlugins = vi.fn()

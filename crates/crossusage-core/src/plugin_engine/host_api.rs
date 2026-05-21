@@ -8,6 +8,7 @@ use crate::provider_accounts::{self, ProviderAccountContext, ProviderCredential}
 use rquickjs::{Ctx, Exception, Function, Object};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Map, Value as JsonValue};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 use std::collections::VecDeque;
@@ -706,6 +707,21 @@ fn inject_crypto<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()
                     .map_err(|e| Exception::throw_message(&ctx_inner, &e))
             },
         )?,
+    )?;
+
+    crypto_obj.set(
+        "sha256Hex",
+        Function::new(ctx.clone(), move |text: String| -> String {
+            let digest = Sha256::digest(text.as_bytes());
+            // Lowercase hex, matches Node's `crypto.createHash("sha256").update(x).digest("hex")`
+            // and the upstream Claude Code keychain helper.
+            let mut out = String::with_capacity(digest.len() * 2);
+            for byte in digest.iter() {
+                use std::fmt::Write as _;
+                let _ = write!(&mut out, "{:02x}", byte);
+            }
+            out
+        })?,
     )?;
 
     host.set("crypto", crypto_obj)?;
@@ -2829,6 +2845,24 @@ mod tests {
     }
 
     #[test]
+    fn crypto_api_exposes_sha256_hex() {
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
+            let result: String = ctx
+                .eval(r#"__openusage_ctx.host.crypto.sha256Hex("hello")"#)
+                .expect("js sha256");
+            assert_eq!(
+                result,
+                "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+            );
+        });
+    }
+
+    #[test]
     fn env_api_respects_allowlist_in_host_and_js() {
         let rt = Runtime::new().expect("runtime");
         let ctx = Context::full(&rt).expect("context");
@@ -3560,5 +3594,136 @@ Saved lockfile
     fn collect_ccusage_runners_returns_empty_when_none_available() {
         let runners = collect_ccusage_runners_with(|_| None);
         assert!(runners.is_empty());
+    }
+
+    #[test]
+    fn ccusage_query_guard_blocks_overlapping_provider_query() {
+        let first = CcusageQueryGuard::acquire(CcusageProvider::Codex)
+            .expect("first query should acquire guard");
+        assert!(
+            CcusageQueryGuard::acquire(CcusageProvider::Codex).is_none(),
+            "second query for same provider should be blocked"
+        );
+        assert!(
+            CcusageQueryGuard::acquire(CcusageProvider::Claude).is_some(),
+            "different provider should have its own guard"
+        );
+        drop(first);
+        assert!(
+            CcusageQueryGuard::acquire(CcusageProvider::Codex).is_some(),
+            "guard should release on drop"
+        );
+    }
+
+    #[test]
+    fn ccusage_timeout_stops_runner_fallback() {
+        let opts = CcusageQueryOpts::default();
+        let runners = vec![
+            (CcusageRunnerKind::Bunx, "bunx".to_string()),
+            (CcusageRunnerKind::Npx, "npx".to_string()),
+        ];
+        let mut calls = Vec::new();
+
+        let result = run_ccusage_query_with_runners(
+            runners,
+            &opts,
+            CcusageProvider::Codex,
+            "codex",
+            |kind, _, _, _, _| {
+                calls.push(kind);
+                CcusageRunnerResult::TimedOut
+            },
+        );
+
+        let value: serde_json::Value = serde_json::from_str(&result).expect("valid status json");
+        assert_eq!(value["status"], "runner_failed");
+        assert_eq!(calls, vec![CcusageRunnerKind::Bunx]);
+    }
+
+    #[test]
+    fn ccusage_timeout_log_uses_actual_timeout() {
+        assert_eq!(
+            format_ccusage_timeout(std::time::Duration::from_millis(100)),
+            "100ms"
+        );
+        assert_eq!(
+            format_ccusage_timeout(std::time::Duration::from_secs(CCUSAGE_TIMEOUT_SECS)),
+            "15s"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ccusage_timeout_kills_descendant_and_closes_pipes() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::{Duration, Instant};
+
+        fn pid_exists(pid: i32) -> bool {
+            unsafe { libc::kill(pid, 0) == 0 }
+        }
+
+        let test_id = format!(
+            "openusage-ccusage-timeout-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(test_id);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let script_path = dir.join("fake-ccusage-runner.sh");
+        let pid_path = dir.join("descendant.pid");
+
+        let mut script = std::fs::File::create(&script_path).expect("create script");
+        let script_body = format!(
+            r#"#!/bin/sh
+sh -c 'sleep 30' &
+echo $! > "{}"
+echo "started"
+wait
+"#,
+            pid_path.display()
+        );
+        script
+            .write_all(script_body.as_bytes())
+            .expect("write script");
+        let mut permissions = script.metadata().expect("script metadata").permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&script_path, permissions).expect("make script executable");
+
+        let opts = CcusageQueryOpts::default();
+        let start = Instant::now();
+        let result = run_ccusage_with_runner_timeout(
+            CcusageRunnerKind::Bunx,
+            script_path.to_string_lossy().as_ref(),
+            &opts,
+            CcusageProvider::Codex,
+            "codex",
+            Duration::from_millis(100),
+        );
+
+        assert_eq!(result, CcusageRunnerResult::TimedOut);
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "timeout cleanup should not hang on inherited stdout/stderr pipes"
+        );
+
+        let descendant_pid: i32 = std::fs::read_to_string(&pid_path)
+            .expect("read descendant pid")
+            .trim()
+            .parse()
+            .expect("parse descendant pid");
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while pid_exists(descendant_pid) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !pid_exists(descendant_pid),
+            "descendant process should be killed with ccusage process group"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -2,7 +2,9 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections at the bottom of this file are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
-## Unreleased
+## 1.0.9-beta.1
+
+Pre-release for testing ([crossusage.dev](https://crossusage.dev/) / portable builds) — merges **upstream OpenUsage `main` through [v0.6.23](https://github.com/robinebers/openusage/releases/tag/v0.6.23)** plus post-release `chore: enforce package release age`, on top of fork **feat/linux-windows-native-support** (tray, usage history, multi-account, Linux/Windows).
 
 ### App
 
