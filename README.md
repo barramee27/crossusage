@@ -166,6 +166,7 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - [**Claude**](docs/providers/claude.md) / session, weekly, extra usage, local token usage (ccusage)
 - [**Codex**](docs/providers/codex.md) / session, weekly, reviews, credits
 - [**Copilot**](docs/providers/copilot.md) / premium, chat, completions
+- [**CrofAI**](docs/providers/crofai.md) / credits, daily requests
 - [**Cursor**](docs/providers/cursor.md) / credits, total usage, auto usage, API usage, on-demand, CLI auth (the **Requests** tray line appears only for some Enterprise/Team accounts when the API returns request-based usage; Pro accounts typically use the other metrics)
 - [**DeepSeek**](docs/providers/deepseek.md) / balance (USD)
 - [**Factory / Droid**](docs/providers/factory.md) / standard, premium tokens
