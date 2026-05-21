@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
-const WHITELISTED_ENV_VARS: [&str; 19] = [
+const WHITELISTED_ENV_VARS: [&str; 23] = [
     "CODEX_HOME",
     "CLAUDE_CONFIG_DIR",
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -40,6 +40,10 @@ const WHITELISTED_ENV_VARS: [&str; 19] = [
     "COMMAND_CODE_API_KEY",
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_INITIAL_BALANCE",
+    "OLLAMA_API_KEY",
+    "OLLAMA_HOST",
+    "OLLAMA_SESSION_COOKIE",
+    "OLLAMA_COOKIE",
 ];
 
 fn last_non_empty_trimmed_line(text: &str) -> Option<String> {
@@ -385,12 +389,38 @@ fn redact_body(body: &str) -> String {
         }
     }
 
+    // Redact email addresses even in HTML/text responses.
+    if let Ok(email_re) =
+        regex_lite::Regex::new(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}")
+    {
+        result = email_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                redact_value(&caps[0])
+            })
+            .to_string();
+    }
+
+    if let Ok(path_re) =
+        regex_lite::Regex::new(r#"(/(?:Users|home|opt|private|var|tmp|Applications)/[^\s"')]+)"#)
+    {
+        result = path_re.replace_all(&result, "[PATH]").to_string();
+    }
+
     result
 }
 
 /// Lightweight redaction for plugin log messages (JWT + API key patterns only).
 fn redact_log_message(msg: &str) -> String {
     let mut result = msg.to_string();
+    if let Ok(email_re) =
+        regex_lite::Regex::new(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}")
+    {
+        result = email_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                redact_value(&caps[0])
+            })
+            .to_string();
+    }
     if let Ok(jwt_re) = regex_lite::Regex::new(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
     {
         result = jwt_re
@@ -405,6 +435,18 @@ fn redact_log_message(msg: &str) -> String {
                 redact_value(&caps[0])
             })
             .to_string();
+    }
+    if let Ok(account_re) = regex_lite::Regex::new(r#"(account=)([^,\s]+)"#) {
+        result = account_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                format!("{}{}", &caps[1], redact_value(&caps[2]))
+            })
+            .to_string();
+    }
+    if let Ok(path_re) =
+        regex_lite::Regex::new(r#"(/(?:Users|home|opt|private|var|tmp|Applications)/[^\s"')]+)"#)
+    {
+        result = path_re.replace_all(&result, "[PATH]").to_string();
     }
     result
 }
@@ -2885,6 +2927,35 @@ mod tests {
 
     #[test]
     fn env_api_respects_allowlist_in_host_and_js() {
+        let claude_env_vars = [
+            "CLAUDE_CONFIG_DIR",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "USER_TYPE",
+            "USE_STAGING_OAUTH",
+            "USE_LOCAL_OAUTH",
+            "CLAUDE_CODE_CUSTOM_OAUTH_URL",
+            "CLAUDE_CODE_OAUTH_CLIENT_ID",
+            "CLAUDE_LOCAL_OAUTH_API_BASE",
+        ];
+
+        for name in claude_env_vars {
+            assert!(
+                WHITELISTED_ENV_VARS.contains(&name),
+                "{name} must be whitelisted for Claude auth compatibility"
+            );
+        }
+        for name in [
+            "OLLAMA_API_KEY",
+            "OLLAMA_HOST",
+            "OLLAMA_SESSION_COOKIE",
+            "OLLAMA_COOKIE",
+        ] {
+            assert!(
+                WHITELISTED_ENV_VARS.contains(&name),
+                "{name} must be whitelisted for Ollama auth compatibility"
+            );
+        }
+
         let rt = Runtime::new().expect("runtime");
         let ctx = Context::full(&rt).expect("context");
         ctx.with(|ctx| {
@@ -3056,6 +3127,18 @@ mod tests {
     }
 
     #[test]
+    fn redact_body_redacts_email_in_html() {
+        let body = r#"<html><body><p>person@example.com</p></body></html>"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("person@example.com"),
+            "email should be redacted from HTML body, got: {}",
+            redacted
+        );
+        assert!(redacted.contains("pers....com"));
+    }
+
+    #[test]
     fn redact_body_redacts_json_password_field() {
         let body = r#"{"password": "supersecretpassword123"}"#;
         let redacted = redact_body(body);
@@ -3146,6 +3229,48 @@ mod tests {
         assert!(
             !redacted.contains("sk-1234567890abcdef"),
             "API key should be redacted"
+        );
+    }
+
+    #[test]
+    fn redact_log_message_redacts_email() {
+        let msg = "settings page contained person@example.com";
+        let redacted = redact_log_message(msg);
+        assert!(
+            !redacted.contains("person@example.com"),
+            "email should be redacted"
+        );
+        assert!(redacted.contains("pers....com"));
+    }
+
+    #[test]
+    fn redact_log_message_redacts_account_and_paths() {
+        let msg = "keychain read: service=Claude Code-credentials, account=rebers path=/opt/homebrew/bin/bunx home=/Users/rebers/.claude";
+        let redacted = redact_log_message(msg);
+        assert!(
+            !redacted.contains("account=rebers"),
+            "account should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/opt/homebrew/bin/bunx"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/Users/rebers/.claude"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("account=[REDACTED]"),
+            "expected redacted account, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("[PATH]"),
+            "expected redacted path, got: {}",
+            redacted
         );
     }
 

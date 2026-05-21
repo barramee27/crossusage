@@ -174,6 +174,7 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - [**Kiro**](docs/providers/kiro.md) / credits, bonus credits, overages
 - [**Kimi Code**](docs/providers/kimi.md) / session, weekly
 - [**MiniMax**](docs/providers/minimax.md) / token plan model-calls, CN TTS/image buckets
+- [**Ollama**](docs/providers/ollama.md) / cloud session, weekly
 - [**OpenCode Go**](docs/providers/opencode-go.md) / 5h, weekly, monthly spend limits
 - [**Synthetic**](docs/providers/synthetic.md) / rate limits, weekly mana, search quota
 - [**Windsurf**](docs/providers/windsurf.md) / prompt credits, flex credits
