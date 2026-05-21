@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react"
 import { useProbeEvents } from "@/hooks/use-probe-events"
+import type { PluginOutput } from "@/lib/plugin-types"
 import {
   getProbeTargets,
   type AutoUpdateIntervalMinutes,
@@ -12,7 +13,7 @@ import { useProbeState } from "@/hooks/app/use-probe-state"
 type UseProbeArgs = {
   pluginSettings: PluginSettings | null
   autoUpdateInterval: AutoUpdateIntervalMinutes
-  onProbeResult?: () => void
+  onProbeResult?: (output: PluginOutput) => void
 }
 
 export function useProbe({

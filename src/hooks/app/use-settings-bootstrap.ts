@@ -12,6 +12,10 @@ import {
   DEFAULT_UI_SCALE,
   DEFAULT_DISPLAY_MODE,
   DEFAULT_GLOBAL_SHORTCUT,
+  DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
+  DEFAULT_USAGE_ALERT_ENABLED,
+  DEFAULT_USAGE_ALERT_SOUND,
+  DEFAULT_USAGE_ALERT_THRESHOLD,
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
@@ -24,6 +28,10 @@ import {
   loadUIScale,
   loadDisplayMode,
   loadGlobalShortcut,
+  loadUsageAlertCustomThreshold,
+  loadUsageAlertEnabled,
+  loadUsageAlertSound,
+  loadUsageAlertThreshold,
   loadMenubarIconStyle,
   migrateLegacyTraySettings,
   loadPluginSettings,
@@ -44,8 +52,8 @@ import {
   type PluginSettings,
   type ResetTimerDisplayMode,
   type ThemeMode,
-  type TimeFormatMode,
-  type UIScale,
+  type UsageAlertSound,
+  type UsageAlertThreshold,
 } from "@/lib/settings"
 
 type UseSettingsBootstrapArgs = {
@@ -60,12 +68,10 @@ type UseSettingsBootstrapArgs = {
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
-  setUIScale: (value: UIScale) => void
-
-  setShowTrayIcon: (value: boolean) => void
-
-  setOnboardingComplete: (value: boolean) => void
-
+  setUsageAlertEnabled: (value: boolean) => void
+  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
+  setCustomUsageAlertThreshold: (value: number | null) => void
+  setUsageAlertSound: (value: UsageAlertSound) => void
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
   startBatch: (pluginIds?: string[]) => Promise<string[] | undefined>
@@ -83,12 +89,10 @@ export function useSettingsBootstrap({
   setStartOnLogin,
   setShowAccountIdentity,
   setMenubarIconStyle,
-  setUIScale,
-
-  setShowTrayIcon,
-
-  setOnboardingComplete,
-
+  setUsageAlertEnabled,
+  setUsageAlertThreshold,
+  setCustomUsageAlertThreshold,
+  setUsageAlertSound,
   setLoadingForPlugins,
   setErrorForPlugins,
   startBatch,
@@ -217,11 +221,32 @@ export function useSettingsBootstrap({
           console.error("Failed to load menubar icon style:", error)
         }
 
-        let storedUIScale = DEFAULT_UI_SCALE
+        let storedUsageAlertEnabled = DEFAULT_USAGE_ALERT_ENABLED
         try {
-          storedUIScale = await loadUIScale()
+          storedUsageAlertEnabled = await loadUsageAlertEnabled()
         } catch (error) {
-          console.error("Failed to load UI scale:", error)
+          console.error("Failed to load usage alert enabled:", error)
+        }
+
+        let storedUsageAlertThreshold = DEFAULT_USAGE_ALERT_THRESHOLD
+        try {
+          storedUsageAlertThreshold = await loadUsageAlertThreshold()
+        } catch (error) {
+          console.error("Failed to load usage alert threshold:", error)
+        }
+
+        let storedUsageAlertCustomThreshold = DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD
+        try {
+          storedUsageAlertCustomThreshold = await loadUsageAlertCustomThreshold()
+        } catch (error) {
+          console.error("Failed to load usage alert custom threshold:", error)
+        }
+
+        let storedUsageAlertSound = DEFAULT_USAGE_ALERT_SOUND
+        try {
+          storedUsageAlertSound = await loadUsageAlertSound()
+        } catch (error) {
+          console.error("Failed to load usage alert sound:", error)
         }
 
         if (isMounted) {
@@ -235,11 +260,10 @@ export function useSettingsBootstrap({
           setStartOnLogin(storedStartOnLogin)
           setShowAccountIdentity(storedShowAccountIdentity)
           setMenubarIconStyle(storedMenubarIconStyle)
-          setUIScale(storedUIScale)
-
-          setShowTrayIcon(true)
-
-          setOnboardingComplete(onboardingDone)
+          setUsageAlertEnabled(storedUsageAlertEnabled)
+          setUsageAlertThreshold(storedUsageAlertThreshold)
+          setCustomUsageAlertThreshold(storedUsageAlertCustomThreshold)
+          setUsageAlertSound(storedUsageAlertSound)
 
           const enabledIds = getEnabledPluginIds(normalized)
           setLoadingForPlugins(enabledIds)
@@ -268,7 +292,7 @@ export function useSettingsBootstrap({
   }, [
     applyStartOnLogin,
     setAutoUpdateInterval,
-    setUIScale,
+    setCustomUsageAlertThreshold,
     setDisplayMode,
     setErrorForPlugins,
     setGlobalShortcut,
@@ -282,7 +306,9 @@ export function useSettingsBootstrap({
     setStartOnLogin,
     setShowAccountIdentity,
     setThemeMode,
-    setTimeFormatMode,
+    setUsageAlertEnabled,
+    setUsageAlertSound,
+    setUsageAlertThreshold,
     startBatch,
   ])
 

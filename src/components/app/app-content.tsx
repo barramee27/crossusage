@@ -14,8 +14,8 @@ import type {
   MenubarIconStyle,
   ResetTimerDisplayMode,
   ThemeMode,
-  TimeFormatMode,
-  UIScale,
+  UsageAlertSound,
+  UsageAlertThreshold,
 } from "@/lib/settings"
 
 type AppContentDerivedProps = {
@@ -43,7 +43,10 @@ export type AppContentActionProps = {
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
   onStartOnLoginChange: (value: boolean) => void
-  onShowAccountIdentityChange: (value: boolean) => void
+  onUsageAlertEnabledChange: (value: boolean) => void
+  onUsageAlertThresholdChange: (value: UsageAlertThreshold) => void
+  onUsageAlertCustomThresholdChange: (value: number | null) => void
+  onUsageAlertSoundChange: (value: UsageAlertSound) => void
 }
 
 export type AppContentProps = AppContentDerivedProps & AppContentActionProps
@@ -70,7 +73,10 @@ export function AppContent({
   traySettingsPreview,
   onGlobalShortcutChange,
   onStartOnLoginChange,
-  onShowAccountIdentityChange,
+  onUsageAlertEnabledChange,
+  onUsageAlertThresholdChange,
+  onUsageAlertCustomThresholdChange,
+  onUsageAlertSoundChange,
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
     useShallow((state) => ({
@@ -87,7 +93,10 @@ export function AppContent({
     globalShortcut,
     themeMode,
     startOnLogin,
-    showAccountIdentity,
+    usageAlertEnabled,
+    usageAlertThreshold,
+    customUsageAlertThreshold,
+    usageAlertSound,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -98,7 +107,10 @@ export function AppContent({
       globalShortcut: state.globalShortcut,
       themeMode: state.themeMode,
       startOnLogin: state.startOnLogin,
-      showAccountIdentity: state.showAccountIdentity,
+      usageAlertEnabled: state.usageAlertEnabled,
+      usageAlertThreshold: state.usageAlertThreshold,
+      customUsageAlertThreshold: state.customUsageAlertThreshold,
+      usageAlertSound: state.usageAlertSound,
     }))
   )
 
@@ -144,8 +156,14 @@ export function AppContent({
         onGlobalShortcutChange={onGlobalShortcutChange}
         startOnLogin={startOnLogin}
         onStartOnLoginChange={onStartOnLoginChange}
-        showAccountIdentity={showAccountIdentity}
-        onShowAccountIdentityChange={onShowAccountIdentityChange}
+        usageAlertEnabled={usageAlertEnabled}
+        onUsageAlertEnabledChange={onUsageAlertEnabledChange}
+        usageAlertThreshold={usageAlertThreshold}
+        onUsageAlertThresholdChange={onUsageAlertThresholdChange}
+        customUsageAlertThreshold={customUsageAlertThreshold}
+        onUsageAlertCustomThresholdChange={onUsageAlertCustomThresholdChange}
+        usageAlertSound={usageAlertSound}
+        onUsageAlertSoundChange={onUsageAlertSoundChange}
       />
     )
   }

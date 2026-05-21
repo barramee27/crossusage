@@ -31,6 +31,24 @@ export type MenubarIconStyle = "provider" | "logoBar" | "logoGrid" | "bars" | "d
 
 export type GlobalShortcut = string | null;
 
+export type UsageAlertThreshold = 10 | 20 | 30 | "custom";
+
+export type UsageAlertSound =
+  | "Basso"
+  | "Ping"
+  | "Funk"
+  | "Frog"
+  | "Tink"
+  | "Pop"
+  | "Bottle"
+  | "Blow"
+  | "Glass"
+  | "Hero"
+  | "Morse"
+  | "Purr"
+  | "Submarine"
+  | "Sosumi";
+
 const SETTINGS_STORE_PATH = "settings.json";
 const PLUGIN_SETTINGS_KEY = "plugins";
 const AUTO_UPDATE_SETTINGS_KEY = "autoUpdateInterval";
@@ -43,11 +61,10 @@ const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
 const START_ON_LOGIN_KEY = "startOnLogin";
-const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
-
-const UI_SCALE_KEY = "uiScale";
-
-const SHOW_TRAY_ICON_KEY = "showTrayIcon";
+export const USAGE_ALERT_ENABLED_KEY = "usageAlertEnabled";
+export const USAGE_ALERT_THRESHOLD_KEY = "usageAlertThreshold";
+export const USAGE_ALERT_CUSTOM_THRESHOLD_KEY = "usageAlertCustomThreshold";
+export const USAGE_ALERT_SOUND_KEY = "usageAlertSound";
 
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
@@ -58,27 +75,42 @@ export const DEFAULT_TIME_FORMAT_MODE: TimeFormatMode = "auto";
 export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
-export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
-
-export type UIScale = "normal" | "small" | "compact";
-export const DEFAULT_UI_SCALE: UIScale = "normal";
-const UI_SCALE_VALUES: UIScale[] = ["normal", "small", "compact"];
-export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
-  { value: "normal", label: "Normal" },
-  { value: "small", label: "Small" },
-  { value: "compact", label: "Compact" },
-];
-
-/** Default: show CrossUsage in the system tray / menu bar. */
-export const DEFAULT_SHOW_TRAY_ICON = true;
-
+export const DEFAULT_USAGE_ALERT_ENABLED = false;
+export const DEFAULT_USAGE_ALERT_THRESHOLD: UsageAlertThreshold = 20;
+export const DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD: number | null = null;
+export const DEFAULT_USAGE_ALERT_SOUND: UsageAlertSound = "Basso";
 
 const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
 const DISPLAY_MODES: DisplayMode[] = ["used", "left"];
 const RESET_TIMER_DISPLAY_MODES: ResetTimerDisplayMode[] = ["relative", "absolute"];
-const TIME_FORMAT_MODES: TimeFormatMode[] = ["auto", "12h", "24h"];
-const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "logoBar", "logoGrid", "donut", "bars"];
+const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "donut", "bars"];
+const USAGE_ALERT_SOUNDS: UsageAlertSound[] = [
+  "Basso",
+  "Ping",
+  "Funk",
+  "Frog",
+  "Tink",
+  "Pop",
+  "Bottle",
+  "Blow",
+  "Glass",
+  "Hero",
+  "Morse",
+  "Purr",
+  "Submarine",
+  "Sosumi",
+];
+
+export const USAGE_ALERT_THRESHOLD_OPTIONS: { value: UsageAlertThreshold; label: string }[] = [
+  { value: 10, label: "10%" },
+  { value: 20, label: "20%" },
+  { value: 30, label: "30%" },
+  { value: "custom", label: "Custom" },
+];
+
+export const USAGE_ALERT_SOUND_OPTIONS: { value: UsageAlertSound; label: string }[] =
+  USAGE_ALERT_SOUNDS.map((value) => ({ value, label: value }));
 
 export const MENUBAR_ICON_STYLE_OPTIONS: { value: MenubarIconStyle; label: string }[] = [
   { value: "provider", label: "Logo + %" },
@@ -523,78 +555,59 @@ export async function saveStartOnLogin(value: boolean): Promise<void> {
   await store.save();
 }
 
-export function isUIScale(value: unknown): value is UIScale {
-  return typeof value === "string" && UI_SCALE_VALUES.includes(value as UIScale);
+export function isUsageAlertThreshold(value: unknown): value is UsageAlertThreshold {
+  return value === "custom" || (typeof value === "number" && [10, 20, 25, 30].includes(value));
 }
 
-export async function loadUIScale(): Promise<UIScale> {
-  const stored = await store.get<unknown>(UI_SCALE_KEY);
-  if (isUIScale(stored)) return stored;
-  return DEFAULT_UI_SCALE;
+function isUsageAlertSound(value: unknown): value is UsageAlertSound {
+  return typeof value === "string" && USAGE_ALERT_SOUNDS.includes(value as UsageAlertSound);
 }
 
-export async function saveUIScale(value: UIScale): Promise<void> {
-  await store.set(UI_SCALE_KEY, value);
-  await store.save();
-}
-
-export async function loadShowTrayIcon(): Promise<boolean> {
-  const stored = await store.get<unknown>(SHOW_TRAY_ICON_KEY);
+export async function loadUsageAlertEnabled(): Promise<boolean> {
+  const stored = await store.get<unknown>(USAGE_ALERT_ENABLED_KEY);
   if (typeof stored === "boolean") return stored;
-  return DEFAULT_SHOW_TRAY_ICON;
+  return DEFAULT_USAGE_ALERT_ENABLED;
 }
 
-export async function saveShowTrayIcon(value: boolean): Promise<void> {
-  await store.set(SHOW_TRAY_ICON_KEY, value);
-
+export async function saveUsageAlertEnabled(value: boolean): Promise<void> {
+  await store.set(USAGE_ALERT_ENABLED_KEY, value);
   await store.save();
 }
 
-const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
-
-/** When true, successful probes write normalized snapshots to local SQLite (`usage_history.sqlite3` in app data). */
-export async function loadPersistUsageHistory(): Promise<boolean> {
-  const stored = await store.get<unknown>(PERSIST_USAGE_HISTORY_KEY);
-  return typeof stored === "boolean" ? stored : false;
+export async function loadUsageAlertThreshold(): Promise<UsageAlertThreshold> {
+  const stored = await store.get<unknown>(USAGE_ALERT_THRESHOLD_KEY);
+  if (isUsageAlertThreshold(stored)) return stored;
+  return DEFAULT_USAGE_ALERT_THRESHOLD;
 }
 
-export async function savePersistUsageHistory(value: boolean): Promise<void> {
-  await store.set(PERSIST_USAGE_HISTORY_KEY, value);
+export async function saveUsageAlertThreshold(value: UsageAlertThreshold): Promise<void> {
+  await store.set(USAGE_ALERT_THRESHOLD_KEY, value);
   await store.save();
 }
 
-const ONBOARDING_COMPLETE_V1_KEY = "onboardingCompleteV1";
-
-function hasLegacyMultiAccount(providerInstances: PluginSettings["providerInstances"]): boolean {
-  if (!providerInstances) return false;
-  return Object.keys(providerInstances).some((id) => id.includes(":"));
+export async function loadUsageAlertCustomThreshold(): Promise<number | null> {
+  const stored = await store.get<unknown>(USAGE_ALERT_CUSTOM_THRESHOLD_KEY);
+  if (typeof stored === "number" && Number.isFinite(stored)) return stored;
+  return DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD;
 }
 
-/** `storedPluginSettings` should be the raw loaded settings (before normalize) used for legacy migration. */
-export async function resolveOnboardingComplete(storedPluginSettings: PluginSettings): Promise<boolean> {
-  const raw = await store.get<unknown>(ONBOARDING_COMPLETE_V1_KEY);
-  if (raw === true) return true;
-  if (raw === false) return false;
-  if (hasLegacyMultiAccount(storedPluginSettings.providerInstances)) {
-    await store.set(ONBOARDING_COMPLETE_V1_KEY, true);
+export async function saveUsageAlertCustomThreshold(value: number | null): Promise<void> {
+  if (value == null) {
+    await deleteStoreKey(USAGE_ALERT_CUSTOM_THRESHOLD_KEY);
     await store.save();
-    return true;
+    return;
   }
-  return false;
-}
-
-export async function saveOnboardingCompleteV1(done: boolean): Promise<void> {
-  await store.set(ONBOARDING_COMPLETE_V1_KEY, done);
+  await store.set(USAGE_ALERT_CUSTOM_THRESHOLD_KEY, value);
   await store.save();
 }
 
-export async function loadShowAccountIdentity(): Promise<boolean> {
-  const stored = await store.get<unknown>(SHOW_ACCOUNT_IDENTITY_KEY);
-  if (typeof stored === "boolean") return stored;
-  return DEFAULT_SHOW_ACCOUNT_IDENTITY;
+export async function loadUsageAlertSound(): Promise<UsageAlertSound> {
+  const stored = await store.get<unknown>(USAGE_ALERT_SOUND_KEY);
+  if (isUsageAlertSound(stored)) return stored;
+  return DEFAULT_USAGE_ALERT_SOUND;
 }
 
-export async function saveShowAccountIdentity(value: boolean): Promise<void> {
-  await store.set(SHOW_ACCOUNT_IDENTITY_KEY, value);
+export async function saveUsageAlertSound(value: UsageAlertSound): Promise<void> {
+  await store.set(USAGE_ALERT_SOUND_KEY, value);
   await store.save();
 }

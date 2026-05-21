@@ -6,13 +6,16 @@ import {
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
   saveThemeMode,
-  saveTimeFormatMode,
+  saveUsageAlertCustomThreshold,
+  saveUsageAlertEnabled,
+  saveUsageAlertSound,
+  saveUsageAlertThreshold,
   type DisplayMode,
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
-  type TimeFormatMode,
-  type UIScale,
+  type UsageAlertSound,
+  type UsageAlertThreshold,
 } from "@/lib/settings"
 
 type ScheduleTrayIconUpdate = (reason: "probe" | "settings" | "init", delayMs?: number) => void
@@ -24,7 +27,10 @@ type UseSettingsDisplayActionsArgs = {
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
-  setUIScale: (value: UIScale) => void
+  setUsageAlertEnabled: (value: boolean) => void
+  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
+  setCustomUsageAlertThreshold: (value: number | null) => void
+  setUsageAlertSound: (value: UsageAlertSound) => void
   scheduleTrayIconUpdate: ScheduleTrayIconUpdate
 }
 
@@ -35,7 +41,10 @@ export function useSettingsDisplayActions({
   setResetTimerDisplayMode,
   setShowAccountIdentity,
   setMenubarIconStyle,
-  setUIScale,
+  setUsageAlertEnabled,
+  setUsageAlertThreshold,
+  setCustomUsageAlertThreshold,
+  setUsageAlertSound,
   scheduleTrayIconUpdate,
 }: UseSettingsDisplayActionsArgs) {
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
@@ -80,13 +89,36 @@ export function useSettingsDisplayActions({
     })
   }, [scheduleTrayIconUpdate, setMenubarIconStyle])
 
-  const handleShowAccountIdentityChange = useCallback((value: boolean) => {
-    track("setting_changed", { setting: "show_account_identity", value: String(value) })
-    setShowAccountIdentity(value)
-    void saveShowAccountIdentity(value).catch((error) => {
-      console.error("Failed to save account identity visibility:", error)
+  const handleUsageAlertEnabledChange = useCallback((value: boolean) => {
+    track("setting_changed", { setting: "usage_alert_enabled", value: value ? "true" : "false" })
+    setUsageAlertEnabled(value)
+    void saveUsageAlertEnabled(value).catch((error) => {
+      console.error("Failed to save usage alert enabled:", error)
     })
-  }, [setShowAccountIdentity])
+  }, [setUsageAlertEnabled])
+
+  const handleUsageAlertThresholdChange = useCallback((value: UsageAlertThreshold) => {
+    track("setting_changed", { setting: "usage_alert_threshold", value: String(value) })
+    setUsageAlertThreshold(value)
+    void saveUsageAlertThreshold(value).catch((error) => {
+      console.error("Failed to save usage alert threshold:", error)
+    })
+  }, [setUsageAlertThreshold])
+
+  const handleUsageAlertCustomThresholdChange = useCallback((value: number | null) => {
+    setCustomUsageAlertThreshold(value)
+    void saveUsageAlertCustomThreshold(value).catch((error) => {
+      console.error("Failed to save usage alert custom threshold:", error)
+    })
+  }, [setCustomUsageAlertThreshold])
+
+  const handleUsageAlertSoundChange = useCallback((value: UsageAlertSound) => {
+    track("setting_changed", { setting: "usage_alert_sound", value })
+    setUsageAlertSound(value)
+    void saveUsageAlertSound(value).catch((error) => {
+      console.error("Failed to save usage alert sound:", error)
+    })
+  }, [setUsageAlertSound])
 
   return {
     handleThemeModeChange,
@@ -95,6 +127,9 @@ export function useSettingsDisplayActions({
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
     handleMenubarIconStyleChange,
-    handleShowAccountIdentityChange,
+    handleUsageAlertEnabledChange,
+    handleUsageAlertThresholdChange,
+    handleUsageAlertCustomThresholdChange,
+    handleUsageAlertSoundChange,
   }
 }

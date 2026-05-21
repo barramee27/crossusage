@@ -12,16 +12,11 @@ import { useSettingsSystemActions } from "@/hooks/app/use-settings-system-action
 import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
-import { useAppUpdate } from "@/hooks/use-app-update"
-import {
-  buildProviderInstanceId,
-  getBaseProviderId,
-  getProviderInstanceLabel,
-  REFRESH_COOLDOWN_MS,
-  saveOnboardingCompleteV1,
-  savePluginSettings,
-} from "@/lib/settings"
+import { useUsageAlert } from "@/hooks/app/use-usage-alert"
+import { track } from "@/lib/analytics"
+import { REFRESH_COOLDOWN_MS, savePluginSettings } from "@/lib/settings"
 import { type PluginContextAction } from "@/components/side-nav"
+import type { PluginOutput } from "@/lib/plugin-types"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
@@ -75,7 +70,10 @@ function App() {
     setTimeFormatMode,
     setGlobalShortcut,
     setStartOnLogin,
-    setShowAccountIdentity,
+    setUsageAlertEnabled,
+    setUsageAlertThreshold,
+    setCustomUsageAlertThreshold,
+    setUsageAlertSound,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       autoUpdateInterval: state.autoUpdateInterval,
@@ -91,14 +89,19 @@ function App() {
       setTimeFormatMode: state.setTimeFormatMode,
       setGlobalShortcut: state.setGlobalShortcut,
       setStartOnLogin: state.setStartOnLogin,
-      setShowAccountIdentity: state.setShowAccountIdentity,
+      setUsageAlertEnabled: state.setUsageAlertEnabled,
+      setUsageAlertThreshold: state.setUsageAlertThreshold,
+      setCustomUsageAlertThreshold: state.setCustomUsageAlertThreshold,
+      setUsageAlertSound: state.setUsageAlertSound,
     }))
   )
 
-  const scheduleProbeTrayUpdateRef = useRef<() => void>(() => { })
-  const handleProbeResult = useCallback(() => {
+  const scheduleProbeTrayUpdateRef = useRef<() => void>(() => {})
+  const { checkUsageAlert } = useUsageAlert()
+  const handleProbeResult = useCallback((output: PluginOutput) => {
     scheduleProbeTrayUpdateRef.current()
-  }, [])
+    checkUsageAlert(output)
+  }, [checkUsageAlert])
 
   const {
     pluginStates,
@@ -146,7 +149,10 @@ function App() {
     setTimeFormatMode,
     setGlobalShortcut,
     setStartOnLogin,
-    setShowAccountIdentity,
+    setUsageAlertEnabled,
+    setUsageAlertThreshold,
+    setCustomUsageAlertThreshold,
+    setUsageAlertSound,
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,
@@ -162,7 +168,10 @@ function App() {
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
     handleMenubarIconStyleChange,
-    handleShowAccountIdentityChange,
+    handleUsageAlertEnabledChange,
+    handleUsageAlertThresholdChange,
+    handleUsageAlertCustomThresholdChange,
+    handleUsageAlertSoundChange,
   } = useSettingsDisplayActions({
     setThemeMode,
     setDisplayMode,
@@ -170,7 +179,10 @@ function App() {
     setResetTimerDisplayMode,
     setShowAccountIdentity,
     setMenubarIconStyle,
-    setUIScale,
+    setUsageAlertEnabled,
+    setUsageAlertThreshold,
+    setCustomUsageAlertThreshold,
+    setUsageAlertSound,
     scheduleTrayIconUpdate,
   })
 
@@ -527,12 +539,10 @@ function App() {
         traySettingsPreview,
         onGlobalShortcutChange: handleGlobalShortcutChange,
         onStartOnLoginChange: handleStartOnLoginChange,
-
-        onUIScaleChange: handleUIScaleChange,
-
-        onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
-
-        cursorRequestsLineAvailable,
+        onUsageAlertEnabledChange: handleUsageAlertEnabledChange,
+        onUsageAlertThresholdChange: handleUsageAlertThresholdChange,
+        onUsageAlertCustomThresholdChange: handleUsageAlertCustomThresholdChange,
+        onUsageAlertSoundChange: handleUsageAlertSoundChange,
       }}
     />
   )

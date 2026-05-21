@@ -44,6 +44,7 @@ export type PluginMeta = {
   instanceLabel?: string
   name: string
   iconUrl: string
+  iconFilePath: string
   brandColor?: string
   lines: ManifestLine[]
   links?: PluginLink[]
