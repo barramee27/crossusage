@@ -174,6 +174,7 @@ CrossUsage lives in your menu bar and shows how much of your AI coding subscript
 - [**Factory / Droid**](docs/providers/factory.md) / standard, premium tokens
 - [**Fireworks AI**](docs/providers/fireworks-ai.md) / serverless usage, prompt/generated tokens, monthly spend
 - [**Gemini**](docs/providers/gemini.md) / pro, flash, workspace/free/paid tier
+- [**Grok**](docs/providers/grok.md) / credits used, plan, pay-as-you-go cap
 - [**JetBrains AI Assistant**](docs/providers/jetbrains-ai-assistant.md) / quota, remaining
 - [**Kiro**](docs/providers/kiro.md) / credits, bonus credits, overages
 - [**Kimi Code**](docs/providers/kimi.md) / session, weekly
