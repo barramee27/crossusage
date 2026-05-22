@@ -17,7 +17,7 @@
     "release:gui-portable-onefile-windows-gnu:unique": "env CROSSUSAGE_UNIQUE_ONEFILE=1 ./scripts/build-gui-portable-onefile-windows-gnu.sh",
     "release:gui-portable-macos": "./scripts/build-gui-portable-macos-tarball.sh",
     "cli": "cargo run -p crossusage-cli --",
-    "ccusage:bump": "node ./scripts/bump-ccusage-version.mjs",
+    "ccusage:bump": "bun ./scripts/bump-ccusage-version.mjs",
     "bundle:plugins": "bun copy-bundled.cjs",
     "tauri:dev": "bash ./scripts/tauri-dev.sh",
     "tauri:dev:win": "set RUST_LOG=info,ignore=warn,globset=warn,tauri_cli=warn&& npx --no tauri dev",
