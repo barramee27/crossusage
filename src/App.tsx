@@ -13,8 +13,15 @@ import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
 import { useUsageAlert } from "@/hooks/app/use-usage-alert"
-import { track } from "@/lib/analytics"
-import { REFRESH_COOLDOWN_MS, savePluginSettings } from "@/lib/settings"
+import { useAppUpdate } from "@/hooks/use-app-update"
+import {
+  buildProviderInstanceId,
+  getBaseProviderId,
+  getProviderInstanceLabel,
+  REFRESH_COOLDOWN_MS,
+  saveOnboardingCompleteV1,
+  savePluginSettings,
+} from "@/lib/settings"
 import { type PluginContextAction } from "@/components/side-nav"
 import type { PluginOutput } from "@/lib/plugin-types"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
@@ -70,12 +77,18 @@ function App() {
     resetTimerDisplayMode,
     setResetTimerDisplayMode,
     setTimeFormatMode,
+    setShowAccountIdentity,
+    uiScale,
+    setUIScale,
     setGlobalShortcut,
     setStartOnLogin,
     setUsageAlertEnabled,
     setUsageAlertThreshold,
     setCustomUsageAlertThreshold,
     setUsageAlertSound,
+    setShowTrayIcon,
+    onboardingComplete,
+    setOnboardingComplete,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       autoUpdateInterval: state.autoUpdateInterval,
@@ -91,12 +104,18 @@ function App() {
       resetTimerDisplayMode: state.resetTimerDisplayMode,
       setResetTimerDisplayMode: state.setResetTimerDisplayMode,
       setTimeFormatMode: state.setTimeFormatMode,
+      setShowAccountIdentity: state.setShowAccountIdentity,
+      uiScale: state.uiScale,
+      setUIScale: state.setUIScale,
       setGlobalShortcut: state.setGlobalShortcut,
       setStartOnLogin: state.setStartOnLogin,
       setUsageAlertEnabled: state.setUsageAlertEnabled,
       setUsageAlertThreshold: state.setUsageAlertThreshold,
       setCustomUsageAlertThreshold: state.setCustomUsageAlertThreshold,
       setUsageAlertSound: state.setUsageAlertSound,
+      setShowTrayIcon: state.setShowTrayIcon,
+      onboardingComplete: state.onboardingComplete,
+      setOnboardingComplete: state.setOnboardingComplete,
     }))
   )
 
@@ -153,12 +172,16 @@ function App() {
     setPreferMenubarWeeklyLimit,
     setResetTimerDisplayMode,
     setTimeFormatMode,
+    setShowAccountIdentity,
+    setUIScale,
+    setShowTrayIcon,
     setGlobalShortcut,
     setStartOnLogin,
     setUsageAlertEnabled,
     setUsageAlertThreshold,
     setCustomUsageAlertThreshold,
     setUsageAlertSound,
+    setOnboardingComplete,
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,
@@ -173,16 +196,28 @@ function App() {
     handleResetTimerDisplayModeChange,
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
+    handleShowAccountIdentityChange,
     handleMenubarIconStyleChange,
     handlePreferMenubarWeeklyLimitChange,
+    handleUIScaleChange,
+    handleUsageAlertEnabledChange,
+    handleUsageAlertThresholdChange,
+    handleUsageAlertCustomThresholdChange,
+    handleUsageAlertSoundChange,
   } = useSettingsDisplayActions({
     setThemeMode,
     setDisplayMode,
     resetTimerDisplayMode,
     setResetTimerDisplayMode,
+    setTimeFormatMode,
     setShowAccountIdentity,
     setMenubarIconStyle,
     setPreferMenubarWeeklyLimit,
+    setUIScale,
+    setUsageAlertEnabled,
+    setUsageAlertThreshold,
+    setCustomUsageAlertThreshold,
+    setUsageAlertSound,
     scheduleTrayIconUpdate,
   })
 
@@ -543,6 +578,10 @@ function App() {
         onUsageAlertThresholdChange: handleUsageAlertThresholdChange,
         onUsageAlertCustomThresholdChange: handleUsageAlertCustomThresholdChange,
         onUsageAlertSoundChange: handleUsageAlertSoundChange,
+        onUIScaleChange: handleUIScaleChange,
+        onShowAccountIdentityChange: handleShowAccountIdentityChange,
+        onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
+        cursorRequestsLineAvailable,
       }}
     />
   )

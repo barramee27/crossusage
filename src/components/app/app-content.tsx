@@ -14,6 +14,8 @@ import type {
   MenubarIconStyle,
   ResetTimerDisplayMode,
   ThemeMode,
+  TimeFormatMode,
+  UIScale,
   UsageAlertSound,
   UsageAlertThreshold,
 } from "@/lib/settings"
@@ -48,6 +50,10 @@ export type AppContentActionProps = {
   onUsageAlertThresholdChange: (value: UsageAlertThreshold) => void
   onUsageAlertCustomThresholdChange: (value: number | null) => void
   onUsageAlertSoundChange: (value: UsageAlertSound) => void
+  onUIScaleChange: (value: UIScale) => void
+  onShowAccountIdentityChange: (value: boolean) => void
+  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void
+  cursorRequestsLineAvailable: boolean | null
 }
 
 export type AppContentProps = AppContentDerivedProps & AppContentActionProps
@@ -79,6 +85,10 @@ export function AppContent({
   onUsageAlertThresholdChange,
   onUsageAlertCustomThresholdChange,
   onUsageAlertSoundChange,
+  onUIScaleChange,
+  onShowAccountIdentityChange,
+  onSetCursorTrayMetricForAllAccounts,
+  cursorRequestsLineAvailable,
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
     useShallow((state) => ({
@@ -100,6 +110,8 @@ export function AppContent({
     usageAlertThreshold,
     customUsageAlertThreshold,
     usageAlertSound,
+    uiScale,
+    showAccountIdentity,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -115,6 +127,8 @@ export function AppContent({
       usageAlertThreshold: state.usageAlertThreshold,
       customUsageAlertThreshold: state.customUsageAlertThreshold,
       usageAlertSound: state.usageAlertSound,
+      uiScale: state.uiScale,
+      showAccountIdentity: state.showAccountIdentity,
     }))
   )
 
@@ -170,6 +184,12 @@ export function AppContent({
         onUsageAlertCustomThresholdChange={onUsageAlertCustomThresholdChange}
         usageAlertSound={usageAlertSound}
         onUsageAlertSoundChange={onUsageAlertSoundChange}
+        uiScale={uiScale}
+        onUIScaleChange={onUIScaleChange}
+        showAccountIdentity={showAccountIdentity}
+        onShowAccountIdentityChange={onShowAccountIdentityChange}
+        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
+        cursorRequestsLineAvailable={cursorRequestsLineAvailable}
       />
     )
   }

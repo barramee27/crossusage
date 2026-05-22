@@ -54,6 +54,8 @@ export function ProviderDetailPage({
       displayMode={displayMode}
       resetTimerDisplayMode={resetTimerDisplayMode}
       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+      timeFormatMode={timeFormatMode}
+      allowedLabels={allowedLabels}
       showAccountIdentity={showAccountIdentity}
     />
   )

@@ -54,6 +54,8 @@ import {
   type PluginSettings,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type TimeFormatMode,
+  type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings"
@@ -71,6 +73,13 @@ type UseSettingsBootstrapArgs = {
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setPreferMenubarWeeklyLimit: (value: boolean) => void
+  setUIScale: (value: UIScale) => void
+  setShowTrayIcon: (value: boolean) => void
+  setUsageAlertEnabled: (value: boolean) => void
+  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
+  setCustomUsageAlertThreshold: (value: number | null) => void
+  setUsageAlertSound: (value: UsageAlertSound) => void
+  setOnboardingComplete: (value: boolean) => void
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
   startBatch: (pluginIds?: string[]) => Promise<string[] | undefined>
@@ -89,6 +98,13 @@ export function useSettingsBootstrap({
   setShowAccountIdentity,
   setMenubarIconStyle,
   setPreferMenubarWeeklyLimit,
+  setUIScale,
+  setShowTrayIcon,
+  setUsageAlertEnabled,
+  setUsageAlertThreshold,
+  setCustomUsageAlertThreshold,
+  setUsageAlertSound,
+  setOnboardingComplete,
   setLoadingForPlugins,
   setErrorForPlugins,
   startBatch,
@@ -224,6 +240,41 @@ export function useSettingsBootstrap({
           console.error("Failed to load menubar weekly limit preference:", error)
         }
 
+        let storedUIScale = DEFAULT_UI_SCALE
+        try {
+          storedUIScale = await loadUIScale()
+        } catch (error) {
+          console.error("Failed to load UI scale:", error)
+        }
+
+        let storedUsageAlertEnabled = DEFAULT_USAGE_ALERT_ENABLED
+        try {
+          storedUsageAlertEnabled = await loadUsageAlertEnabled()
+        } catch (error) {
+          console.error("Failed to load usage alert enabled:", error)
+        }
+
+        let storedUsageAlertThreshold = DEFAULT_USAGE_ALERT_THRESHOLD
+        try {
+          storedUsageAlertThreshold = await loadUsageAlertThreshold()
+        } catch (error) {
+          console.error("Failed to load usage alert threshold:", error)
+        }
+
+        let storedUsageAlertCustomThreshold = DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD
+        try {
+          storedUsageAlertCustomThreshold = await loadUsageAlertCustomThreshold()
+        } catch (error) {
+          console.error("Failed to load usage alert custom threshold:", error)
+        }
+
+        let storedUsageAlertSound = DEFAULT_USAGE_ALERT_SOUND
+        try {
+          storedUsageAlertSound = await loadUsageAlertSound()
+        } catch (error) {
+          console.error("Failed to load usage alert sound:", error)
+        }
+
         if (isMounted) {
           setPluginSettings(normalized)
           setAutoUpdateInterval(storedInterval)
@@ -234,8 +285,15 @@ export function useSettingsBootstrap({
           setGlobalShortcut(storedGlobalShortcut)
           setStartOnLogin(storedStartOnLogin)
           setShowAccountIdentity(storedShowAccountIdentity)
+          setShowTrayIcon(storedShowTrayIcon)
           setMenubarIconStyle(storedMenubarIconStyle)
           setPreferMenubarWeeklyLimit(storedPreferMenubarWeeklyLimit)
+          setUIScale(storedUIScale)
+          setUsageAlertEnabled(storedUsageAlertEnabled)
+          setUsageAlertThreshold(storedUsageAlertThreshold)
+          setCustomUsageAlertThreshold(storedUsageAlertCustomThreshold)
+          setUsageAlertSound(storedUsageAlertSound)
+          setOnboardingComplete(onboardingDone)
 
           const enabledIds = getEnabledPluginIds(normalized)
           setLoadingForPlugins(enabledIds)
@@ -271,7 +329,6 @@ export function useSettingsBootstrap({
     setLoadingForPlugins,
     setMenubarIconStyle,
     setPreferMenubarWeeklyLimit,
-    migrateLegacyTraySettings,
     setPluginSettings,
     setPluginsMeta,
     setResetTimerDisplayMode,
@@ -280,6 +337,8 @@ export function useSettingsBootstrap({
     setStartOnLogin,
     setShowAccountIdentity,
     setThemeMode,
+    setTimeFormatMode,
+    setUIScale,
     setUsageAlertEnabled,
     setUsageAlertSound,
     setUsageAlertThreshold,

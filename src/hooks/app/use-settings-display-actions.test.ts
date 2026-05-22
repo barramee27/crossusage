@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const trackMock = vi.hoisted(() => vi.fn())
+
 const {
   saveDisplayModeMock,
   savePreferMenubarWeeklyLimitMock,
@@ -8,13 +10,13 @@ const {
   saveShowAccountIdentityMock,
   saveThemeModeMock,
   saveUIScaleMock,
-  saveTimeFormatModeMock,
 } = vi.hoisted(() => ({
   saveThemeModeMock: vi.fn(),
   saveDisplayModeMock: vi.fn(),
   savePreferMenubarWeeklyLimitMock: vi.fn(),
   saveResetTimerDisplayModeMock: vi.fn(),
   saveShowAccountIdentityMock: vi.fn(),
+  saveUIScaleMock: vi.fn(),
 }))
 
 vi.mock("@/lib/analytics", () => ({
@@ -27,9 +29,37 @@ vi.mock("@/lib/settings", () => ({
   savePreferMenubarWeeklyLimit: savePreferMenubarWeeklyLimitMock,
   saveResetTimerDisplayMode: saveResetTimerDisplayModeMock,
   saveShowAccountIdentity: saveShowAccountIdentityMock,
+  saveUIScale: saveUIScaleMock,
+  saveTimeFormatMode: vi.fn(),
+  saveUsageAlertEnabled: vi.fn(),
+  saveUsageAlertThreshold: vi.fn(),
+  saveUsageAlertCustomThreshold: vi.fn(),
+  saveUsageAlertSound: vi.fn(),
 }))
 
 import { useSettingsDisplayActions } from "@/hooks/app/use-settings-display-actions"
+
+function displayActionsArgs(
+  overrides: Partial<Parameters<typeof useSettingsDisplayActions>[0]> = {}
+) {
+  return {
+    setThemeMode: vi.fn(),
+    setDisplayMode: vi.fn(),
+    resetTimerDisplayMode: "relative" as const,
+    setResetTimerDisplayMode: vi.fn(),
+    setTimeFormatMode: vi.fn(),
+    setShowAccountIdentity: vi.fn(),
+    setMenubarIconStyle: vi.fn(),
+    setPreferMenubarWeeklyLimit: vi.fn(),
+    setUIScale: vi.fn(),
+    setUsageAlertEnabled: vi.fn(),
+    setUsageAlertThreshold: vi.fn(),
+    setCustomUsageAlertThreshold: vi.fn(),
+    setUsageAlertSound: vi.fn(),
+    scheduleTrayIconUpdate: vi.fn(),
+    ...overrides,
+  }
+}
 
 describe("useSettingsDisplayActions", () => {
   beforeEach(() => {
@@ -38,11 +68,13 @@ describe("useSettingsDisplayActions", () => {
     savePreferMenubarWeeklyLimitMock.mockReset()
     saveResetTimerDisplayModeMock.mockReset()
     saveShowAccountIdentityMock.mockReset()
+    saveUIScaleMock.mockReset()
     saveThemeModeMock.mockResolvedValue(undefined)
     saveDisplayModeMock.mockResolvedValue(undefined)
     savePreferMenubarWeeklyLimitMock.mockResolvedValue(undefined)
     saveResetTimerDisplayModeMock.mockResolvedValue(undefined)
     saveShowAccountIdentityMock.mockResolvedValue(undefined)
+    saveUIScaleMock.mockResolvedValue(undefined)
   })
 
   it("applies display-related setting changes", () => {
@@ -53,14 +85,15 @@ describe("useSettingsDisplayActions", () => {
     const scheduleTrayIconUpdate = vi.fn()
 
     const { result } = renderHook(() =>
-      useSettingsDisplayActions({
-        setThemeMode,
-        setDisplayMode,
-        resetTimerDisplayMode: "relative",
-        setResetTimerDisplayMode,
-        setPreferMenubarWeeklyLimit,
-        scheduleTrayIconUpdate,
-      })
+      useSettingsDisplayActions(
+        displayActionsArgs({
+          setThemeMode,
+          setDisplayMode,
+          setResetTimerDisplayMode,
+          setPreferMenubarWeeklyLimit,
+          scheduleTrayIconUpdate,
+        })
+      )
     )
 
     act(() => {
@@ -87,14 +120,12 @@ describe("useSettingsDisplayActions", () => {
 
     const { result, rerender } = renderHook(
       ({ mode }: { mode: "relative" | "absolute" }) =>
-        useSettingsDisplayActions({
-          setThemeMode: vi.fn(),
-          setDisplayMode: vi.fn(),
-          resetTimerDisplayMode: mode,
-          setResetTimerDisplayMode,
-          setPreferMenubarWeeklyLimit: vi.fn(),
-          scheduleTrayIconUpdate: vi.fn(),
-        }),
+        useSettingsDisplayActions(
+          displayActionsArgs({
+            resetTimerDisplayMode: mode,
+            setResetTimerDisplayMode,
+          })
+        ),
       { initialProps: { mode: "relative" as const } }
     )
 
@@ -121,16 +152,7 @@ describe("useSettingsDisplayActions", () => {
     saveResetTimerDisplayModeMock.mockRejectedValueOnce(resetError)
     savePreferMenubarWeeklyLimitMock.mockRejectedValueOnce(menubarWeeklyError)
 
-    const { result } = renderHook(() =>
-      useSettingsDisplayActions({
-        setThemeMode: vi.fn(),
-        setDisplayMode: vi.fn(),
-        resetTimerDisplayMode: "relative",
-        setResetTimerDisplayMode: vi.fn(),
-        setPreferMenubarWeeklyLimit: vi.fn(),
-        scheduleTrayIconUpdate: vi.fn(),
-      })
-    )
+    const { result } = renderHook(() => useSettingsDisplayActions(displayActionsArgs()))
 
     act(() => {
       result.current.handleThemeModeChange("light")
@@ -156,14 +178,7 @@ describe("useSettingsDisplayActions", () => {
     const setUIScale = vi.fn()
 
     const { result } = renderHook(() =>
-      useSettingsDisplayActions({
-        setThemeMode: vi.fn(),
-        setDisplayMode: vi.fn(),
-        resetTimerDisplayMode: "relative",
-        setResetTimerDisplayMode: vi.fn(),
-        setUIScale,
-        scheduleTrayIconUpdate: vi.fn(),
-      })
+      useSettingsDisplayActions(displayActionsArgs({ setUIScale }))
     )
 
     act(() => {

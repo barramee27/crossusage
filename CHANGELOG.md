@@ -2,6 +2,34 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections at the bottom of this file are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.0.9
+
+Stable **1.0.9** — merges **upstream [OpenUsage v0.6.24](https://github.com/robinebers/openusage/releases/tag/v0.6.24)** on **feat/linux-windows-native-support** (tray, usage history, multi-account, Linux/Windows native window). Release bundles: Linux `.deb`; Windows `crossusage.exe` + NSIS `crossusage_1.0.9_x64-setup.exe` (+ `WebView2Loader.dll` for portable folder layout).
+
+### New features (upstream v0.6.24)
+
+- **Grok** usage plugin — credits used, plan, pay-as-you-go cap ([#484](https://github.com/robinebers/openusage/pull/484)).
+- **Time format** setting — 12h / 24h / auto ([#427](https://github.com/robinebers/openusage/pull/427)).
+
+### Bug fixes (upstream v0.6.24)
+
+- **UI:** pace marker visibility on usage bars ([#485](https://github.com/robinebers/openusage/pull/485)).
+- **Claude:** prefer keychain credentials ([#483](https://github.com/robinebers/openusage/pull/483)).
+- **ccusage:** release-age fallback for costs ([#482](https://github.com/robinebers/openusage/pull/482)).
+- **Codex:** trust zero-credit usage response ([#481](https://github.com/robinebers/openusage/pull/481)).
+- **ccusage:** resolve NVM node bin path from alias/default ([#463](https://github.com/robinebers/openusage/pull/463)).
+- **Perplexity:** handle missing group in API response ([#462](https://github.com/robinebers/openusage/pull/462)).
+
+### Chores (upstream v0.6.24)
+
+- **Grok:** pay-as-you-go badge on detail scope only.
+- **Deps:** Tauri **2.11.1**, `tauri-plugin-store` **2.4.3**, `libc` **0.2.186**, `sha2` **0.11.0**; package release-age enforcement for ccusage.
+
+### App (fork, since 1.0.9-beta.1)
+
+- Usage history, tray, multi-account, Linux/Windows framed window — see **1.0.9-beta.1** below.
+- **Frontend:** restore settings bootstrap / onboarding wiring after upstream merge (fixes blank UI on `tauri:dev`).
+
 ## 1.0.9-beta.1
 
 Pre-release for testing ([crossusage.dev](https://crossusage.dev/) / portable builds) — merges **upstream OpenUsage `main` through [v0.6.23](https://github.com/robinebers/openusage/releases/tag/v0.6.23)** plus post-release `chore: enforce package release age`, on top of fork **feat/linux-windows-native-support** (tray, usage history, multi-account, Linux/Windows).

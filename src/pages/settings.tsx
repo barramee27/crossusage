@@ -30,14 +30,20 @@ import {
   MENUBAR_ICON_STYLE_OPTIONS,
   RESET_TIMER_DISPLAY_OPTIONS,
   THEME_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+  UI_SCALE_OPTIONS,
   USAGE_ALERT_SOUND_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
+  loadPersistUsageHistory,
+  savePersistUsageHistory,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type TimeFormatMode,
+  type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
@@ -59,10 +65,32 @@ import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
 import { FORK_REPO_URL } from "@/lib/fork-meta";
 import { sendNotificationAsync } from "@/lib/notification";
 
-interface PluginConfig {
-  id: string;
-  name: string;
-  enabled: boolean;
+const MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK = new Set<MenubarIconStyle>([
+  "provider",
+  "donut",
+  "logoBar",
+  "logoGrid",
+]);
+
+const CURSOR_TRAY_METRIC_CHOICES = [
+  "Credits",
+  "Total usage",
+  "Auto usage",
+  "API usage",
+  "Requests",
+] as const;
+
+function pickDefaultCursorTrayLine(plugins: SettingsPluginState[]): string {
+  const row = plugins.find((p) => p.enabled && p.baseProviderId === "cursor");
+  const first = row?.trayLines?.[0];
+  if (first && (CURSOR_TRAY_METRIC_CHOICES as readonly string[]).includes(first)) {
+    return first;
+  }
+  return "Total usage";
+}
+
+function trayBarPrimaryFraction(bar: TrayPrimaryBar | undefined): number {
+  return bar?.items[0]?.fraction ?? 0;
 }
 
 const TRAY_PREVIEW_SIZE_PX = getTrayIconSizePx(1);
@@ -869,6 +897,12 @@ interface SettingsPageProps {
   onUsageAlertCustomThresholdChange: (value: number | null) => void;
   usageAlertSound: UsageAlertSound;
   onUsageAlertSoundChange: (value: UsageAlertSound) => void;
+  uiScale: UIScale;
+  onUIScaleChange: (value: UIScale) => void;
+  showAccountIdentity: boolean;
+  onShowAccountIdentityChange: (value: boolean) => void;
+  cursorRequestsLineAvailable: boolean | null;
+  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void;
 }
 
 export function SettingsPage({
@@ -907,6 +941,12 @@ export function SettingsPage({
   onUsageAlertCustomThresholdChange,
   usageAlertSound,
   onUsageAlertSoundChange,
+  uiScale,
+  onUIScaleChange,
+  showAccountIdentity,
+  onShowAccountIdentityChange,
+  cursorRequestsLineAvailable,
+  onSetCursorTrayMetricForAllAccounts,
 }: SettingsPageProps) {
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);

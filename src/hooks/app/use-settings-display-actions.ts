@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { track } from "@/lib/analytics"
 import {
   saveUIScale,
   saveDisplayMode,
@@ -7,6 +8,7 @@ import {
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
   saveThemeMode,
+  saveTimeFormatMode,
   saveUsageAlertCustomThreshold,
   saveUsageAlertEnabled,
   saveUsageAlertSound,
@@ -15,6 +17,8 @@ import {
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type TimeFormatMode,
+  type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings"
@@ -26,9 +30,15 @@ type UseSettingsDisplayActionsArgs = {
   setDisplayMode: (value: DisplayMode) => void
   resetTimerDisplayMode: ResetTimerDisplayMode
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
+  setTimeFormatMode: (value: TimeFormatMode) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setPreferMenubarWeeklyLimit: (value: boolean) => void
+  setUIScale: (value: UIScale) => void
+  setUsageAlertEnabled: (value: boolean) => void
+  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
+  setCustomUsageAlertThreshold: (value: number | null) => void
+  setUsageAlertSound: (value: UsageAlertSound) => void
   scheduleTrayIconUpdate: ScheduleTrayIconUpdate
 }
 
@@ -37,9 +47,15 @@ export function useSettingsDisplayActions({
   setDisplayMode,
   resetTimerDisplayMode,
   setResetTimerDisplayMode,
+  setTimeFormatMode,
   setShowAccountIdentity,
   setMenubarIconStyle,
   setPreferMenubarWeeklyLimit,
+  setUIScale,
+  setUsageAlertEnabled,
+  setUsageAlertThreshold,
+  setCustomUsageAlertThreshold,
+  setUsageAlertSound,
   scheduleTrayIconUpdate,
 }: UseSettingsDisplayActionsArgs) {
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
@@ -76,6 +92,13 @@ export function useSettingsDisplayActions({
     })
   }, [setTimeFormatMode])
 
+  const handleShowAccountIdentityChange = useCallback((value: boolean) => {
+    setShowAccountIdentity(value)
+    void saveShowAccountIdentity(value).catch((error) => {
+      console.error("Failed to save account identity visibility:", error)
+    })
+  }, [setShowAccountIdentity])
+
   const handleMenubarIconStyleChange = useCallback((style: MenubarIconStyle) => {
     setMenubarIconStyle(style)
     scheduleTrayIconUpdate("settings", 0)
@@ -92,13 +115,57 @@ export function useSettingsDisplayActions({
     })
   }, [scheduleTrayIconUpdate, setPreferMenubarWeeklyLimit])
 
+  const handleUIScaleChange = useCallback((scale: UIScale) => {
+    setUIScale(scale)
+    void saveUIScale(scale).catch((error) => {
+      console.error("Failed to save UI scale:", error)
+    })
+  }, [setUIScale])
+
+  const handleUsageAlertEnabledChange = useCallback((value: boolean) => {
+    track("setting_changed", { setting: "usage_alert_enabled", value: value ? "true" : "false" })
+    setUsageAlertEnabled(value)
+    void saveUsageAlertEnabled(value).catch((error) => {
+      console.error("Failed to save usage alert enabled:", error)
+    })
+  }, [setUsageAlertEnabled])
+
+  const handleUsageAlertThresholdChange = useCallback((value: UsageAlertThreshold) => {
+    track("setting_changed", { setting: "usage_alert_threshold", value: String(value) })
+    setUsageAlertThreshold(value)
+    void saveUsageAlertThreshold(value).catch((error) => {
+      console.error("Failed to save usage alert threshold:", error)
+    })
+  }, [setUsageAlertThreshold])
+
+  const handleUsageAlertCustomThresholdChange = useCallback((value: number | null) => {
+    setCustomUsageAlertThreshold(value)
+    void saveUsageAlertCustomThreshold(value).catch((error) => {
+      console.error("Failed to save usage alert custom threshold:", error)
+    })
+  }, [setCustomUsageAlertThreshold])
+
+  const handleUsageAlertSoundChange = useCallback((value: UsageAlertSound) => {
+    track("setting_changed", { setting: "usage_alert_sound", value })
+    setUsageAlertSound(value)
+    void saveUsageAlertSound(value).catch((error) => {
+      console.error("Failed to save usage alert sound:", error)
+    })
+  }, [setUsageAlertSound])
+
   return {
     handleThemeModeChange,
     handleDisplayModeChange,
     handleResetTimerDisplayModeChange,
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
+    handleShowAccountIdentityChange,
     handleMenubarIconStyleChange,
     handlePreferMenubarWeeklyLimitChange,
+    handleUIScaleChange,
+    handleUsageAlertEnabledChange,
+    handleUsageAlertThresholdChange,
+    handleUsageAlertCustomThresholdChange,
+    handleUsageAlertSoundChange,
   }
 }

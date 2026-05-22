@@ -11,6 +11,7 @@ import {
   DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
+  DEFAULT_TIME_FORMAT_MODE,
   DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   DEFAULT_USAGE_ALERT_ENABLED,
   DEFAULT_USAGE_ALERT_SOUND,
@@ -22,6 +23,7 @@ import {
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type TimeFormatMode,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings"
@@ -37,6 +39,14 @@ type AppPreferencesStore = {
   showAccountIdentity: boolean
   menubarIconStyle: MenubarIconStyle
   preferMenubarWeeklyLimit: boolean
+  uiScale: UIScale
+  showTrayIcon: boolean
+  usageAlertEnabled: boolean
+  usageAlertThreshold: UsageAlertThreshold
+  customUsageAlertThreshold: number | null
+  usageAlertSound: UsageAlertSound
+  onboardingComplete: boolean | null
+
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
   setDisplayMode: (value: DisplayMode) => void
@@ -47,6 +57,13 @@ type AppPreferencesStore = {
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setPreferMenubarWeeklyLimit: (value: boolean) => void
+  setUIScale: (value: UIScale) => void
+  setShowTrayIcon: (value: boolean) => void
+  setUsageAlertEnabled: (value: boolean) => void
+  setUsageAlertThreshold: (value: UsageAlertThreshold) => void
+  setCustomUsageAlertThreshold: (value: number | null) => void
+  setUsageAlertSound: (value: UsageAlertSound) => void
+  setOnboardingComplete: (value: boolean) => void
   resetState: () => void
 }
 
@@ -61,6 +78,13 @@ const initialState = {
   showAccountIdentity: DEFAULT_SHOW_ACCOUNT_IDENTITY,
   menubarIconStyle: DEFAULT_MENUBAR_ICON_STYLE,
   preferMenubarWeeklyLimit: DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
+  uiScale: DEFAULT_UI_SCALE,
+  showTrayIcon: DEFAULT_SHOW_TRAY_ICON,
+  usageAlertEnabled: DEFAULT_USAGE_ALERT_ENABLED,
+  usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
+  customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
+  usageAlertSound: DEFAULT_USAGE_ALERT_SOUND,
+  onboardingComplete: null as boolean | null,
 }
 
 export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
@@ -75,5 +99,12 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setShowAccountIdentity: (value) => set({ showAccountIdentity: value }),
   setMenubarIconStyle: (value) => set({ menubarIconStyle: value }),
   setPreferMenubarWeeklyLimit: (value) => set({ preferMenubarWeeklyLimit: value }),
+  setUIScale: (value) => set({ uiScale: value }),
+  setShowTrayIcon: (value) => set({ showTrayIcon: value }),
+  setUsageAlertEnabled: (value) => set({ usageAlertEnabled: value }),
+  setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
+  setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),
+  setUsageAlertSound: (value) => set({ usageAlertSound: value }),
+  setOnboardingComplete: (value) => set({ onboardingComplete: value }),
   resetState: () => set(initialState),
 }))

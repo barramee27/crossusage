@@ -17,6 +17,7 @@ const {
   loadPluginSettingsMock,
   loadResetTimerDisplayModeMock,
   loadShowAccountIdentityMock,
+  loadShowTrayIconMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUIScaleMock,
@@ -41,6 +42,7 @@ const {
   loadPluginSettingsMock: vi.fn(),
   loadResetTimerDisplayModeMock: vi.fn(),
   loadShowAccountIdentityMock: vi.fn(),
+  loadShowTrayIconMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
@@ -75,6 +77,7 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT: false,
   DEFAULT_RESET_TIMER_DISPLAY_MODE: "relative",
   DEFAULT_SHOW_ACCOUNT_IDENTITY: true,
+  DEFAULT_SHOW_TRAY_ICON: true,
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_SCALE: "normal",
@@ -119,6 +122,13 @@ function createArgs() {
     setShowAccountIdentity: vi.fn(),
     setMenubarIconStyle: vi.fn(),
     setPreferMenubarWeeklyLimit: vi.fn(),
+    setUIScale: vi.fn(),
+    setShowTrayIcon: vi.fn(),
+    setUsageAlertEnabled: vi.fn(),
+    setUsageAlertThreshold: vi.fn(),
+    setCustomUsageAlertThreshold: vi.fn(),
+    setUsageAlertSound: vi.fn(),
+    setOnboardingComplete: vi.fn(),
     setLoadingForPlugins: vi.fn(),
     setErrorForPlugins: vi.fn(),
     startBatch: vi.fn().mockResolvedValue(undefined),
@@ -142,6 +152,7 @@ describe("useSettingsBootstrap", () => {
     loadPluginSettingsMock.mockReset()
     loadResetTimerDisplayModeMock.mockReset()
     loadShowAccountIdentityMock.mockReset()
+    loadShowTrayIconMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUIScaleMock.mockReset()
@@ -177,6 +188,7 @@ describe("useSettingsBootstrap", () => {
     loadPreferMenubarWeeklyLimitMock.mockResolvedValue(true)
     loadStartOnLoginMock.mockResolvedValue(true)
     loadShowAccountIdentityMock.mockResolvedValue(false)
+    loadShowTrayIconMock.mockResolvedValue(true)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)

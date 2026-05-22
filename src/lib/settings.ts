@@ -67,6 +67,12 @@ export const USAGE_ALERT_THRESHOLD_KEY = "usageAlertThreshold";
 export const USAGE_ALERT_CUSTOM_THRESHOLD_KEY = "usageAlertCustomThreshold";
 export const USAGE_ALERT_SOUND_KEY = "usageAlertSound";
 
+const UI_SCALE_KEY = "uiScale";
+const SHOW_TRAY_ICON_KEY = "showTrayIcon";
+const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
+const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
+const ONBOARDING_COMPLETE_V1_KEY = "onboardingCompleteV1";
+
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 export const DEFAULT_DISPLAY_MODE: DisplayMode = "left";
@@ -82,11 +88,30 @@ export const DEFAULT_USAGE_ALERT_THRESHOLD: UsageAlertThreshold = 20;
 export const DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD: number | null = null;
 export const DEFAULT_USAGE_ALERT_SOUND: UsageAlertSound = "Basso";
 
+export type UIScale = "normal" | "small" | "compact";
+export const DEFAULT_UI_SCALE: UIScale = "normal";
+const UI_SCALE_VALUES: UIScale[] = ["normal", "small", "compact"];
+export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
+  { value: "normal", label: "Normal" },
+  { value: "small", label: "Small" },
+  { value: "compact", label: "Compact" },
+];
+
+export const DEFAULT_SHOW_TRAY_ICON = true;
+export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
+
 const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
 const DISPLAY_MODES: DisplayMode[] = ["used", "left"];
 const RESET_TIMER_DISPLAY_MODES: ResetTimerDisplayMode[] = ["relative", "absolute"];
-const MENUBAR_ICON_STYLES: MenubarIconStyle[] = ["provider", "donut", "bars"];
+const TIME_FORMAT_MODES: TimeFormatMode[] = ["auto", "12h", "24h"];
+const MENUBAR_ICON_STYLES: MenubarIconStyle[] = [
+  "provider",
+  "logoBar",
+  "logoGrid",
+  "donut",
+  "bars",
+];
 const USAGE_ALERT_SOUNDS: UsageAlertSound[] = [
   "Basso",
   "Ping",
@@ -626,5 +651,76 @@ export async function loadUsageAlertSound(): Promise<UsageAlertSound> {
 
 export async function saveUsageAlertSound(value: UsageAlertSound): Promise<void> {
   await store.set(USAGE_ALERT_SOUND_KEY, value);
+  await store.save();
+}
+
+export function isUIScale(value: unknown): value is UIScale {
+  return typeof value === "string" && UI_SCALE_VALUES.includes(value as UIScale);
+}
+
+export async function loadUIScale(): Promise<UIScale> {
+  const stored = await store.get<unknown>(UI_SCALE_KEY);
+  if (isUIScale(stored)) return stored;
+  return DEFAULT_UI_SCALE;
+}
+
+export async function saveUIScale(value: UIScale): Promise<void> {
+  await store.set(UI_SCALE_KEY, value);
+  await store.save();
+}
+
+export async function loadShowTrayIcon(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_TRAY_ICON_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_TRAY_ICON;
+}
+
+export async function saveShowTrayIcon(value: boolean): Promise<void> {
+  await store.set(SHOW_TRAY_ICON_KEY, value);
+  await store.save();
+}
+
+export async function loadShowAccountIdentity(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_ACCOUNT_IDENTITY_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_ACCOUNT_IDENTITY;
+}
+
+export async function saveShowAccountIdentity(value: boolean): Promise<void> {
+  await store.set(SHOW_ACCOUNT_IDENTITY_KEY, value);
+  await store.save();
+}
+
+/** When true, successful probes write normalized snapshots to local SQLite. */
+export async function loadPersistUsageHistory(): Promise<boolean> {
+  const stored = await store.get<unknown>(PERSIST_USAGE_HISTORY_KEY);
+  return typeof stored === "boolean" ? stored : false;
+}
+
+export async function savePersistUsageHistory(value: boolean): Promise<void> {
+  await store.set(PERSIST_USAGE_HISTORY_KEY, value);
+  await store.save();
+}
+
+function hasLegacyMultiAccount(providerInstances: PluginSettings["providerInstances"]): boolean {
+  if (!providerInstances) return false;
+  return Object.keys(providerInstances).some((id) => id.includes(":"));
+}
+
+/** Raw loaded settings (before normalize) for legacy migration. */
+export async function resolveOnboardingComplete(storedPluginSettings: PluginSettings): Promise<boolean> {
+  const raw = await store.get<unknown>(ONBOARDING_COMPLETE_V1_KEY);
+  if (raw === true) return true;
+  if (raw === false) return false;
+  if (hasLegacyMultiAccount(storedPluginSettings.providerInstances)) {
+    await store.set(ONBOARDING_COMPLETE_V1_KEY, true);
+    await store.save();
+    return true;
+  }
+  return false;
+}
+
+export async function saveOnboardingCompleteV1(done: boolean): Promise<void> {
+  await store.set(ONBOARDING_COMPLETE_V1_KEY, done);
   await store.save();
 }

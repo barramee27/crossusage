@@ -36,6 +36,7 @@ interface ProviderCardProps {
   timeFormatMode?: TimeFormatMode
   onResetTimerDisplayModeToggle?: () => void
   showAccountIdentity?: boolean
+  layout?: "default" | "detailFill"
 }
 
 const PACE_VISUALS: Record<PaceStatus, { dotClass: string }> = {
@@ -113,6 +114,7 @@ export function ProviderCard({
   timeFormatMode = "auto",
   onResetTimerDisplayModeToggle,
   showAccountIdentity = true,
+  layout = "default",
 }: ProviderCardProps) {
   const cooldownRemainingMs = useMemo(() => {
     if (!lastManualRefreshAt) return 0

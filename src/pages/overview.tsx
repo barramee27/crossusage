@@ -1,8 +1,6 @@
 import { ProviderCard } from "@/components/provider-card"
 import type { PluginDisplayState } from "@/lib/plugin-types"
 import type { DisplayMode, ResetTimerDisplayMode, TimeFormatMode } from "@/lib/settings"
-import { useAppPluginStore } from "@/stores/app-plugin-store"
-
 interface OverviewPageProps {
   plugins: PluginDisplayState[]
   onRetryPlugin?: (pluginId: string) => void
@@ -22,8 +20,6 @@ export function OverviewPage({
   onResetTimerDisplayModeToggle,
   showAccountIdentity,
 }: OverviewPageProps) {
-  const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
-
   if (plugins.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -51,6 +47,7 @@ export function OverviewPage({
           displayMode={displayMode}
           resetTimerDisplayMode={resetTimerDisplayMode}
           onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+          timeFormatMode={timeFormatMode}
           showAccountIdentity={showAccountIdentity}
         />
       ))}
