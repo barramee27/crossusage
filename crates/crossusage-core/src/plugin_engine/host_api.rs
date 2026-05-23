@@ -830,25 +830,28 @@ fn read_platform_keyring_password(service: &str, account: Option<&str>) -> Resul
         return read_windows_keyring_password(service, account);
     }
 
-    let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
-    let keyring_err = match keyring::Entry::new(service, user) {
-        Ok(entry) => match entry.get_password() {
-            Ok(password) => return Ok(password),
+    #[cfg(not(target_os = "windows"))]
+    {
+        let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
+        let keyring_err = match keyring::Entry::new(service, user) {
+            Ok(entry) => match entry.get_password() {
+                Ok(password) => return Ok(password),
+                Err(e) => e.to_string(),
+            },
             Err(e) => e.to_string(),
-        },
-        Err(e) => e.to_string(),
-    };
+        };
 
-    #[cfg(target_os = "linux")]
-    {
-        return read_linux_secret_tool_password(service, account)
-            .map_err(|secret_tool_err| format!("{keyring_err}; {secret_tool_err}"));
-    }
+        #[cfg(target_os = "linux")]
+        {
+            return read_linux_secret_tool_password(service, account)
+                .map_err(|secret_tool_err| format!("{keyring_err}; {secret_tool_err}"));
+        }
 
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    {
-        let _ = keyring_err;
-        Err("keyring read failed".to_string())
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = keyring_err;
+            Err("keyring read failed".to_string())
+        }
     }
 }
 
