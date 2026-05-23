@@ -76,7 +76,7 @@
     "externalBin": [
       "binaries/crossusage-cli"
     ],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "startMenuFolder": "CrossUsage"
@@ -85,7 +85,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE3MjI5RTE4MzA2Qjg1QjkKUldTNWhXc3dHSjRpRndyTDBpdnhSOU9WdGNNSFpzVW84ck52UFJBZUdhcS8xeW9DK2l5enR1V04K",
       "endpoints": [
         "https://github.com/barramee27/crossusage/releases/latest/download/latest.json"
       ]

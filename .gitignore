@@ -57,6 +57,7 @@ docs/research/crawl-output/
 
 # Tauri updater private key (never commit)
 src-tauri/.tauri/updater.key
+.tauri/crossusage.key
 
 # Local scratch
 fix-tray-bars.cjs

@@ -29,6 +29,9 @@ Stable **1.0.9** — merges **upstream [OpenUsage v0.6.24](https://github.com/ro
 
 - Usage history, tray, multi-account, Linux/Windows framed window — see **1.0.9-beta.1** below.
 - **Frontend:** restore settings bootstrap / onboarding wiring after upstream merge (fixes blank UI on `tauri:dev`).
+- **Linux/Windows:** cross-platform keyring read/write; **Antigravity CLI** OAuth refresh; notification sounds (paplay / SystemSounds).
+- **Windows:** Credential Manager target `gemini:antigravity` for `agy`; hide PowerShell window for alert sounds (may still flash briefly on some systems — see release notes).
+- **In-app updates:** Tauri updater signing enabled (`latest.json` + `.sig` on installer bundles); portable onefile is manual download only.
 
 ## 1.0.9-beta.1
 
