@@ -11,14 +11,29 @@
     {
       marker: "windsurf",
       ideName: "windsurf",
-      stateDb: "~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb",
+      appSupportRel: "Windsurf/User/globalStorage/state.vscdb",
+      stateDbFallback:
+        "~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb",
     },
     {
       marker: "windsurf-next",
       ideName: "windsurf-next",
-      stateDb: "~/Library/Application Support/Windsurf - Next/User/globalStorage/state.vscdb",
+      appSupportRel: "Windsurf - Next/User/globalStorage/state.vscdb",
+      stateDbFallback:
+        "~/Library/Application Support/Windsurf - Next/User/globalStorage/state.vscdb",
     },
   ]
+
+  function resolveStateDb(ctx, variant) {
+    if (
+      ctx.host.fs &&
+      typeof ctx.host.fs.firstExistingAppSupport === "function"
+    ) {
+      var found = ctx.host.fs.firstExistingAppSupport(variant.appSupportRel)
+      if (found) return found
+    }
+    return variant.stateDbFallback
+  }
 
   function readFiniteNumber(value) {
     if (typeof value === "number") return Number.isFinite(value) ? value : null
@@ -39,7 +54,7 @@
   function loadApiKey(ctx, variant) {
     try {
       var rows = ctx.host.sqlite.query(
-        variant.stateDb,
+        resolveStateDb(ctx, variant),
         "SELECT value FROM ItemTable WHERE key = 'windsurfAuthStatus' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)

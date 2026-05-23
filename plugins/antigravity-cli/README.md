@@ -10,6 +10,6 @@ agy
 
 OpenUsage reads non-secret context only from `~/.gemini/antigravity-cli/`. It does not read legacy Gemini OAuth files such as `~/.gemini/oauth_creds.json`.
 
-Authentication comes from the OS keychain entry with service `gemini` and account `antigravity`, matching the CLI login state. The provider accepts raw tokens, JSON OAuth-style payloads, and `go-keyring-base64:` wrapped values when the keychain returns them.
+Authentication comes from the OS credential store entry with service `gemini` and username `antigravity` (same as `agy` / zalando/go-keyring). On Linux this is the Secret Service (unlock your session keyring). The provider accepts raw tokens, JSON OAuth-style payloads (including `{"token":{"access_token":"..."}}` from `agy`), and `go-keyring-base64:` wrapped values when the store returns them.
 
 The CLI and IDE appear to share Google platform/model quota, but OpenUsage tracks Antigravity CLI separately so the auth path and implementation remain clear.

@@ -12,11 +12,17 @@
     "MODEL_PLACEHOLDER_M12": true,
   }
 
+  function lsOsProperty(ctx) {
+    var p = ctx.app && ctx.app.platform
+    if (p === "linux" || p === "windows" || p === "macos") return p
+    return "linux"
+  }
+
   // --- LS discovery ---
 
   function discoverLs(ctx) {
     return ctx.host.ls.discover({
-      processName: "language_server_macos",
+      processName: "language_server",
       markers: ["antigravity-ide"],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",
@@ -39,7 +45,7 @@
             extensionVersion: "unknown",
             ide: "antigravity-ide",
             ideVersion: "unknown",
-            os: "macos",
+            os: lsOsProperty(ctx),
           },
         },
       }),

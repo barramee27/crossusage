@@ -7,6 +7,9 @@
   const KEYCHAIN_SESSION_SERVICE = "OpenUsage Ollama Session"
   const KEYCHAIN_COOKIE_SERVICE = "OpenUsage Ollama Cookie"
   const FIREFOX_PROFILE_ROOTS = [
+    "~/.mozilla/firefox",
+    "~/.librewolf",
+    "~/snap/firefox/common/.mozilla/firefox",
     "~/Library/Application Support/Firefox/Profiles",
     "~/Library/Application Support/LibreWolf/Profiles",
   ]

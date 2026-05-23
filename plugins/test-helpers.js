@@ -45,6 +45,7 @@ export const makeCtx = () => {
         readGenericPassword: vi.fn(),
         readGenericPasswordForCurrentUser: vi.fn(),
         writeGenericPassword: vi.fn(),
+        writeGenericPasswordForAccount: vi.fn(),
         writeGenericPasswordForCurrentUser: vi.fn(),
         deleteGenericPassword: vi.fn(),
       },

@@ -951,6 +951,7 @@ export function SettingsPage({
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
   const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
+  const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
   const [cursorTrayIconDialog, setCursorTrayIconDialog] = useState<{
     nextStyle: MenubarIconStyle;
@@ -1264,7 +1265,12 @@ export function SettingsPage({
             })}
           </div>
         </div>
-        <label className="mt-3 flex items-center gap-2 text-sm select-none text-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
+          Tray icon % uses each provider&apos;s primary usage line. When a provider exposes a
+          weekly overview limit (e.g. session weekly), enabling the option below prefers that line
+          over daily or monthly lines for the tray readout.
+        </p>
+        <label className="mt-2 flex items-center gap-2 text-sm select-none text-foreground">
           <Checkbox
             key={`prefer-menubar-weekly-limit-${preferMenubarWeeklyLimit}`}
             checked={preferMenubarWeeklyLimit}
@@ -1348,6 +1354,11 @@ export function SettingsPage({
       <UsageHistorySection />
       <section>
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          <strong>Local HTTP API</strong> (while the app runs):{" "}
+          <code className="text-xs">curl -sS http://127.0.0.1:6736/v1/usage</code> — the root URL returns{" "}
+          <code className="text-xs">not_found</code> by design.
+        </p>
         <p className="text-sm text-muted-foreground mb-2">
           <strong>Copy log tail</strong> copies plain text: a short header (version, OS, enabled accounts) plus
           the redacted recent log (no JSON, no issue template). Lines tagged for provider accounts you have
@@ -1474,96 +1485,6 @@ export function SettingsPage({
                   onChange={(e) => {
                     const raw = e.target.value
                     const next = raw === "" ? null : Number.parseInt(raw, 10)
-                    onUsageAlertCustomThresholdChange(Number.isFinite(next) ? next : null)
-                  }}
-                  className="flex h-9 w-20 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Sound</span>
-              <select
-                value={usageAlertSound}
-                onChange={(e) => onUsageAlertSoundChange(e.target.value as UsageAlertSound)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              >
-                {USAGE_ALERT_SOUND_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() => {
-                void sendNotificationAsync({
-                  title: "Usage Alert Test",
-                  body: "Notifications are working correctly.",
-                  sound: usageAlertSound,
-                  attachments: [{ id: "icon", url: "asset:///icon.png" }],
-                }).catch((error) => {
-                  console.error("Failed to send test notification:", error)
-                })
-              }}
-            >
-              Send Test Notification
-            </Button>
-          </div>
-        )}
-      </section>
-      <section>
-        <h3 className="text-lg font-semibold mb-0">Usage Alerts</h3>
-        <p className="text-sm text-muted-foreground mb-2">
-          Get notified before a session limit resets
-        </p>
-        <label className="flex items-center gap-2 text-sm select-none text-foreground">
-          <Checkbox
-            key={`usage-alert-enabled-${usageAlertEnabled}`}
-            checked={usageAlertEnabled}
-            onCheckedChange={(checked) => onUsageAlertEnabledChange(checked === true)}
-          />
-          Enable alerts <span className="text-muted-foreground">(Claude, Codex, Kimi, MiniMax, OpenCode Go, Zai)</span>
-        </label>
-
-        {usageAlertEnabled && (
-          <div className="mt-2 space-y-2">
-            <div className="bg-muted/50 rounded-lg p-1">
-              <div className="flex gap-1" role="radiogroup" aria-label="Usage alert threshold">
-                {USAGE_ALERT_THRESHOLD_OPTIONS.map((option) => {
-                  const isActive = option.value === usageAlertThreshold
-                  return (
-                    <Button
-                      key={String(option.value)}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      variant={isActive ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => onUsageAlertThresholdChange(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {usageAlertThreshold === "custom" && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">Custom threshold (%)</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={customUsageAlertThreshold ?? ""}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    const next = raw === "" ? null : Number.parseInt(raw, 10)
                     if (next == null) {
                       onUsageAlertCustomThresholdChange(null)
                       return
@@ -1572,8 +1493,7 @@ export function SettingsPage({
                       onUsageAlertCustomThresholdChange(null)
                       return
                     }
-                    const clamped = Math.max(1, Math.min(99, next))
-                    onUsageAlertCustomThresholdChange(clamped)
+                    onUsageAlertCustomThresholdChange(Math.max(1, Math.min(99, next)))
                   }}
                   className="flex h-9 w-20 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                 />
@@ -1594,6 +1514,12 @@ export function SettingsPage({
                 ))}
               </select>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Notifications use the OS tray/center (Linux: top bar; Windows: Action Center).
+              Pop-up banners and volume depend on system notification settings. CrossUsage also
+              plays the selected alert sound when supported (paplay on Linux, SystemSounds on
+              Windows, afplay on macOS).
+            </p>
 
             <Button
               type="button"
@@ -1601,16 +1527,28 @@ export function SettingsPage({
               onClick={() => {
                 void sendNotificationAsync({
                   title: "Usage Alert Test",
-                  body: "Notifications are working correctly.",
+                  body: "If you see this in the notification menu, alerts work. You should hear the selected sound.",
                   sound: usageAlertSound,
                   attachments: [{ id: "icon", url: "asset:///icon.png" }],
-                }).catch((error) => {
-                  console.error("Failed to send test notification:", error)
                 })
+                  .then(() =>
+                    setUsageAlertTestMessage(
+                      "Test sent — check the notification menu (top bar) and listen for the alert sound."
+                    )
+                  )
+                  .catch((error) => {
+                    console.error("Failed to send test notification:", error)
+                    const msg =
+                      error instanceof Error ? error.message : "Failed to send notification"
+                    setUsageAlertTestMessage(msg)
+                  })
               }}
             >
               Send Test Notification
             </Button>
+            {usageAlertTestMessage ? (
+              <span className="text-xs text-muted-foreground">{usageAlertTestMessage}</span>
+            ) : null}
           </div>
         )}
       </section>

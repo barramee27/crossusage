@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState } from "react"
+import { invoke, isTauri } from "@tauri-apps/api/core"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { GlobalShortcut } from "@/lib/settings"
+import { usePlatform } from "@/hooks/app/use-platform"
+
+function primaryModifierLabel(platform: string | null): string {
+  if (platform === "linux" || platform === "windows") return "Super"
+  return "Cmd"
+}
 
 // Convert internal shortcut format to display format
-// e.g., "CommandOrControl+Shift+U" -> "Cmd + Shift + U"
-function formatShortcutForDisplay(shortcut: string): string {
+// e.g., "CommandOrControl+Shift+U" -> "Super + Shift + U" (Linux) or "Cmd + Shift + U" (macOS)
+function formatShortcutForDisplay(shortcut: string, platform: string | null): string {
+  const mod = primaryModifierLabel(platform)
   return shortcut
-    .replace(/CommandOrControl/g, "Cmd")
-    .replace(/Command/g, "Cmd")
+    .replace(/CommandOrControl/g, mod)
+    .replace(/Command/g, mod)
     .replace(/Control/g, "Ctrl")
     .replace(/Option/g, "Opt")
     .replace(/Alt/g, "Opt")
@@ -96,10 +104,14 @@ function codeToTauriKey(code: string): string {
 }
 
 // Build shortcut array from currently pressed keys (modifiers + main key)
-function buildShortcutFromCodes(codes: Set<string>): { display: string; tauri: string | null } {
+function buildShortcutFromCodes(
+  codes: Set<string>,
+  platform: string | null
+): { display: string; tauri: string | null } {
   const modifiers: string[] = []
   const displayMods: string[] = []
   let mainCode: string | null = null
+  const modLabel = primaryModifierLabel(platform)
 
   for (const code of codes) {
     if (MODIFIER_CODES.has(code)) {
@@ -107,7 +119,7 @@ function buildShortcutFromCodes(codes: Set<string>): { display: string; tauri: s
       if (normalized === "Meta" || normalized === "Control") {
         if (!modifiers.includes("CommandOrControl")) {
           modifiers.push("CommandOrControl")
-          displayMods.push("Cmd")
+          displayMods.push(modLabel)
         }
       } else if (normalized === "Alt") {
         if (!modifiers.includes("Alt")) {
@@ -151,7 +163,9 @@ export function GlobalShortcutSection({
   globalShortcut,
   onGlobalShortcutChange,
 }: GlobalShortcutSectionProps) {
+  const platform = usePlatform()
   const [isRecording, setIsRecording] = useState(false)
+  const [shortcutError, setShortcutError] = useState<string | null>(null)
   // Track pressed keys using event.code (physical key location)
   const pressedCodesRef = useRef<Set<string>>(new Set())
   const [pendingShortcut, setPendingShortcut] = useState<string | null>(null)
@@ -199,7 +213,7 @@ export function GlobalShortcutSection({
     pressedCodesRef.current.add(e.code)
 
     // Build shortcut from all currently pressed keys
-    const { display, tauri } = buildShortcutFromCodes(pressedCodesRef.current)
+    const { display, tauri } = buildShortcutFromCodes(pressedCodesRef.current, platform)
     setPendingDisplay(display)
     if (tauri) {
       setPendingShortcut(tauri)
@@ -216,6 +230,15 @@ export function GlobalShortcutSection({
     // When all keys are released and we have a valid shortcut, save it
     if (pressedCodesRef.current.size === 0 && pendingShortcut) {
       onGlobalShortcutChange(pendingShortcut)
+      if (isTauri()) {
+        void invoke("update_global_shortcut", { shortcut: pendingShortcut })
+          .then(() => setShortcutError(null))
+          .catch((error) => {
+            const msg = error instanceof Error ? error.message : String(error)
+            setShortcutError(`Shortcut not registered: ${msg}`)
+            console.error("Failed to update global shortcut:", error)
+          })
+      }
       stopRecording()
     }
   }
@@ -236,7 +259,7 @@ export function GlobalShortcutSection({
       if (pendingDisplay) return pendingDisplay
       return "Press keys..."
     }
-    return globalShortcut ? formatShortcutForDisplay(globalShortcut) : "Click to set"
+    return globalShortcut ? formatShortcutForDisplay(globalShortcut, platform) : "Click to set"
   }
 
   const hasShortcut = globalShortcut !== null
@@ -245,7 +268,9 @@ export function GlobalShortcutSection({
     <section>
       <h3 className="text-lg font-semibold mb-0">Global Shortcut</h3>
       <p className="text-sm text-muted-foreground mb-2">
-        Show panel from anywhere
+        Show or hide the panel from anywhere. On Linux, use the <strong>Super</strong> (Windows) key
+        as the main modifier; on Wayland some desktops block global shortcuts unless portal access
+        is allowed.
       </p>
       <div className="space-y-2">
         {isRecording ? (
@@ -294,8 +319,11 @@ export function GlobalShortcutSection({
         )}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Press Escape while recording to clear.
+        Press Escape while recording to clear. Example: Super+Shift+O on Linux.
       </p>
+      {shortcutError ? (
+        <p className="mt-1 text-xs text-destructive">{shortcutError}</p>
+      ) : null}
     </section>
   )
 }

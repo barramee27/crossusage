@@ -14,6 +14,7 @@ use panel_windows as panel;
 mod local_http_api;
 mod os_diagnostics;
 mod support_bundle;
+mod usage_alert_sound;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod popover_platform;
 mod tray;
@@ -971,6 +972,7 @@ pub fn run() {
             list_usage_history,
             clear_usage_history,
             get_platform,
+            usage_alert_sound::play_usage_alert_sound,
             get_os_diagnostics,
             update_tray_usage_summary,
             set_tray_restart_label,

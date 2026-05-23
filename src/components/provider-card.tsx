@@ -231,18 +231,24 @@ export function ProviderCard({
   return (
     <div
       className={cn(
-        layout === "detailFill" && "flex min-h-0 w-full flex-1 flex-col",
+        "w-full min-w-0",
+        layout === "detailFill" && "flex min-h-0 flex-1 flex-col",
       )}
     >
       <div
         className={cn(
-          "py-3 liquid-glass-card",
+          "px-3 py-3 liquid-glass-card",
           layout === "detailFill" && "flex min-h-0 flex-1 flex-col",
         )}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="relative flex items-center">
-            <h2 className="text-lg font-semibold" style={{ transform: "translateZ(0)" }}>{name}</h2>
+        <div className="mb-2 flex min-w-0 items-center gap-2">
+          <div className="relative flex min-w-0 flex-1 items-center">
+            <h2
+              className="min-w-0 truncate text-lg font-semibold"
+              style={{ transform: "translateZ(0)" }}
+            >
+              {name}
+            </h2>
             {onRetry && (
               loading ? (
                 <Button
@@ -306,26 +312,28 @@ export function ProviderCard({
               )
             )}
           </div>
-          <div className="ml-2 flex min-w-0 max-w-[55%] items-center justify-end gap-1.5">
-            {showAccountIdentity && accountIdentity && (
-              <Badge
-                variant="secondary"
-                className="truncate min-w-0"
-                title={accountIdentity}
-              >
-                {accountIdentity}
-              </Badge>
-            )}
-            {plan && (
-              <Badge
-                variant="outline"
-                className="shrink-0 truncate max-w-[45%]"
-                title={plan}
-              >
-                {plan}
-              </Badge>
-            )}
-          </div>
+          {(showAccountIdentity && accountIdentity) || plan ? (
+            <div className="flex min-w-0 shrink items-center justify-end gap-1.5 overflow-hidden">
+              {showAccountIdentity && accountIdentity && (
+                <Badge
+                  variant="secondary"
+                  className="min-w-0 max-w-[9rem] shrink truncate"
+                  title={accountIdentity}
+                >
+                  {accountIdentity}
+                </Badge>
+              )}
+              {plan && (
+                <Badge
+                  variant="outline"
+                  className="min-w-0 max-w-[11rem] shrink truncate"
+                  title={plan}
+                >
+                  {plan}
+                </Badge>
+              )}
+            </div>
+          ) : null}
         </div>
         {visibleLinks.length > 0 && (
           <div className="mb-2 -mt-0.5 flex flex-wrap gap-1.5">

@@ -96,8 +96,17 @@
     } catch (e) {
       /* ignore missing env API */
     }
+    var rel = "Antigravity/User/globalStorage/state.vscdb"
+    if (
+      ctx.host.fs &&
+      typeof ctx.host.fs.firstExistingAppSupport === "function"
+    ) {
+      var resolved = ctx.host.fs.firstExistingAppSupport(rel)
+      if (resolved) add(resolved)
+    }
     add("~/.config/Antigravity/User/globalStorage/state.vscdb")
     add("~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
+    add("~/AppData/Roaming/Antigravity/User/globalStorage/state.vscdb")
     return paths
   }
 
@@ -217,6 +226,12 @@
     }
   }
 
+  function lsOsProperty(ctx) {
+    var p = ctx.app && ctx.app.platform
+    if (p === "linux" || p === "windows" || p === "macos") return p
+    return "linux"
+  }
+
   // --- LS discovery ---
 
   function discoverLs(ctx) {
@@ -246,7 +261,7 @@
             extensionVersion: "unknown",
             ide: "antigravity",
             ideVersion: "unknown",
-            os: "macos",
+            os: lsOsProperty(ctx),
           },
         },
       }),
