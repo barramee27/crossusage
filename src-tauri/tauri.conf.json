@@ -85,7 +85,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE3MjI5RTE4MzA2Qjg1QjkKUldTNWhXc3dHSjRpRndyTDBpdnhSOU9WdGNNSFpzVW84ck52UFJBZUdhcS8xeW9DK2l5enR1V04K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1RUQwMzNGOTE5MDU0QjYKUldTMlZKQ1JQd1B0VmZra213ay83czZLWDhCTWFhazdVaHdQUFQ5eTU3MEVTdHlqb2IzUEdvSG4K",
       "endpoints": [
         "https://github.com/barramee27/crossusage/releases/latest/download/latest.json"
       ]
