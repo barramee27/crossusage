@@ -94,16 +94,25 @@ fn play_windows(sound: &str) -> Result<(), String> {
     let script = format!(
         "[System.Media.SystemSounds]::{sys_sound}.Play(); Start-Sleep -Milliseconds 400"
     );
-    let status = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            &script,
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+    let mut cmd = Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle",
+        "Hidden",
+        "-Command",
+        &script,
+    ])
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let status = cmd
         .status()
         .map_err(|e| format!("powershell sound failed: {e}"))?;
     if status.success() {

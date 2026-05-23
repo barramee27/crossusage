@@ -17,7 +17,7 @@ Access tokens expire (~1 hour). CrossUsage refreshes them with the stored `refre
 ## Data Sources
 
 - Non-secret CLI context: `~/.gemini/antigravity-cli/`
-- Auth: OS credential store — service `gemini`, username/account `antigravity` (macOS Keychain, Linux Secret Service via GNOME Keyring/KWallet, Windows Credential Manager). JSON shape from `agy` includes `token.access_token`, `token.refresh_token`, and `token.expiry`.
+- Auth: OS credential store — service `gemini`, username/account `antigravity` (macOS Keychain, Linux Secret Service via GNOME Keyring/KWallet, Windows Credential Manager target `gemini:antigravity` per go-keyring). JSON shape from `agy` includes `token.access_token`, `token.refresh_token`, and `token.expiry`.
 - Quota APIs (tries `daily-cloudcode-pa` then `cloudcode-pa`):
   - `POST …/v1internal:loadCodeAssist` — body includes `metadata` (IDE/client context)
   - `POST …/v1internal:fetchAvailableModels` — body `{}` only (`metadata` causes HTTP 400)

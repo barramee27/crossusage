@@ -748,6 +748,61 @@ fn read_linux_secret_tool_password(service: &str, account: Option<&str>) -> Resu
     Ok(password)
 }
 
+/// Windows Credential Manager target for [zalando/go-keyring] (`agy`, Antigravity CLI): `service:username`.
+/// The Rust `keyring` crate default is `username.service` instead — try go-keyring layout first.
+#[cfg(target_os = "windows")]
+fn windows_go_keyring_target(service: &str, user: &str) -> String {
+    format!("{service}:{user}")
+}
+
+#[cfg(target_os = "windows")]
+fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
+    let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
+    let mut errors: Vec<String> = Vec::new();
+
+    if !user.is_empty() {
+        let go_target = windows_go_keyring_target(service, user);
+        match keyring::Entry::new_with_target(&go_target, service, user) {
+            Ok(entry) => match entry.get_password() {
+                Ok(password) => return Ok(password),
+                Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
+            },
+            Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
+        }
+    }
+
+    match keyring::Entry::new(service, user) {
+        Ok(entry) => match entry.get_password() {
+            Ok(password) => return Ok(password),
+            Err(e) => errors.push(format!("keyring crate default: {e}")),
+        },
+        Err(e) => errors.push(format!("keyring crate default: {e}")),
+    }
+
+    Err(errors.join("; "))
+}
+
+#[cfg(target_os = "windows")]
+fn write_windows_keyring_password(
+    service: &str,
+    account: Option<&str>,
+    value: &str,
+) -> Result<(), String> {
+    let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
+    if !user.is_empty() {
+        let go_target = windows_go_keyring_target(service, user);
+        if let Ok(entry) = keyring::Entry::new_with_target(&go_target, service, user) {
+            if entry.set_password(value).is_ok() {
+                return Ok(());
+            }
+        }
+    }
+    keyring::Entry::new(service, user)
+        .map_err(|e| e.to_string())?
+        .set_password(value)
+        .map_err(|e| e.to_string())
+}
+
 /// Reads a generic password from the platform store (Keychain, Secret Service, Credential Manager).
 /// Matches [zalando/go-keyring](https://github.com/zalando/go-keyring) (`service` + `username` on Linux).
 fn write_platform_keyring_password(
@@ -755,14 +810,26 @@ fn write_platform_keyring_password(
     account: Option<&str>,
     value: &str,
 ) -> Result<(), String> {
-    let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
-    keyring::Entry::new(service, user)
-        .map_err(|e| e.to_string())?
-        .set_password(value)
-        .map_err(|e| e.to_string())
+    #[cfg(target_os = "windows")]
+    {
+        return write_windows_keyring_password(service, account, value);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
+        keyring::Entry::new(service, user)
+            .map_err(|e| e.to_string())?
+            .set_password(value)
+            .map_err(|e| e.to_string())
+    }
 }
 
 fn read_platform_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return read_windows_keyring_password(service, account);
+    }
+
     let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
     let keyring_err = match keyring::Entry::new(service, user) {
         Ok(entry) => match entry.get_password() {
@@ -778,7 +845,7 @@ fn read_platform_keyring_password(service: &str, account: Option<&str>) -> Resul
             .map_err(|secret_tool_err| format!("{keyring_err}; {secret_tool_err}"));
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = keyring_err;
         Err("keyring read failed".to_string())
