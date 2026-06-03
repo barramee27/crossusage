@@ -4,6 +4,9 @@ use crate::provider_accounts::ProviderAccountContext;
 use rquickjs::{Array, Context, Ctx, Error, Object, Promise, Runtime, Value};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+const PROBE_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -61,12 +64,34 @@ pub fn run_probe_with_account(
     app_version: &str,
     account: Option<ProviderAccountContext>,
 ) -> PluginOutput {
+    run_probe_with_account_timeout(
+        plugin,
+        app_data_dir,
+        app_version,
+        account,
+        Duration::from_secs(PROBE_TIMEOUT_SECS),
+    )
+}
+
+fn run_probe_with_account_timeout(
+    plugin: &LoadedPlugin,
+    app_data_dir: &PathBuf,
+    app_version: &str,
+    account: Option<ProviderAccountContext>,
+    timeout: Duration,
+) -> PluginOutput {
     let fallback = error_output(plugin, "runtime error".to_string());
+    let timeout_message = format!("probe timed out after {}s", timeout.as_secs());
+    let deadline_at = Instant::now()
+        .checked_add(timeout)
+        .unwrap_or_else(Instant::now);
+    let deadline = host_api::ProbeDeadline::at(deadline_at);
 
     let rt = match Runtime::new() {
         Ok(rt) => rt,
         Err(_) => return fallback,
     };
+    rt.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline_at)));
 
     let ctx = match Context::full(&rt) {
         Ok(ctx) => ctx,
@@ -91,35 +116,57 @@ pub fn run_probe_with_account(
     let app_data = app_data_dir.clone();
 
     ctx.with(|ctx| {
-        if host_api::inject_host_api(
+        if host_api::inject_host_api_with_deadline(
             &ctx,
             &base_plugin_id,
             &plugin_id,
             account.as_ref(),
             &app_data,
             app_version,
+            deadline,
         )
         .is_err()
         {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "host api injection failed".to_string());
         }
         if host_api::patch_http_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "http wrapper patch failed".to_string());
         }
         if host_api::patch_ls_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "ls wrapper patch failed".to_string());
         }
         if host_api::patch_ccusage_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "ccusage wrapper patch failed".to_string());
         }
         if host_api::patch_fireworks_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "fireworks wrapper patch failed".to_string());
         }
         if host_api::inject_utils(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "utils injection failed".to_string());
         }
 
         if ctx.eval::<(), _>(entry_script.as_bytes()).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
             return error_output(plugin, "script eval failed".to_string());
         }
 
@@ -140,8 +187,16 @@ pub fn run_probe_with_account(
 
         let result_value: Value = match probe_fn.call((probe_ctx,)) {
             Ok(r) => r,
-            Err(_) => return error_output(plugin, extract_error_string(&ctx)),
+            Err(_) => {
+                if deadline.has_elapsed() {
+                    return error_output(plugin, timeout_message.clone());
+                }
+                return error_output(plugin, extract_error_string(&ctx));
+            }
         };
+        if deadline.has_elapsed() {
+            return error_output(plugin, timeout_message.clone());
+        }
         let result: Object = if result_value.is_promise() {
             let promise: Promise = match result_value.into_promise() {
                 Some(promise) => promise,

@@ -19,6 +19,50 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+const MIN_BLOCKING_TIMEOUT: Duration = Duration::from_millis(1);
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ProbeDeadline {
+    expires_at: Option<Instant>,
+}
+
+impl ProbeDeadline {
+    pub(crate) fn none() -> Self {
+        Self { expires_at: None }
+    }
+
+    pub(crate) fn at(expires_at: Instant) -> Self {
+        Self {
+            expires_at: Some(expires_at),
+        }
+    }
+
+    pub(crate) fn has_elapsed(self) -> bool {
+        self.expires_at
+            .map(|expires_at| Instant::now() >= expires_at)
+            .unwrap_or(false)
+    }
+
+    fn clamp_duration(self, requested: Duration) -> Option<Duration> {
+        let Some(expires_at) = self.expires_at else {
+            return Some(requested);
+        };
+        let remaining = expires_at
+            .checked_duration_since(Instant::now())
+            .filter(|remaining| *remaining >= MIN_BLOCKING_TIMEOUT)?;
+        Some(requested.min(remaining))
+    }
+}
+
+fn log_probe_deadline_skip(plugin_id: &str, operation: &str) {
+    log::warn!(
+        "[plugin:{}] {} skipped: probe timed out",
+        plugin_id,
+        operation
+    );
+}
 
 const WHITELISTED_ENV_VARS: [&str; 26] = [
     "CODEX_HOME",
@@ -567,6 +611,26 @@ pub fn inject_host_api<'js>(
     app_data_dir: &PathBuf,
     app_version: &str,
 ) -> rquickjs::Result<()> {
+    inject_host_api_with_deadline(
+        ctx,
+        base_plugin_id,
+        instance_id,
+        account,
+        app_data_dir,
+        app_version,
+        ProbeDeadline::none(),
+    )
+}
+
+pub(crate) fn inject_host_api_with_deadline<'js>(
+    ctx: &Ctx<'js>,
+    base_plugin_id: &str,
+    instance_id: &str,
+    account: Option<&ProviderAccountContext>,
+    app_data_dir: &PathBuf,
+    app_version: &str,
+    deadline: ProbeDeadline,
+) -> rquickjs::Result<()> {
     let globals = ctx.globals();
     let probe_ctx = Object::new(ctx.clone())?;
 
@@ -606,12 +670,12 @@ pub fn inject_host_api<'js>(
     inject_fs(ctx, &host)?;
     inject_crypto(ctx, &host)?;
     inject_env(ctx, &host, base_plugin_id)?;
-    inject_http(ctx, &host, instance_id)?;
+    inject_http(ctx, &host, instance_id, deadline)?;
     inject_credentials(ctx, &host, account)?;
     inject_keychain(ctx, &host, instance_id)?;
     inject_sqlite(ctx, &host)?;
     inject_ls(ctx, &host, base_plugin_id)?;
-    inject_ccusage(ctx, &host, base_plugin_id)?;
+    inject_ccusage(ctx, &host, base_plugin_id, deadline)?;
     inject_fireworks(ctx, &host, base_plugin_id)?;
 
     probe_ctx.set("host", host)?;
@@ -1061,7 +1125,16 @@ fn inject_credentials<'js>(
     Ok(())
 }
 
-fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rquickjs::Result<()> {
+fn probe_timeout_error<'js>(ctx: &Ctx<'js>) -> rquickjs::Error {
+    Exception::throw_message(ctx, "probe timed out")
+}
+
+fn inject_http<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    plugin_id: &str,
+    deadline: ProbeDeadline,
+) -> rquickjs::Result<()> {
     let http_obj = Object::new(ctx.clone())?;
     let pid = plugin_id.to_string();
 
@@ -1073,6 +1146,10 @@ fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rqui
                 let req: HttpReqParams = serde_json::from_str(&req_json).map_err(|e| {
                     Exception::throw_message(&ctx_inner, &format!("invalid request: {}", e))
                 })?;
+
+                if deadline.has_elapsed() {
+                    return Err(probe_timeout_error(&ctx_inner));
+                }
 
                 let method_str = req.method.as_deref().unwrap_or("GET");
                 let redacted_url = redact_url(&req.url);
@@ -1120,8 +1197,13 @@ fn inject_http<'js>(ctx: &Ctx<'js>, host: &Object<'js>, plugin_id: &str) -> rqui
                 }
 
                 let timeout_ms = req.timeout_ms.unwrap_or(10_000);
+                let Some(timeout) = deadline.clamp_duration(Duration::from_millis(timeout_ms))
+                else {
+                    return Err(probe_timeout_error(&ctx_inner));
+                };
                 let mut builder = reqwest::blocking::Client::builder()
-                    .timeout(std::time::Duration::from_millis(timeout_ms))
+                    .timeout(timeout)
+                    .connect_timeout(timeout)
                     .redirect(reqwest::redirect::Policy::none());
                 if let Some(resolved) = crate::proxy_config::get_resolved_proxy() {
                     builder = builder.proxy(resolved.proxy.clone());
@@ -2605,6 +2687,7 @@ fn inject_ccusage<'js>(
     ctx: &Ctx<'js>,
     host: &Object<'js>,
     plugin_id: &str,
+    deadline: ProbeDeadline,
 ) -> rquickjs::Result<()> {
     let ccusage_obj = Object::new(ctx.clone())?;
     let pid = plugin_id.to_string();
@@ -2614,6 +2697,10 @@ fn inject_ccusage<'js>(
         Function::new(
             ctx.clone(),
             move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+                if deadline.has_elapsed() {
+                    log_probe_deadline_skip(&pid, "ccusage");
+                    return Ok(serde_json::json!({ "status": "runner_failed" }).to_string());
+                }
                 let opts: CcusageQueryOpts = match serde_json::from_str(&opts_json) {
                     Ok(v) => v,
                     Err(e) => {

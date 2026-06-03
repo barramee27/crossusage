@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   getEnabledPluginIds,
   type AutoUpdateIntervalMinutes,
@@ -10,6 +10,7 @@ type UseProbeAutoUpdateArgs = {
   autoUpdateInterval: AutoUpdateIntervalMinutes
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
+  isPluginLoading: (id: string) => boolean
   startBatch: (pluginIds?: string[]) => Promise<string[] | undefined>
 }
 
@@ -18,26 +19,19 @@ export function useProbeAutoUpdate({
   autoUpdateInterval,
   setLoadingForPlugins,
   setErrorForPlugins,
+  isPluginLoading,
   startBatch,
 }: UseProbeAutoUpdateArgs) {
   const [autoUpdateNextAt, setAutoUpdateNextAt] = useState<number | null>(null)
   const [autoUpdateResetToken, setAutoUpdateResetToken] = useState(0)
-  const pluginSettingsRef = useRef(pluginSettings)
-  pluginSettingsRef.current = pluginSettings
-
-  /** Tray line / unrelated settings changes must not reset the interval (was re-probing constantly). */
-  const autoProbeScheduleKey = pluginSettings
-    ? `${autoUpdateInterval}|${getEnabledPluginIds(pluginSettings).join("\u0001")}`
-    : ""
 
   useEffect(() => {
-    const current = pluginSettingsRef.current
-    if (!current) {
+    if (!pluginSettings) {
       setAutoUpdateNextAt(null)
       return
     }
 
-    const enabledIds = getEnabledPluginIds(current)
+    const enabledIds = getEnabledPluginIds(pluginSettings)
     if (enabledIds.length === 0) {
       setAutoUpdateNextAt(null)
       return
@@ -48,23 +42,26 @@ export function useProbeAutoUpdate({
     scheduleNext()
 
     const interval = setInterval(() => {
-      const latest = pluginSettingsRef.current
-      if (!latest) return
-      const ids = getEnabledPluginIds(latest)
-      if (ids.length === 0) return
-      setLoadingForPlugins(ids)
-      startBatch(ids).catch((error) => {
+      const idleIds = enabledIds.filter((id) => !isPluginLoading(id))
+      if (idleIds.length === 0) {
+        scheduleNext()
+        return
+      }
+
+      setLoadingForPlugins(idleIds)
+      startBatch(idleIds).catch((error) => {
         console.error("Failed to start auto-update batch:", error)
-        setErrorForPlugins(ids, "Failed to start probe")
+        setErrorForPlugins(idleIds, "Failed to start probe")
       })
       scheduleNext()
     }, intervalMs)
 
     return () => clearInterval(interval)
   }, [
-    autoProbeScheduleKey,
-    autoUpdateResetToken,
     autoUpdateInterval,
+    autoUpdateResetToken,
+    pluginSettings,
+    isPluginLoading,
     setLoadingForPlugins,
     setErrorForPlugins,
     startBatch,

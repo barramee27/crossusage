@@ -8,7 +8,18 @@ use tauri::tray::TrayIconBuilder;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_store::StoreExt;
+
+use crate::log_path;
+#[cfg(target_os = "macos")]
+use crate::panel::position_panel_at_tray_icon;
+use crate::panel::show_panel;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use crate::panel::toggle_panel;
+
+#[cfg(target_os = "macos")]
+use crate::panel::get_or_init_panel;
 
 #[cfg(target_os = "linux")]
 static TRAY_USAGE_SUMMARY_ITEM: OnceLock<Mutex<MenuItem<Wry>>> = OnceLock::new();
@@ -79,15 +90,6 @@ pub fn update_tray_usage_summary(summary: &str) {
         let _ = item.set_text(&joined);
     }
 }
-
-#[cfg(target_os = "macos")]
-use crate::panel::position_panel_at_tray_icon;
-use crate::panel::show_panel;
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-use crate::panel::toggle_panel;
-
-#[cfg(target_os = "macos")]
-use crate::panel::get_or_init_panel;
 
 const LOG_LEVEL_STORE_KEY: &str = "logLevel";
 
@@ -190,11 +192,27 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         current_level == log::LevelFilter::Trace,
         None::<&str>,
     )?;
+    let log_level_separator = PredefinedMenuItem::separator(app_handle)?;
+    let copy_log_path = MenuItem::with_id(
+        app_handle,
+        "copy_log_path",
+        "Copy Log Path",
+        true,
+        None::<&str>,
+    )?;
     let log_level_submenu = Submenu::with_items(
         app_handle,
         "Debug Level",
         true,
-        &[&log_error, &log_warn, &log_info, &log_debug, &log_trace],
+        &[
+            &log_error,
+            &log_warn,
+            &log_info,
+            &log_debug,
+            &log_trace,
+            &log_level_separator,
+            &copy_log_path,
+        ],
     )?;
 
     // Clone for capture in event handler
@@ -320,6 +338,21 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                         let _ = item.set_checked(*level == selected_level);
                     }
                 }
+                "copy_log_path" => match log_path::for_app(app_handle) {
+                    Ok(path) => {
+                        if let Err(error) = app_handle
+                            .clipboard()
+                            .write_text(path.to_string_lossy().to_string())
+                        {
+                            log::error!("failed to copy log path to clipboard: {}", error);
+                        } else {
+                            log::info!("copied log path to clipboard");
+                        }
+                    }
+                    Err(error) => {
+                        log::error!("failed to resolve log path: {}", error);
+                    }
+                },
                 _ => {}
             }
         })

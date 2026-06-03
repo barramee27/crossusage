@@ -12,6 +12,7 @@ use crossusage_core::{plugin_engine, provider_accounts};
 #[cfg(target_os = "windows")]
 use panel_windows as panel;
 mod local_http_api;
+mod log_path;
 mod os_diagnostics;
 mod support_bundle;
 mod usage_alert_sound;
@@ -23,7 +24,7 @@ mod tray_linux;
 #[cfg(target_os = "macos")]
 mod webkit_config;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -46,6 +47,11 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 const GLOBAL_SHORTCUT_STORE_KEY: &str = "globalShortcut";
 const DAILY_ACTIVE_TRACKED_DAY_KEY: &str = "analytics.daily_active_day";
 const DAILY_ACTIVE_EVENT_NAME: &str = "app_started";
+const MAX_CONCURRENT_PROBES: usize = 4;
+
+fn probe_worker_count(plugin_count: usize) -> usize {
+    plugin_count.min(MAX_CONCURRENT_PROBES)
+}
 
 /// Create `~/.crossusage/config.json` on first launch if missing (proxy + optional Synthetic key).
 fn ensure_crossusage_user_config_file() {
@@ -629,9 +635,24 @@ async fn start_probe_batch(
         });
     }
 
-    let remaining = Arc::new(AtomicUsize::new(selected_plugins.len()));
+    let selected_count = selected_plugins.len();
+    let worker_count = probe_worker_count(selected_count);
+    if worker_count < selected_count {
+        log::info!(
+            "probe batch {} using {} workers for {} plugins",
+            batch_id,
+            worker_count,
+            selected_count
+        );
+    }
+
+    let remaining = Arc::new(AtomicUsize::new(selected_count));
+    let probe_queue = Arc::new(Mutex::new(
+        selected_plugins.into_iter().collect::<VecDeque<_>>(),
+    ));
     let history_dir = app_data_dir.clone();
-    for (plugin, account_context) in selected_plugins {
+
+    for _ in 0..worker_count {
         let handle = app_handle.clone();
         let completion_handle = app_handle.clone();
         let bid = batch_id.clone();
@@ -640,74 +661,90 @@ async fn start_probe_batch(
         let history_dir_spawn = history_dir.clone();
         let version = app_version.clone();
         let counter = Arc::clone(&remaining);
+        let queue = Arc::clone(&probe_queue);
 
         tauri::async_runtime::spawn_blocking(move || {
-            let plugin_id = account_context.instance_id.clone();
-            let probe_display_name = if account_context.label.trim().is_empty() {
-                plugin.manifest.name.clone()
-            } else {
-                format!(
-                    "{} ({})",
-                    plugin.manifest.name,
-                    account_context.label.trim()
-                )
-            };
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                plugin_engine::runtime::run_probe_with_account(
-                    &plugin,
-                    &data_dir,
-                    &version,
-                    Some(account_context),
-                )
-            }));
+            loop {
+                let item = {
+                    let mut queue = queue
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    queue.pop_front()
+                };
 
-            match result {
-                Ok(output) => {
-                    let has_error = output.lines.iter().any(|line| {
-                        matches!(line, plugin_engine::runtime::MetricLine::Badge { label, .. } if label == "Error")
-                    });
-                    if has_error {
-                        log::warn!("probe {} completed with error", plugin_id);
-                    } else {
-                        log::info!(
-                            "probe {} completed ok ({} lines)",
-                            plugin_id,
-                            output.lines.len()
-                        );
-                        local_http_api::cache_successful_output(&output);
-                        if persist_usage_history_enabled(&handle) {
-                            if let Err(e) = crossusage_core::usage_history::append_probe_snapshot(
-                                &history_dir_spawn,
-                                &output,
-                            ) {
-                                log::debug!("usage history append: {}", e);
+                let Some((plugin, account_context)) = item else {
+                    break;
+                };
+
+                let plugin_id = account_context.instance_id.clone();
+                let probe_display_name = if account_context.label.trim().is_empty() {
+                    plugin.manifest.name.clone()
+                } else {
+                    format!(
+                        "{} ({})",
+                        plugin.manifest.name,
+                        account_context.label.trim()
+                    )
+                };
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    plugin_engine::runtime::run_probe_with_account(
+                        &plugin,
+                        &data_dir,
+                        &version,
+                        Some(account_context),
+                    )
+                }));
+
+                match result {
+                    Ok(output) => {
+                        let has_error = output.lines.iter().any(|line| {
+                            matches!(line, plugin_engine::runtime::MetricLine::Badge { label, .. } if label == "Error")
+                        });
+                        if has_error {
+                            log::warn!("probe {} completed with error", plugin_id);
+                        } else {
+                            log::info!(
+                                "probe {} completed ok ({} lines)",
+                                plugin_id,
+                                output.lines.len()
+                            );
+                            local_http_api::cache_successful_output(&output);
+                            if persist_usage_history_enabled(&handle) {
+                                if let Err(e) =
+                                    crossusage_core::usage_history::append_probe_snapshot(
+                                        &history_dir_spawn,
+                                        &output,
+                                    )
+                                {
+                                    log::debug!("usage history append: {}", e);
+                                }
                             }
                         }
+                        let _ = handle.emit(
+                            "probe:result",
+                            ProbeResult {
+                                batch_id: bid.clone(),
+                                output,
+                            },
+                        );
                     }
+                    Err(_) => {
+                        log::error!("probe {} panicked", plugin_id);
+                        let output = plugin_engine::runtime::probe_fault_output(
+                            &plugin,
+                            &plugin_id,
+                            &probe_display_name,
+                            "The probe crashed. Try again or update the app.".to_string(),
+                        );
                     let _ = handle.emit(
                         "probe:result",
                         ProbeResult {
-                            batch_id: bid,
+                            batch_id: bid.clone(),
                             output,
                         },
                     );
                 }
-                Err(_) => {
-                    log::error!("probe {} panicked", plugin_id);
-                    let output = plugin_engine::runtime::probe_fault_output(
-                        &plugin,
-                        &plugin_id,
-                        &probe_display_name,
-                        "The probe crashed. Try again or update the app.".to_string(),
-                    );
-                    let _ = handle.emit(
-                        "probe:result",
-                        ProbeResult {
-                            batch_id: bid,
-                            output,
-                        },
-                    );
-                }
+            }
             }
 
             if counter.fetch_sub(1, Ordering::SeqCst) == 1 {
@@ -748,7 +785,7 @@ pub(crate) fn resolve_log_file_path(app_handle: &tauri::AppHandle) -> Result<Str
 
 #[tauri::command]
 fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
-    resolve_log_file_path(&app_handle)
+    log_path::for_app(&app_handle).map(|path| path.to_string_lossy().to_string())
 }
 
 /// Returns `std::env::consts::OS` for the **built** target (e.g. `linux`, `windows`, `macos`).

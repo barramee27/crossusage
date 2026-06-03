@@ -10,6 +10,8 @@ Menu-bar app for AI coding subscription usage — one panel, progress bars, no d
 | **Upstream** | [github.com/robinebers/openusage](https://github.com/robinebers/openusage) |
 | **Site** | [crossusage.dev](https://crossusage.dev) |
 
+**Versioning:** CrossUsage uses **`MAJOR.MINOR.PATCH`** (e.g. `1.0.10`). See [docs/VERSIONING.md](docs/VERSIONING.md) for when to bump each part. Upstream OpenUsage `0.6.x` is tracked in the changelog only, not in our app version.
+
 ![CrossUsage screenshot](screenshot.png)
 
 ## Download
@@ -70,7 +72,6 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | DeepSeek | [deepseek](docs/providers/deepseek.md) |
 | Factory / Droid | [factory](docs/providers/factory.md) |
 | Fireworks AI | [fireworks-ai](docs/providers/fireworks-ai.md) |
-| Gemini | [gemini](docs/providers/gemini.md) |
 | Grok | [grok](docs/providers/grok.md) |
 | JetBrains AI Assistant | [jetbrains-ai-assistant](docs/providers/jetbrains-ai-assistant.md) |
 | Kiro | [kiro](docs/providers/kiro.md) |

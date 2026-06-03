@@ -51,6 +51,11 @@ export function useProbe({
     getProbeTargets: resolveProbeTargets,
   })
 
+  const isPluginLoading = useCallback(
+    (id: string) => Boolean(pluginStatesRef.current[id]?.loading),
+    [pluginStatesRef]
+  )
+
   const {
     autoUpdateNextAt,
     setAutoUpdateNextAt,
@@ -60,6 +65,7 @@ export function useProbe({
     autoUpdateInterval,
     setLoadingForPlugins,
     setErrorForPlugins,
+    isPluginLoading,
     startBatch,
   })
 

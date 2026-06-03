@@ -1,6 +1,6 @@
 [package]
 name = "crossusage"
-version = "1.0.9"
+version = "1.0.10"
 description = "CrossUsage — cross-platform fork of OpenUsage, an open source AI subscription limit tracker"
 authors = ["barramee kottanawadee <barramee25038@gmail.com>"]
 homepage = "https://github.com/barramee27/crossusage"
@@ -33,6 +33,7 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 tauri-plugin-log = "2"
 tauri-plugin-aptabase = { git = "https://github.com/aptabase/tauri-plugin-aptabase", rev = "e896cceb" }
+tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-global-shortcut = "2"
@@ -40,7 +41,6 @@ tauri-plugin-autostart = "2.5.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tauri-plugin-liquid-glass = "0.1.6"
 tauri-plugin-positioner = { version = "2.3.1", features = ["tray-icon"] }
-tauri-plugin-clipboard-manager = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
