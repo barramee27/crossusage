@@ -37,6 +37,24 @@ export const makeCtx = () => {
           }
           return Array.from(out).sort()
         },
+        firstExisting: (paths) => {
+          for (const path of paths || []) {
+            if (files.has(path)) return path
+          }
+          return null
+        },
+        firstExistingAppSupport: (relative) => {
+          const rel = String(relative || "").replace(/^\/+/, "")
+          const candidates = [
+            `~/.config/${rel}`,
+            `~/Library/Application Support/${rel}`,
+            `~/AppData/Roaming/${rel}`,
+          ]
+          for (const path of candidates) {
+            if (files.has(path)) return path
+          }
+          return null
+        },
       },
       env: {
         get: vi.fn(() => null),
@@ -88,6 +106,12 @@ export const makeCtx = () => {
       ccusage: {
         query: vi.fn(() => null),
       },
+      usageDaily: {
+        ingest: vi.fn(),
+      },
+      cursorLogs: {
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
       fireworks: {
         exportBillingMetrics: vi.fn(() => ({ status: "unavailable" })),
       },
@@ -119,6 +143,12 @@ export const makeCtx = () => {
       const line = { type: "badge", label: opts.label, text: opts.text }
       if (opts.color) line.color = opts.color
       if (opts.subtitle) line.subtitle = opts.subtitle
+      return line
+    },
+    barChart: (opts) => {
+      const line = { type: "barChart", label: opts.label, points: opts.points || [] }
+      if (opts.note) line.note = opts.note
+      if (opts.color) line.color = opts.color
       return line
     },
   }

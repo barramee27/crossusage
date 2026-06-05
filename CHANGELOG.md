@@ -2,6 +2,23 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.0.11
+
+Ports **[OpenUsage v0.6.26](https://github.com/robinebers/openusage/releases/tag/v0.6.26)** while keeping CrossUsage fork UI (Linux/Windows native window, usage history, multi-account).
+
+### New features (upstream v0.6.26)
+
+- **Usage trend:** local usage trend chart and per-model usage percentages ([#542](https://github.com/robinebers/openusage/pull/542)).
+- **Devin:** replace Windsurf provider with Devin ([#551](https://github.com/robinebers/openusage/pull/551)); Linux/Windows credential and app-state path discovery.
+
+### Bug fixes (upstream v0.6.26)
+
+- **Tray / Claude:** tray percentage fallback and Claude extra usage metric scope ([#548](https://github.com/robinebers/openusage/pull/548)).
+- **Cursor:** handle free account pooled limit ([#544](https://github.com/robinebers/openusage/pull/544)).
+- **UI:** scrollable provider rail ([#543](https://github.com/robinebers/openusage/pull/543)).
+
+---
+
 ## 1.0.10
 
 Ports **[OpenUsage v0.6.25](https://github.com/robinebers/openusage/releases/tag/v0.6.25)** while keeping CrossUsage fork UI (Linux/Windows native window, usage history, multi-account).
@@ -20,6 +37,22 @@ Ports **[OpenUsage v0.6.25](https://github.com/robinebers/openusage/releases/tag
 ### Refactor (upstream v0.6.25)
 
 - Debounced usage API cache writes, bounded local HTTP API concurrency, capped concurrent plugin probes (4 workers), per-probe runtime deadline, skip in-flight auto-update probes, pause refresh ticker while panel hidden ([#498](https://github.com/robinebers/openusage/pull/498)–[#503](https://github.com/robinebers/openusage/pull/503)).
+
+---
+
+## v0.6.26 (archived upstream)
+
+### New Features
+- Add local usage trend chart and per-model usage percentages ([#542](https://github.com/robinebers/openusage/pull/542)) by @rohithgoud30
+- Replace Windsurf provider with Devin ([#551](https://github.com/robinebers/openusage/pull/551)) by @robinebers
+
+### Bug Fixes
+- Fix tray percentage fallback and Claude extra usage metric scope ([#548](https://github.com/robinebers/openusage/pull/548)) by @krismolendyke
+- Handle Cursor free account pooled limit ([#544](https://github.com/robinebers/openusage/pull/544)) by @rohithgoud30
+- Make provider rail scrollable ([#543](https://github.com/robinebers/openusage/pull/543)) by @rohithgoud30
+
+### Chores
+- Rename Devin weekly quota label by @robinebers
 
 ---
 

@@ -34,6 +34,23 @@ function SkeletonProgress({ label }: { label: string }) {
   )
 }
 
+function SkeletonBarChart({ label }: { label: string }) {
+  return (
+    <div className="flex h-[18px] items-center justify-between gap-2">
+      <span className="text-xs text-muted-foreground min-w-0 truncate">{label}</span>
+      <div className="flex h-4 w-1/2 max-w-[150px] flex-shrink-0 items-end justify-end gap-px">
+        {Array.from({ length: 16 }).map((_, index) => (
+          <Skeleton
+            key={index}
+            className="min-w-[2px] flex-1 rounded-[1px]"
+            style={{ height: `${30 + ((index * 17) % 60)}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function SkeletonLine({ line }: { line: ManifestLine }) {
   switch (line.type) {
     case "text":
@@ -42,6 +59,8 @@ export function SkeletonLine({ line }: { line: ManifestLine }) {
       return <SkeletonBadge label={line.label} />
     case "progress":
       return <SkeletonProgress label={line.label} />
+    case "barChart":
+      return <SkeletonBarChart label={line.label} />
     default:
       return <SkeletonText label={line.label} />
   }

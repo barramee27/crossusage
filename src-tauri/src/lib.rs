@@ -718,6 +718,11 @@ async fn start_probe_batch(
                                 {
                                     log::debug!("usage history append: {}", e);
                                 }
+                                crossusage_core::plugin_engine::host_api::post_probe_ccusage_daily(
+                                    &history_dir_spawn,
+                                    &plugin_id,
+                                    &output.display_name,
+                                );
                             }
                         }
                         let _ = handle.emit(
@@ -840,6 +845,24 @@ fn clear_usage_history(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), S
         locked.app_data_dir.clone()
     };
     crossusage_core::usage_history::clear_all(&dir).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_usage_daily(
+    state: tauri::State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+    instance_id: Option<String>,
+) -> Result<Vec<crossusage_core::usage_daily::UsageDailyRow>, String> {
+    let dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    crossusage_core::usage_daily::list_recent(
+        &dir,
+        limit.unwrap_or(120),
+        instance_id.as_deref(),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1007,6 +1030,7 @@ pub fn run() {
             get_log_path,
             get_support_bundle_json,
             list_usage_history,
+            list_usage_daily,
             clear_usage_history,
             get_platform,
             usage_alert_sound::play_usage_alert_sound,

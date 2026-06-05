@@ -394,7 +394,13 @@ describe("getTrayPrimaryBars", () => {
       },
     })
 
-    expect(bars).toEqual([{ id: "a", fraction: 0.6 }])
+    expect(bars).toEqual([
+      {
+        id: "a",
+        color: undefined,
+        items: [{ label: "Weekly", fraction: 0.6 }],
+      },
+    ])
   })
 
   it("falls back to primary candidates when no weekly overview line is available", () => {
@@ -443,7 +449,13 @@ describe("getTrayPrimaryBars", () => {
       },
     })
 
-    expect(bars).toEqual([{ id: "a", fraction: 0.2 }])
+    expect(bars).toEqual([
+      {
+        id: "a",
+        color: undefined,
+        items: [{ label: "Session", fraction: 0.2 }],
+      },
+    ])
   })
 
   it("skips plugins with empty primaryCandidates", () => {

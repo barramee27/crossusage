@@ -42,6 +42,31 @@ function isWeeklyOverviewLine(meta: PluginMeta, label: string): boolean {
   )
 }
 
+function pushProgressItem(
+  items: TrayPrimaryBarItem[],
+  label: string,
+  line: ProgressLine,
+  displayMode: DisplayMode
+) {
+  let fraction: number | undefined
+  if (line.limit > 0) {
+    const shownAmount =
+      displayMode === "used" ? line.used : line.limit - line.used
+    fraction = clamp01(shownAmount / line.limit)
+  }
+  if (line.format?.kind === "dollars") {
+    items.push({
+      label,
+      fraction,
+      valueKind: "dollars",
+      used: line.used,
+      limit: line.limit,
+    })
+  } else {
+    items.push({ label, fraction })
+  }
+}
+
 export function getTrayPrimaryBars(args: {
   pluginsMeta: PluginMeta[]
   pluginSettings: PluginSettings | null
@@ -63,9 +88,7 @@ export function getTrayPrimaryBars(args: {
   if (!pluginSettings) return []
 
   const disabled = new Set(pluginSettings.disabled)
-  const orderedIds = pluginId
-    ? [pluginId]
-    : pluginSettings.order
+  const orderedIds = pluginId ? [pluginId] : pluginSettings.order
 
   const out: TrayPrimaryBar[] = []
   for (const id of orderedIds) {
@@ -73,7 +96,6 @@ export function getTrayPrimaryBars(args: {
     const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
     if (!meta) continue
 
-    // Skip if no primary candidates defined
     if (!meta.primaryCandidates || meta.primaryCandidates.length === 0) continue
 
     const state = pluginStates[id]
@@ -81,38 +103,41 @@ export function getTrayPrimaryBars(args: {
 
     let items: TrayPrimaryBarItem[] = []
     if (data) {
-      const weeklyLabel = preferWeeklyLimit
-        ? data.lines
-            .filter(isProgressLine)
-            .find((line) => isWeeklyOverviewLine(meta, line.label))
-            ?.label
-        : undefined
+      const configuredLabels = pluginSettings.trayLines?.[id]
 
-      // Find first candidate that exists in runtime data
-      const primaryLabel = weeklyLabel ?? meta.primaryCandidates.find((label) =>
-        data.lines.some((line) => isProgressLine(line) && line.label === label)
-      )
-      if (primaryLabel) {
-        const primaryLine = data.lines.find(
-          (line): line is ProgressLine =>
-            isProgressLine(line) && line.label === primaryLabel
-        )
-        if (primaryLine && primaryLine.limit > 0) {
-          const shownAmount =
-            displayMode === "used"
-              ? primaryLine.used
-              : primaryLine.limit - primaryLine.used
-          const fraction = clamp01(shownAmount / primaryLine.limit)
-          if (primaryLine.format?.kind === "dollars") {
-            items.push({
-              label: primaryLabel,
-              fraction,
-              valueKind: "dollars",
-              used: primaryLine.used,
-              limit: primaryLine.limit,
-            })
-          } else {
-            items.push({ label: primaryLabel, fraction })
+      if (configuredLabels !== undefined) {
+        const targetLabels =
+          configuredLabels[0] === "__NONE__" ? [] : configuredLabels
+
+        for (const targetLabel of targetLabels) {
+          const line = data.lines.find(
+            (l): l is ProgressLine => isProgressLine(l) && l.label === targetLabel
+          )
+          if (line) {
+            pushProgressItem(items, targetLabel, line, displayMode)
+          }
+        }
+      } else {
+        const weeklyLabel = preferWeeklyLimit
+          ? data.lines
+              .filter(isProgressLine)
+              .find((line) => isWeeklyOverviewLine(meta, line.label))
+              ?.label
+          : undefined
+
+        const primaryLabel =
+          weeklyLabel ??
+          meta.primaryCandidates.find((label) =>
+            data.lines.some((line) => isProgressLine(line) && line.label === label)
+          )
+
+        if (primaryLabel) {
+          const primaryLine = data.lines.find(
+            (line): line is ProgressLine =>
+              isProgressLine(line) && line.label === primaryLabel
+          )
+          if (primaryLine) {
+            pushProgressItem(items, primaryLabel, primaryLine, displayMode)
           }
         }
       }

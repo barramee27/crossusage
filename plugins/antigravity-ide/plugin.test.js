@@ -374,7 +374,7 @@ describe("antigravity-ide plugin", () => {
     const plugin = await loadPlugin()
     try { plugin.probe(ctx) } catch (e) { /* expected */ }
     expect(ctx.host.ls.discover).toHaveBeenCalledWith({
-      processName: "language_server_macos",
+      processName: "language_server",
       markers: ["antigravity-ide"],
       csrfFlag: "--csrf_token",
       portFlag: "--extension_server_port",

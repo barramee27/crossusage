@@ -491,6 +491,135 @@
     return parts.join(" · ")
   }
 
+  function modelTokenCount(modelUsage) {
+    if (!modelUsage || typeof modelUsage !== "object") return 0
+    const total = Number(modelUsage.totalTokens)
+    if (Number.isFinite(total) && total > 0) return total
+
+    const fields = [
+      "inputTokens",
+      "cachedInputTokens",
+      "cacheCreationTokens",
+      "cacheReadTokens",
+      "outputTokens",
+      "reasoningOutputTokens",
+    ]
+    let sum = 0
+    for (let i = 0; i < fields.length; i++) {
+      const n = Number(modelUsage[fields[i]])
+      if (Number.isFinite(n) && n > 0) sum += n
+    }
+    return sum
+  }
+
+  function collectModelUsage(daily) {
+    const totals = {}
+    let totalTokens = 0
+    for (let i = 0; i < daily.length; i++) {
+      const day = daily[i]
+      const models = day && day.models
+      if (models && typeof models === "object") {
+        const names = Object.keys(models)
+        for (let j = 0; j < names.length; j++) {
+          const name = names[j]
+          const tokens = modelTokenCount(models[name])
+          if (tokens <= 0) continue
+          totals[name] = (totals[name] || 0) + tokens
+          totalTokens += tokens
+        }
+      }
+
+      const breakdowns = day && day.modelBreakdowns
+      if (Array.isArray(breakdowns)) {
+        for (let j = 0; j < breakdowns.length; j++) {
+          const breakdown = breakdowns[j]
+          const name = String(
+            (breakdown && (breakdown.modelName || breakdown.name || breakdown.model)) || ""
+          ).trim()
+          if (!name) continue
+          const tokens = modelTokenCount(breakdown)
+          if (tokens <= 0) continue
+          totals[name] = (totals[name] || 0) + tokens
+          totalTokens += tokens
+        }
+      }
+    }
+
+    if (totalTokens <= 0) return []
+    return Object.keys(totals)
+      .map((name) => ({ name, tokens: totals[name], percent: (totals[name] / totalTokens) * 100 }))
+      .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name))
+  }
+
+  function percentLabel(value) {
+    if (value > 0 && value < 0.1) return "<0.1%"
+    const rounded = Math.round(value * 10) / 10
+    return (rounded % 1 === 0 ? String(Math.round(rounded)) : String(rounded)) + "%"
+  }
+
+  function pushModelUsageLines(lines, ctx, daily) {
+    const models = collectModelUsage(daily)
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i]
+      lines.push(ctx.line.text({
+        label: model.name,
+        value: percentLabel(model.percent),
+      }))
+    }
+  }
+
+  function usageDayLabel(rawDate) {
+    const key = dayKeyFromUsageDate(rawDate)
+    if (!key) return String(rawDate || "").slice(0, 10) || "Usage"
+    const month = Number(key.slice(5, 7))
+    const day = Number(key.slice(8, 10))
+    return month + "/" + day
+  }
+
+  function collectUsageChartPoints(daily) {
+    const points = []
+    for (let i = 0; i < daily.length; i++) {
+      const day = daily[i]
+      const tokens = Number(day && day.totalTokens)
+      if (!Number.isFinite(tokens) || tokens < 0) continue
+      const key = dayKeyFromUsageDate(day.date)
+      if (!key) continue
+      points.push({
+        key: key,
+        label: usageDayLabel(day.date),
+        value: tokens,
+        valueLabel: fmtTokens(tokens) + " tokens",
+      })
+    }
+    return points
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .slice(-31)
+      .map((point) => ({
+        label: point.label,
+        value: point.value,
+        valueLabel: point.valueLabel,
+      }))
+  }
+
+  function pushUsageChartLine(lines, ctx, daily) {
+    const points = collectUsageChartPoints(daily)
+    if (points.length === 0) return
+    lines.push(ctx.line.barChart({
+      label: "Usage Trend",
+      points: points,
+      note: "Estimated from local Codex logs for the selected account.",
+      color: "#74AA9C",
+    }))
+  }
+
+  function persistUsageDaily(ctx, daily, displayName) {
+    if (!ctx.host.usageDaily || typeof ctx.host.usageDaily.ingest !== "function") return
+    if (!daily || !daily.length) return
+    try {
+      ctx.host.usageDaily.ingest({ displayName: displayName, daily: daily })
+    } catch (e) { /* ignore */ }
+  }
+
   function pushDayUsageLine(lines, ctx, label, dayEntry) {
     const tokens = Number(dayEntry && dayEntry.totalTokens) || 0
     const cost = usageCostUsd(dayEntry)
@@ -744,6 +873,10 @@
             value: costAndTokensLabel({ tokens: totalTokens, costUSD: hasCost ? totalCostNanos / 1e9 : null })
           }))
         }
+
+        pushUsageChartLine(lines, ctx, tokenUsage.daily)
+        pushModelUsageLines(lines, ctx, tokenUsage.daily)
+        persistUsageDaily(ctx, tokenUsage.daily, "Codex")
       }
 
       if (lines.length === 0) {

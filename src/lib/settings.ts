@@ -205,6 +205,30 @@ export async function savePluginSettings(settings: PluginSettings): Promise<void
   await store.save();
 }
 
+// TODO(remove after 2026-09-01): One-time Windsurf -> Devin settings migration.
+export function migrateWindsurfToDevin(settings: PluginSettings): PluginSettings {
+  const hasDevin = settings.order.includes("devin");
+  const hasWindsurf = settings.order.includes("windsurf");
+  const windsurfWasDisabled = settings.disabled.includes("windsurf");
+  const order = Array.from(
+    new Set(settings.order.map((id) => (id === "windsurf" ? "devin" : id)))
+  );
+  let disabled = settings.disabled.filter((id) => id !== "windsurf");
+
+  if (hasWindsurf && !windsurfWasDisabled) {
+    disabled = disabled.filter((id) => id !== "devin");
+  }
+
+  if (!hasDevin && windsurfWasDisabled && !disabled.includes("devin")) {
+    disabled.push("devin");
+  }
+
+  return {
+    order,
+    disabled: Array.from(new Set(disabled)),
+  };
+}
+
 function isAutoUpdateInterval(value: unknown): value is AutoUpdateIntervalMinutes {
   return (
     typeof value === "number" &&

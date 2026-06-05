@@ -23,6 +23,7 @@ const {
   loadUIScaleMock,
   loadTimeFormatModeMock,
   migrateLegacyTraySettingsMock,
+  migrateWindsurfToDevinMock,
   normalizePluginSettingsMock,
   savePluginSettingsMock,
   resolveOnboardingCompleteMock,
@@ -48,6 +49,7 @@ const {
   loadUIScaleMock: vi.fn(),
   loadTimeFormatModeMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
+  migrateWindsurfToDevinMock: vi.fn(),
   normalizePluginSettingsMock: vi.fn(),
   savePluginSettingsMock: vi.fn(),
   resolveOnboardingCompleteMock: vi.fn(),
@@ -101,6 +103,7 @@ vi.mock("@/lib/settings", () => ({
   loadUIScale: loadUIScaleMock,
   loadTimeFormatMode: loadTimeFormatModeMock,
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
+  migrateWindsurfToDevin: migrateWindsurfToDevinMock,
   normalizePluginSettings: normalizePluginSettingsMock,
   savePluginSettings: savePluginSettingsMock,
   resolveOnboardingComplete: resolveOnboardingCompleteMock,
@@ -158,6 +161,7 @@ describe("useSettingsBootstrap", () => {
     loadUIScaleMock.mockReset()
     loadTimeFormatModeMock.mockReset()
     migrateLegacyTraySettingsMock.mockReset()
+    migrateWindsurfToDevinMock.mockReset()
     normalizePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockReset()
     resolveOnboardingCompleteMock.mockReset()
@@ -176,6 +180,7 @@ describe("useSettingsBootstrap", () => {
       },
     ])
     loadPluginSettingsMock.mockResolvedValue({ order: ["codex"], disabled: [] })
+    migrateWindsurfToDevinMock.mockImplementation((settings) => settings)
     normalizePluginSettingsMock.mockImplementation((stored) => stored)
     arePluginSettingsEqualMock.mockReturnValue(true)
     loadAutoUpdateIntervalMock.mockResolvedValue(15)
@@ -193,6 +198,40 @@ describe("useSettingsBootstrap", () => {
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)
     getEnabledPluginIdsMock.mockReturnValue(["codex"])
+  })
+
+  it("migrates windsurf settings before normalizing and saves the first-launch result", async () => {
+    const args = createArgs()
+    const storedSettings = { order: ["windsurf"], disabled: [] }
+    const migratedSettings = { order: ["devin"], disabled: [] }
+    invokeMock.mockResolvedValueOnce([
+      {
+        id: "devin",
+        name: "Devin",
+        iconUrl: "/devin.svg",
+        iconFilePath: "/devin.svg",
+        brandColor: "#000000",
+        lines: [],
+        primaryCandidates: [],
+      },
+    ])
+    loadPluginSettingsMock.mockResolvedValueOnce(storedSettings)
+    migrateWindsurfToDevinMock.mockReturnValueOnce(migratedSettings)
+    normalizePluginSettingsMock.mockReturnValueOnce({ order: ["devin"], disabled: [] })
+    arePluginSettingsEqualMock.mockReturnValueOnce(false)
+    getEnabledPluginIdsMock.mockReturnValueOnce(["devin"])
+
+    renderHook(() => useSettingsBootstrap(args))
+
+    await waitFor(() => {
+      expect(migrateWindsurfToDevinMock).toHaveBeenCalledWith(storedSettings)
+      expect(normalizePluginSettingsMock).toHaveBeenCalledWith(
+        migratedSettings,
+        expect.any(Array)
+      )
+      expect(savePluginSettingsMock).toHaveBeenCalledWith({ order: ["devin"], disabled: [] })
+      expect(args.startBatch).toHaveBeenCalledWith(["devin"])
+    })
   })
 
   it("sets onboarding preference from resolveOnboardingComplete", async () => {

@@ -35,6 +35,7 @@ import {
   loadUsageAlertThreshold,
   loadMenubarIconStyle,
   migrateLegacyTraySettings,
+  migrateWindsurfToDevin,
   loadPreferMenubarWeeklyLimit,
   loadPluginSettings,
   loadResetTimerDisplayMode,
@@ -132,15 +133,16 @@ export function useSettingsBootstrap({
         setPluginsMeta(availablePlugins)
 
         const storedSettings = await loadPluginSettings()
+        const migratedSettings = migrateWindsurfToDevin(storedSettings)
 
         let onboardingDone = false
         try {
-          onboardingDone = await resolveOnboardingComplete(storedSettings)
+          onboardingDone = await resolveOnboardingComplete(migratedSettings)
         } catch (error) {
           console.error("Failed to resolve onboarding state:", error)
         }
 
-        const normalized = normalizePluginSettings(storedSettings, availablePlugins)
+        const normalized = normalizePluginSettings(migratedSettings, availablePlugins)
         if (!arePluginSettingsEqual(storedSettings, normalized)) {
           await savePluginSettings(normalized)
         }

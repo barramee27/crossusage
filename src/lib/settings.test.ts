@@ -22,6 +22,8 @@ import {
   arePluginSettingsEqual,
   getBaseProviderId,
   getEnabledPluginIds,
+  getProviderDisplayName,
+  getProviderInstanceMeta,
   isUsageAlertThreshold,
   loadAutoUpdateInterval,
   loadDisplayMode,

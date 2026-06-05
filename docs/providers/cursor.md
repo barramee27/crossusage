@@ -25,7 +25,7 @@
 
 **Enterprise flow** remains request-based via the REST `/api/usage` endpoint -- unchanged.
 
-**Team detection**: an account is treated as "team" when `planName` is `"Team"`, or `spendLimitUsage.limitType` is `"team"`, or `spendLimitUsage.pooledLimit` is present. Team accounts display Total usage in dollars; individual accounts display it as a percentage.
+**Team detection**: an account is treated as "team" when `planName` is `"Team"`, or `spendLimitUsage.limitType` is `"team"`, or `spendLimitUsage.pooledLimit` is greater than `0`. Team accounts display Total usage in dollars; individual accounts display it as a percentage.
 
 ## Endpoints
 

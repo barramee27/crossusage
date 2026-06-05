@@ -38,7 +38,21 @@ pub fn usage_history_db_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("usage_history.sqlite3")
 }
 
-fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
+/// Reads Tauri `settings.json` in app data (same file as the desktop settings store).
+pub fn persist_usage_history_enabled(app_data_dir: &Path) -> bool {
+    let path = app_data_dir.join("settings.json");
+    let Ok(data) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) else {
+        return false;
+    };
+    v.get("persistUsageHistory")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false)
+}
+
+pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         r"
         CREATE TABLE IF NOT EXISTS usage_history (
@@ -56,13 +70,34 @@ fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_usage_hist_instance_time
             ON usage_history(instance_id, captured_at_ms DESC);
+        CREATE TABLE IF NOT EXISTS usage_daily (
+            instance_id TEXT NOT NULL,
+            day_key TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            total_tokens INTEGER,
+            input_tokens INTEGER,
+            output_tokens INTEGER,
+            cost_usd REAL,
+            source TEXT NOT NULL DEFAULT 'ccusage',
+            ingested_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (instance_id, day_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_daily_instance_day
+            ON usage_daily(instance_id, day_key DESC);
         ",
     )?;
+    let _ = conn.execute(
+        "ALTER TABLE usage_daily ADD COLUMN source TEXT NOT NULL DEFAULT 'ccusage'",
+        [],
+    );
     Ok(())
 }
 
 /// Append one normalized row after a successful probe. Skips if debounce window not elapsed.
 pub fn append_probe_snapshot(app_data_dir: &Path, output: &PluginOutput) -> rusqlite::Result<()> {
+    if !persist_usage_history_enabled(app_data_dir) {
+        return Ok(());
+    }
     if !debounce_allow(output.provider_id.as_str()) {
         return Ok(());
     }
@@ -182,6 +217,7 @@ pub fn clear_all(app_data_dir: &Path) -> rusqlite::Result<()> {
     }
     let conn = Connection::open(&path)?;
     conn.execute("DELETE FROM usage_history", [])?;
+    let _ = conn.execute("DELETE FROM usage_daily", []);
     Ok(())
 }
 
@@ -189,6 +225,11 @@ pub fn clear_all(app_data_dir: &Path) -> rusqlite::Result<()> {
 mod tests {
     use super::*;
     use crate::plugin_engine::runtime::{MetricLine, ProgressFormat};
+
+    fn write_settings(dir: &Path, persist: bool) {
+        let json = format!(r#"{{"persistUsageHistory":{persist}}}"#);
+        std::fs::write(dir.join("settings.json"), json).unwrap();
+    }
 
     fn sample_output(id: &str) -> PluginOutput {
         PluginOutput {
@@ -211,6 +252,7 @@ mod tests {
     #[test]
     fn append_list_clear_roundtrip() {
         let dir = tempfile::tempdir().expect("tempdir");
+        write_settings(dir.path(), true);
         let out = sample_output("cursor");
         append_probe_snapshot(dir.path(), &out).unwrap();
         let rows = list_recent(dir.path(), 10).unwrap();
@@ -225,6 +267,7 @@ mod tests {
     #[test]
     fn debounce_skips_second_write_immediately() {
         let dir = tempfile::tempdir().expect("tempdir");
+        write_settings(dir.path(), true);
         let out = sample_output("debounce_test_instance");
         append_probe_snapshot(dir.path(), &out).unwrap();
         append_probe_snapshot(dir.path(), &out).unwrap();

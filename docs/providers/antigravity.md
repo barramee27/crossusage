@@ -2,7 +2,7 @@
 
 > Reverse-engineered from app bundle and language server binary. May change without notice.
 
-Antigravity is essentially a Google-branded fork of [Windsurf](windsurf.md) — both use the same Codeium language server binary and Connect-RPC protocol. The discovery, port probing, and RPC endpoints are virtually identical. The key differences: Antigravity uses fraction-based per-model quota (not credits), and doesn't require an API key in the request metadata.
+Antigravity is built on Codeium/Windsurf-derived infrastructure and uses the same Codeium language server binary and Connect-RPC protocol. The discovery, port probing, and RPC endpoints are virtually identical to that stack. The key differences: Antigravity uses fraction-based per-model quota (not credits), and doesn't require an API key in the request metadata.
 
 ## Overview
 

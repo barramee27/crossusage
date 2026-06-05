@@ -2064,4 +2064,38 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     expect(() => plugin.probe(ctx)).toThrow("Usage request failed. Check your connection.")
   })
+
+  it("attaches activity trend from cursorLogs and persists usageDaily", async () => {
+    const ctx = makeCtx()
+    const accessToken = makeJwt({ exp: 9999999999 })
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        enabled: true,
+        planUsage: { totalPercentUsed: 42 },
+      }),
+    })
+    ctx.host.cursorLogs.queryDaily = vi.fn(() => ({
+      status: "ok",
+      data: {
+        daily: [{ date: "2026-05-20", totalTokens: 4000, estimated: true }],
+      },
+    }))
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.cursorLogs.queryDaily).toHaveBeenCalled()
+    expect(ctx.host.usageDaily.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "cursor_transcripts",
+        daily: [{ date: "2026-05-20", totalTokens: 4000, estimated: true }],
+      })
+    )
+    const chart = result.lines.find((line) => line.type === "barChart" && line.label === "Activity trend")
+    expect(chart).toBeTruthy()
+    expect(chart.points).toHaveLength(1)
+    expect(chart.points[0].value).toBe(4000)
+  })
 })

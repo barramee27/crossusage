@@ -79,6 +79,7 @@ fn label_value_tokens(line: &MetricLine) -> Option<(&str, &str)> {
         MetricLine::Text { label, value, .. } => Some((label.as_str(), value.as_str())),
         MetricLine::Badge { label, text, .. } => Some((label.as_str(), text.as_str())),
         MetricLine::Progress { .. } => None,
+        MetricLine::BarChart { .. } => None,
     }
 }
 

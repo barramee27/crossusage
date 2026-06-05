@@ -426,6 +426,36 @@ ctx.line.badge({ label: "Plan", text: "Pro", color: "#000000" })
 ctx.line.badge({ label: "Status", text: "Connected", color: "#22c55e" })
 ```
 
+### `ctx.line.barChart(opts)`
+
+Creates a compact vertical bar chart line for usage history.
+
+```typescript
+ctx.line.barChart({
+  label: string,                    // Required: chart label
+  points: Array<{
+    label: string,                  // Required: point label, e.g. day
+    value: number,                  // Required: non-negative chart value
+    valueLabel?: string             // Optional: displayed value, e.g. "1.2M tokens"
+  }>,
+  note?: string,                    // Optional: small muted note below chart
+  color?: string,                   // Optional: hex color for bars
+}): MetricLine
+```
+
+**Example:**
+
+```javascript
+ctx.line.barChart({
+  label: "Usage Trend",
+  points: [
+    { label: "2/1", value: 1200, valueLabel: "1.2K tokens" },
+    { label: "2/2", value: 2400, valueLabel: "2.4K tokens" },
+  ],
+  note: "Estimated from local logs",
+})
+```
+
 ## Formatters
 
 Helper functions for formatting values.
@@ -491,11 +521,37 @@ ctx.line.progress({
 })
 ```
 
+## usageDaily (Persist daily token rows)
+
+```typescript
+host.usageDaily.ingest({
+  displayName?: string,
+  source?: string, // default "ccusage"; Cursor uses "cursor_transcripts"
+  daily: DailyUsage[],
+})
+```
+
+When **Settings → Usage history → Save usage snapshots** is enabled, plugins upsert daily token totals into local SQLite (`usage_daily` table, same DB as quota snapshots). Claude/Codex call this after a successful `host.ccusage.query`; Amp/Kimi/Copilot/OpenCode are filled automatically after probe via the same ccusage runner; Cursor uses `host.cursorLogs.queryDaily`. Settings shows these in **Daily tokens (local logs)**. No-op when saving is disabled.
+
+CrossUsage downloads ccusage on demand via `bunx` / `pnpm dlx` / `npm exec` / `npx` — users do **not** need a separate global `ccusage` install, but they do need one of those runners (Node/npm ecosystem) on the PATH.
+
+## cursorLogs (Cursor agent transcripts)
+
+```typescript
+host.cursorLogs.queryDaily(opts?: {
+  since?: string, // YYYYMMDD or YYYY-MM-DD; default last 30 days
+}):
+  | { status: "ok", data: { daily: CursorDailyUsage[] } }
+  | { status: "no_data", data: { daily: [] } }
+```
+
+Reads `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` (override with `CURSOR_AGENT_HOME`). Token counts are **estimated** from message text length (chars ÷ 4), bucketed by transcript file mtime. Not billing usage.
+
 ## ccusage (Token Usage)
 
 ```typescript
 host.ccusage.query(opts: {
-  provider?: "claude" | "codex", // Optional; defaults to plugin id, then "claude"
+  provider?: "claude" | "codex" | "amp" | "kimi" | "copilot" | "opencode", // Optional; defaults to plugin id
   since?: string,                // Start date (YYYYMMDD or YYYY-MM-DD)
   until?: string,                // End date (YYYYMMDD or YYYY-MM-DD)
   homePath?: string,             // Provider home override (CLAUDE_CONFIG_DIR or CODEX_HOME)

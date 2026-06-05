@@ -850,6 +850,7 @@ fn print_plugin_output(out: &PluginOutput, plain: bool) -> Result<()> {
                     value: v,
                 });
             }
+            MetricLine::BarChart { .. } => {}
         }
     }
 

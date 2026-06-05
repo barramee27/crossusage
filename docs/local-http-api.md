@@ -68,13 +68,23 @@ Unknown routes return **404 Not Found**.
       "value": "$5.17 · 9.2M tokens",
       "color": null,
       "subtitle": null
+    },
+    {
+      "type": "barChart",
+      "label": "Usage Trend",
+      "points": [
+        { "label": "3/25", "value": 1200000.0, "valueLabel": "1.2M tokens" },
+        { "label": "3/26", "value": 2400000.0, "valueLabel": "2.4M tokens" }
+      ],
+      "note": "Estimated from local logs",
+      "color": null
     }
   ],
   "fetchedAt": "2026-03-26T11:16:29Z"
 }
 ```
 
-The `lines` array uses the same metric line types as the internal plugin output: `progress`, `text`, and `badge`.
+The `lines` array uses the same metric line types as the internal plugin output: `progress`, `text`, `badge`, and `barChart`.
 
 `fetchedAt` is an ISO 8601 timestamp indicating when the snapshot was last successfully fetched.
 

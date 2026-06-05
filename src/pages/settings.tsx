@@ -49,7 +49,9 @@ import {
 } from "@/lib/settings";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
+import type { UsageDailyRow } from "@/lib/usage-daily";
 import { UsageHistoryChart, usageHistoryInstanceOptions } from "@/components/usage-history-chart";
+import { UsageDailyChart, usageDailyInstanceOptions } from "@/components/usage-daily-chart";
 import { getTimeFormatter } from "@/lib/reset-tooltip";
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon";
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list";
@@ -666,6 +668,7 @@ function UsageHistorySection() {
   const [persist, setPersist] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [rows, setRows] = useState<UsageHistoryRow[]>([]);
+  const [dailyRows, setDailyRows] = useState<UsageDailyRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [chartInstanceFilter, setChartInstanceFilter] = useState<string>("all");
 
@@ -673,8 +676,12 @@ function UsageHistorySection() {
     if (!isTauri()) return;
     setMsg(null);
     try {
-      const data = await invoke<UsageHistoryRow[]>("list_usage_history", { limit: 500 });
+      const [data, daily] = await Promise.all([
+        invoke<UsageHistoryRow[]>("list_usage_history", { limit: 500 }),
+        invoke<UsageDailyRow[]>("list_usage_daily", { limit: 120 }),
+      ]);
       setRows(data);
+      setDailyRows(daily);
     } catch (e) {
       console.error("list_usage_history:", e);
       setMsg(e instanceof Error ? e.message : String(e));
@@ -693,7 +700,13 @@ function UsageHistorySection() {
       });
   }, []);
 
-  const instanceIdsForChart = useMemo(() => usageHistoryInstanceOptions(rows), [rows]);
+  const instanceIdsForChart = useMemo(() => {
+    const ids = new Set([
+      ...usageHistoryInstanceOptions(rows),
+      ...usageDailyInstanceOptions(dailyRows),
+    ]);
+    return Array.from(ids).sort();
+  }, [rows, dailyRows]);
 
   useEffect(() => {
     if (chartInstanceFilter === "all") return;
@@ -713,7 +726,10 @@ function UsageHistorySection() {
     try {
       await savePersistUsageHistory(checked);
       if (checked) await reload();
-      else setRows([]);
+      else {
+        setRows([]);
+        setDailyRows([]);
+      }
     } catch (e) {
       console.error(e);
       setPersist(prev);
@@ -724,11 +740,10 @@ function UsageHistorySection() {
     <section>
       <h3 className="text-lg font-semibold mb-0">Usage history</h3>
       <p className="text-sm text-muted-foreground mb-2">
-        Optional local SQLite log of successful usage snapshots (normalized %, tokens, cost when
-        available). Stored only on this device in app data — never uploaded by CrossUsage. At most one
-        sample per account per ~32s to limit disk writes.{" "}
-        <strong>Primary %</strong> is the highest <em>percent-type</em> usage bar from that refresh (best-effort);{" "}
-        <strong>0%</strong> usually means the provider returned no percent rows (only counts, dollars, or text).
+        Optional local SQLite history on this device — never uploaded. With saving enabled:{" "}
+        <strong>quota snapshots</strong> after each successful refresh (~one per account per 32s), plus{" "}
+        <strong>daily token totals</strong> from Claude/Codex local logs (same data as the card Usage Trend, via ccusage).
+        Cursor and other providers get quota snapshots only unless they expose log-based daily usage later.
       </p>
       <label className="flex items-center gap-2 text-sm select-none text-foreground mb-3">
         <Checkbox
@@ -758,6 +773,7 @@ function UsageHistorySection() {
                 try {
                   await invoke("clear_usage_history");
                   setRows([]);
+                  setDailyRows([]);
                 } catch (e) {
                   console.error(e);
                   setMsg(e instanceof Error ? e.message : String(e));
@@ -767,7 +783,7 @@ function UsageHistorySection() {
               Clear history
             </Button>
           </div>
-          {rows.length > 0 ? (
+          {rows.length > 0 || dailyRows.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <label className="flex items-center gap-2 text-foreground/90">
                 <span className="text-muted-foreground">Chart account</span>
@@ -789,7 +805,19 @@ function UsageHistorySection() {
               </label>
             </div>
           ) : null}
-          <UsageHistoryChart rows={rows} instanceFilter={chartInstanceFilter} />
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium mb-1">Quota over time</h4>
+              <UsageHistoryChart rows={rows} instanceFilter={chartInstanceFilter} />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-1">Daily tokens (local logs)</h4>
+              <p className="text-xs text-muted-foreground mb-2">
+                Each bar = one calendar day of tokens (local logs). 1d shows today only (not hourly). 7d+ compares days. Cursor totals are estimated from transcripts, not billing. API-only providers use the quota chart above.
+              </p>
+              <UsageDailyChart rows={dailyRows} instanceFilter={chartInstanceFilter} />
+            </div>
+          </div>
           <div className="max-h-64 overflow-auto rounded-md border border-border text-xs">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">

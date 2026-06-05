@@ -406,6 +406,16 @@ fn redact_body(body: &str) -> String {
         })
         .to_string();
 
+    if let Ok(devin_session_re) =
+        regex_lite::Regex::new(r#"devin-session-token\$[^\s"',}\]]+"#)
+    {
+        result = devin_session_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                redact_value(&caps[0])
+            })
+            .to_string();
+    }
+
     // Redact JSON values for sensitive keys
     let sensitive_keys = [
         "name",
@@ -431,6 +441,14 @@ fn redact_body(body: &str) -> String {
         "userId",
         "account_id",
         "accountId",
+        "team_id",
+        "teamId",
+        "org_id",
+        "orgId",
+        "account_display_name",
+        "accountDisplayName",
+        "payment_id",
+        "paymentId",
         "profile_arn",
         "profileArn",
         "email",
@@ -492,6 +510,15 @@ fn redact_log_message(msg: &str) -> String {
     }
     if let Ok(api_re) = regex_lite::Regex::new(r#"(sk-|pk-|api_|key_|secret_)[A-Za-z0-9_-]{12,}"#) {
         result = api_re
+            .replace_all(&result, |caps: &regex_lite::Captures| {
+                redact_value(&caps[0])
+            })
+            .to_string();
+    }
+    if let Ok(devin_session_re) =
+        regex_lite::Regex::new(r#"devin-session-token\$[^\s"',}\]]+"#)
+    {
+        result = devin_session_re
             .replace_all(&result, |caps: &regex_lite::Captures| {
                 redact_value(&caps[0])
             })
@@ -676,6 +703,8 @@ pub(crate) fn inject_host_api_with_deadline<'js>(
     inject_sqlite(ctx, &host)?;
     inject_ls(ctx, &host, base_plugin_id)?;
     inject_ccusage(ctx, &host, base_plugin_id, deadline)?;
+    inject_usage_daily(ctx, &host, instance_id, app_data_dir)?;
+    inject_cursor_logs(ctx, &host, base_plugin_id, deadline)?;
     inject_fireworks(ctx, &host, base_plugin_id)?;
 
     probe_ctx.set("host", host)?;
@@ -1348,6 +1377,12 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
                     if (opts.color) line.color = opts.color;
                     if (opts.subtitle) line.subtitle = opts.subtitle;
                     return line;
+                },
+                barChart: function(opts) {
+                    var line = { type: "barChart", label: opts.label, points: opts.points || [] };
+                    if (opts.note) line.note = opts.note;
+                    if (opts.color) line.color = opts.color;
+                    return line;
                 }
             };
 
@@ -1983,6 +2018,10 @@ struct CcusageQueryOpts {
 enum CcusageProvider {
     Claude,
     Codex,
+    Amp,
+    Kimi,
+    Copilot,
+    OpenCode,
 }
 
 static CCUSAGE_ACTIVE_PROVIDERS: OnceLock<Mutex<HashSet<CcusageProvider>>> = OnceLock::new();
@@ -2048,13 +2087,17 @@ fn ccusage_runner_label(kind: CcusageRunnerKind) -> &'static str {
 #[derive(Copy, Clone)]
 struct CcusageProviderConfig {
     command_namespace: &'static str,
-    home_env_var: &'static str,
+    home_env_var: Option<&'static str>,
 }
 
 fn parse_ccusage_provider(value: &str) -> Option<CcusageProvider> {
     match value.trim().to_ascii_lowercase().as_str() {
         "claude" => Some(CcusageProvider::Claude),
         "codex" => Some(CcusageProvider::Codex),
+        "amp" => Some(CcusageProvider::Amp),
+        "kimi" => Some(CcusageProvider::Kimi),
+        "copilot" => Some(CcusageProvider::Copilot),
+        "opencode" | "opencode-go" => Some(CcusageProvider::OpenCode),
         _ => None,
     }
 }
@@ -2063,24 +2106,123 @@ fn infer_ccusage_provider(plugin_id: &str) -> Option<CcusageProvider> {
     parse_ccusage_provider(plugin_id)
 }
 
-fn resolve_ccusage_provider(opts: &CcusageQueryOpts, plugin_id: &str) -> CcusageProvider {
+fn resolve_ccusage_provider(opts: &CcusageQueryOpts, plugin_id: &str) -> Option<CcusageProvider> {
     opts.provider
         .as_deref()
         .and_then(parse_ccusage_provider)
         .or_else(|| infer_ccusage_provider(plugin_id))
-        .unwrap_or(CcusageProvider::Claude)
 }
 
 fn ccusage_provider_config(provider: CcusageProvider) -> CcusageProviderConfig {
     match provider {
         CcusageProvider::Claude => CcusageProviderConfig {
             command_namespace: "claude",
-            home_env_var: "CLAUDE_CONFIG_DIR",
+            home_env_var: Some("CLAUDE_CONFIG_DIR"),
         },
         CcusageProvider::Codex => CcusageProviderConfig {
             command_namespace: "codex",
-            home_env_var: "CODEX_HOME",
+            home_env_var: Some("CODEX_HOME"),
         },
+        CcusageProvider::Amp => CcusageProviderConfig {
+            command_namespace: "amp",
+            home_env_var: None,
+        },
+        CcusageProvider::Kimi => CcusageProviderConfig {
+            command_namespace: "kimi",
+            home_env_var: None,
+        },
+        CcusageProvider::Copilot => CcusageProviderConfig {
+            command_namespace: "copilot",
+            home_env_var: None,
+        },
+        CcusageProvider::OpenCode => CcusageProviderConfig {
+            command_namespace: "opencode",
+            home_env_var: None,
+        },
+    }
+}
+
+fn ccusage_supports_legacy_fallback(provider: CcusageProvider) -> bool {
+    matches!(
+        provider,
+        CcusageProvider::Claude | CcusageProvider::Codex
+    )
+}
+
+/// True when ccusage can read local CLI logs for this CrossUsage plugin id.
+pub fn ccusage_supported_plugin_id(plugin_id: &str) -> bool {
+    infer_ccusage_provider(plugin_id).is_some()
+}
+
+fn ccusage_since_days_ago(days: i64) -> String {
+    let d = time::OffsetDateTime::now_utc().date() - time::Duration::days(days);
+    format!(
+        "{:04}{:02}{:02}",
+        d.year(),
+        u8::from(d.month()),
+        d.day()
+    )
+}
+
+/// After a successful probe, ingest ccusage daily rows for plugins that do not run ccusage in JS.
+pub fn post_probe_ccusage_daily(
+    app_data_dir: &std::path::Path,
+    plugin_id: &str,
+    display_name: &str,
+) {
+    if !crate::usage_history::persist_usage_history_enabled(app_data_dir) {
+        return;
+    }
+    let Some(provider) = infer_ccusage_provider(plugin_id) else {
+        return;
+    };
+    // Claude/Codex plugins already query ccusage during probe (card sparkline + ingest).
+    if matches!(
+        provider,
+        CcusageProvider::Claude | CcusageProvider::Codex
+    ) {
+        return;
+    }
+
+    let opts = CcusageQueryOpts {
+        since: Some(ccusage_since_days_ago(31)),
+        ..CcusageQueryOpts::default()
+    };
+    let Some(_guard) = CcusageQueryGuard::acquire(provider) else {
+        log::debug!("[plugin:{}] ccusage post-probe skipped: query already running", plugin_id);
+        return;
+    };
+    let runners = collect_ccusage_runners();
+    let result_json = run_ccusage_query_with_runners(
+        runners,
+        &opts,
+        provider,
+        plugin_id,
+        run_ccusage_with_runner,
+    );
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_json) else {
+        return;
+    };
+    if parsed.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return;
+    }
+    let Some(daily) = parsed.pointer("/data/daily") else {
+        return;
+    };
+    if !daily.is_array() || daily.as_array().is_some_and(|a| a.is_empty()) {
+        return;
+    }
+    let payload = serde_json::json!({
+        "displayName": display_name,
+        "source": "ccusage",
+        "daily": daily,
+    });
+    if let Err(e) = crate::usage_daily::ingest_json(
+        app_data_dir,
+        plugin_id,
+        &payload.to_string(),
+    ) {
+        log::debug!("[plugin:{}] ccusage post-probe ingest failed: {}", plugin_id, e);
     }
 }
 
@@ -2092,6 +2234,10 @@ fn ccusage_legacy_package_spec(provider: CcusageProvider) -> String {
     let package_name = match provider {
         CcusageProvider::Claude => CCUSAGE_LEGACY_CLAUDE_PACKAGE_NAME,
         CcusageProvider::Codex => CCUSAGE_LEGACY_CODEX_PACKAGE_NAME,
+        CcusageProvider::Amp
+        | CcusageProvider::Kimi
+        | CcusageProvider::Copilot
+        | CcusageProvider::OpenCode => CCUSAGE_PACKAGE_NAME,
     };
     format!("{}@{}", package_name, CCUSAGE_LEGACY_VERSION)
 }
@@ -2115,7 +2261,11 @@ fn ccusage_home_override<'a>(
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty()),
-        CcusageProvider::Codex => None,
+        CcusageProvider::Codex
+        | CcusageProvider::Amp
+        | CcusageProvider::Kimi
+        | CcusageProvider::Copilot
+        | CcusageProvider::OpenCode => None,
     }
 }
 
@@ -2347,9 +2497,14 @@ fn ccusage_runner_args(
         CcusageCommandFlavor::Legacy => ccusage_legacy_package_spec(provider),
     };
     let npm_exec_bin = match (flavor, provider) {
-        (CcusageCommandFlavor::Current, _) => CCUSAGE_BIN_NAME,
-        (CcusageCommandFlavor::Legacy, CcusageProvider::Claude) => CCUSAGE_BIN_NAME,
+        (CcusageCommandFlavor::Current, _) | (CcusageCommandFlavor::Legacy, CcusageProvider::Claude) => {
+            CCUSAGE_BIN_NAME
+        }
         (CcusageCommandFlavor::Legacy, CcusageProvider::Codex) => CCUSAGE_LEGACY_CODEX_BIN_NAME,
+        (CcusageCommandFlavor::Legacy, CcusageProvider::Amp)
+        | (CcusageCommandFlavor::Legacy, CcusageProvider::Kimi)
+        | (CcusageCommandFlavor::Legacy, CcusageProvider::Copilot)
+        | (CcusageCommandFlavor::Legacy, CcusageProvider::OpenCode) => CCUSAGE_BIN_NAME,
     };
     let mut args: Vec<String> = match kind {
         CcusageRunnerKind::Bunx => vec!["--silent".to_string(), package_spec.clone()],
@@ -2481,15 +2636,17 @@ fn run_ccusage_with_runner(
         std::time::Duration::from_secs(CCUSAGE_TIMEOUT_SECS),
     );
     match current {
-        CcusageRunnerResult::Failed => run_ccusage_with_runner_timeout(
-            kind,
-            program,
-            opts,
-            provider,
-            plugin_id,
-            CcusageCommandFlavor::Legacy,
-            std::time::Duration::from_secs(CCUSAGE_TIMEOUT_SECS),
-        ),
+        CcusageRunnerResult::Failed if ccusage_supports_legacy_fallback(provider) => {
+            run_ccusage_with_runner_timeout(
+                kind,
+                program,
+                opts,
+                provider,
+                plugin_id,
+                CcusageCommandFlavor::Legacy,
+                std::time::Duration::from_secs(CCUSAGE_TIMEOUT_SECS),
+            )
+        }
         other => other,
     }
 }
@@ -2510,7 +2667,9 @@ fn run_ccusage_with_runner_timeout(
 
     if let Some(home_path) = ccusage_home_override(opts, provider) {
         let config = ccusage_provider_config(provider);
-        command.env(config.home_env_var, expand_path(home_path));
+        if let Some(home_env) = config.home_env_var {
+            command.env(home_env, expand_path(home_path));
+        }
     }
 
     let redacted_program = redact_log_message(program);
@@ -2708,7 +2867,9 @@ fn inject_ccusage<'js>(
                         CcusageQueryOpts::default()
                     }
                 };
-                let provider = resolve_ccusage_provider(&opts, &pid);
+                let Some(provider) = resolve_ccusage_provider(&opts, &pid) else {
+                    return Ok(serde_json::json!({ "status": "unsupported" }).to_string());
+                };
                 let Some(_active_query) = CcusageQueryGuard::acquire(provider) else {
                     log::warn!("[plugin:{}] ccusage query already running", pid);
                     return Ok(serde_json::json!({ "status": "runner_failed" }).to_string());
@@ -2727,6 +2888,126 @@ fn inject_ccusage<'js>(
 
     host.set("ccusage", ccusage_obj)?;
     Ok(())
+}
+
+fn inject_usage_daily<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    instance_id: &str,
+    app_data_dir: &PathBuf,
+) -> rquickjs::Result<()> {
+    let usage_daily_obj = Object::new(ctx.clone())?;
+    let app_data = app_data_dir.clone();
+    let iid = instance_id.to_string();
+
+    usage_daily_obj.set(
+        "_ingestRaw",
+        Function::new(
+            ctx.clone(),
+            move |_ctx_inner: Ctx<'_>, payload_json: String| -> rquickjs::Result<()> {
+                if let Err(e) = crate::usage_daily::ingest_json(&app_data, &iid, &payload_json) {
+                    log::warn!("[plugin:{}] usageDaily.ingest failed: {}", iid, e);
+                }
+                Ok(())
+            },
+        )?,
+    )?;
+
+    host.set("usageDaily", usage_daily_obj)?;
+    Ok(())
+}
+
+fn inject_cursor_logs<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    plugin_id: &str,
+    deadline: ProbeDeadline,
+) -> rquickjs::Result<()> {
+    let cursor_logs_obj = Object::new(ctx.clone())?;
+    let pid = plugin_id.to_string();
+
+    cursor_logs_obj.set(
+        "_queryRaw",
+        Function::new(
+            ctx.clone(),
+            move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+                if deadline.has_elapsed() {
+                    log_probe_deadline_skip(&pid, "cursorLogs");
+                    return Ok(
+                        serde_json::json!({ "status": "no_data", "data": { "daily": [] } })
+                            .to_string(),
+                    );
+                }
+                let since = serde_json::from_str::<serde_json::Value>(&opts_json)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("since")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .unwrap_or_default();
+                let since = if since.is_empty() {
+                    let d = time::OffsetDateTime::now_utc().date() - time::Duration::days(30);
+                    format!(
+                        "{:04}{:02}{:02}",
+                        d.year(),
+                        u8::from(d.month()),
+                        d.day()
+                    )
+                } else {
+                    since
+                };
+                let (status, daily) = crate::cursor_usage_logs::query_daily_since(&since);
+                let status_str = match status {
+                    crate::cursor_usage_logs::CursorLogsStatus::Ok => "ok",
+                    crate::cursor_usage_logs::CursorLogsStatus::NoData => "no_data",
+                };
+                Ok(serde_json::json!({
+                    "status": status_str,
+                    "data": { "daily": daily }
+                })
+                .to_string())
+            },
+        )?,
+    )?;
+
+    host.set("cursorLogs", cursor_logs_obj)?;
+    Ok(())
+}
+
+pub fn patch_cursor_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.cursorLogs._queryRaw;
+            __openusage_ctx.host.cursorLogs.queryDaily = function(opts) {
+                var result = rawFn(JSON.stringify(opts || {}));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "no_data", data: { daily: [] } };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
+pub fn patch_usage_daily_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.usageDaily._ingestRaw;
+            __openusage_ctx.host.usageDaily.ingest = function(opts) {
+                rawFn(JSON.stringify(opts || {}));
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
 }
 
 pub fn patch_ccusage_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
@@ -4066,6 +4347,22 @@ mod tests {
     }
 
     #[test]
+    fn redact_body_redacts_devin_session_token() {
+        let body = r#"metadata apiKey=devin-session-token$abcdefghijklmnopqrstuvwxyz123456"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("devin-session-token$abcdefghijklmnopqrstuvwxyz123456"),
+            "Devin session token should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("devi...3456"),
+            "Devin session token should use first4...last4 redaction, got: {}",
+            redacted
+        );
+    }
+
+    #[test]
     fn redact_body_redacts_json_password_field() {
         let body = r#"{"password": "supersecretpassword123"}"#;
         let redacted = redact_body(body);
@@ -4146,6 +4443,73 @@ mod tests {
     }
 
     #[test]
+    fn redact_body_redacts_devin_org_and_account_display_name() {
+        let body = r#"{"orgId":"org-6b6e9de248db472bb25b296599ea3dc0","accountDisplayName":"rob@sunstory.com","devinInfo":{"org_id":"org-abcdef1234567890","account_display_name":"team@example.com"}}"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("org-6b6e9de248db472bb25b296599ea3dc0"),
+            "orgId should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("rob@sunstory.com"),
+            "accountDisplayName should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("org-abcdef1234567890"),
+            "org_id should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("team@example.com"),
+            "account_display_name should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("org-...3dc0"),
+            "orgId should show first4...last4, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("rob@....com"),
+            "accountDisplayName should show first4...last4, got: {}",
+            redacted
+        );
+    }
+
+    #[test]
+    fn redact_body_redacts_team_id_payment_id_and_paths() {
+        let body = r#"{"teamId":"cc1ac023-9ff5-4c1f-a5a4-ae2a82df4243","paymentId":"cus_S5m1PGxjLWoc1c","binaryPath":"/opt/homebrew/bin/bunx","homePath":"/Users/rebers/.claude"}"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("cc1ac023-9ff5-4c1f-a5a4-ae2a82df4243"),
+            "teamId should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("cus_S5m1PGxjLWoc1c"),
+            "paymentId should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/opt/homebrew/bin/bunx"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("/Users/rebers/.claude"),
+            "path should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("[PATH]"),
+            "expected path marker, got: {}",
+            redacted
+        );
+    }
+
+    #[test]
     fn redact_log_message_redacts_jwt_and_api_key() {
         let msg = "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U key=sk-1234567890abcdef";
         let redacted = redact_log_message(msg);
@@ -4168,6 +4532,22 @@ mod tests {
             "email should be redacted"
         );
         assert!(redacted.contains("pers....com"));
+    }
+
+    #[test]
+    fn redact_log_message_redacts_devin_session_token() {
+        let msg = "auth=devin-session-token$abcdefghijklmnopqrstuvwxyz123456";
+        let redacted = redact_log_message(msg);
+        assert!(
+            !redacted.contains("devin-session-token$abcdefghijklmnopqrstuvwxyz123456"),
+            "Devin session token should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            redacted.contains("devi...3456"),
+            "Devin session token should use first4...last4 redaction, got: {}",
+            redacted
+        );
     }
 
     #[test]
@@ -4726,21 +5106,26 @@ mod tests {
         };
         assert_eq!(
             resolve_ccusage_provider(&opts_explicit, "claude"),
-            CcusageProvider::Codex
+            Some(CcusageProvider::Codex)
         );
 
         let opts_empty = CcusageQueryOpts::default();
         assert_eq!(
             resolve_ccusage_provider(&opts_empty, "codex"),
-            CcusageProvider::Codex
+            Some(CcusageProvider::Codex)
         );
         assert_eq!(
             resolve_ccusage_provider(&opts_empty, "claude"),
-            CcusageProvider::Claude
+            Some(CcusageProvider::Claude)
+        );
+        assert_eq!(resolve_ccusage_provider(&opts_empty, "unknown-provider"), None);
+        assert_eq!(
+            resolve_ccusage_provider(&opts_empty, "kimi"),
+            Some(CcusageProvider::Kimi)
         );
         assert_eq!(
-            resolve_ccusage_provider(&opts_empty, "unknown-provider"),
-            CcusageProvider::Claude
+            resolve_ccusage_provider(&opts_empty, "opencode-go"),
+            Some(CcusageProvider::OpenCode)
         );
     }
 

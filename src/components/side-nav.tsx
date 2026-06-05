@@ -225,30 +225,29 @@ export function SideNav({
       </NavButton>
 
       {/* Plugin icons */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={plugins.map((p) => p.id)}
-          strategy={verticalListSortingStrategy}
+      <div className="flex flex-1 min-h-0 flex-col overflow-y-auto scrollbar-none">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          {plugins.map((plugin) => (
-            <SortableNavPlugin
-              key={plugin.id}
-              plugin={plugin}
-              isActive={activeView === plugin.id}
-              isDark={isDark}
-              onClick={() => onViewChange(plugin.id)}
-              onContextMenu={(e) => handlePluginContextMenu(e, plugin.id)}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
-
-      {/* Spacer */}
-      <div className="flex-1" />
+          <SortableContext
+            items={plugins.map((p) => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {plugins.map((plugin) => (
+              <SortableNavPlugin
+                key={plugin.id}
+                plugin={plugin}
+                isActive={activeView === plugin.id}
+                isDark={isDark}
+                onClick={() => onViewChange(plugin.id)}
+                onContextMenu={(e) => handlePluginContextMenu(e, plugin.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      </div>
 
       {/* Help */}
       <NavButton

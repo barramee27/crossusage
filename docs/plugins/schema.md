@@ -92,7 +92,7 @@ loading skeletons instantly while probes execute asynchronously.
 
 | Field     | Type    | Required | Description                                       |
 |-----------|---------|----------|---------------------------------------------------|
-| `type`    | string  | Yes      | One of: `text`, `progress`, `badge`               |
+| `type`    | string  | Yes      | One of: `text`, `progress`, `badge`, `barChart`   |
 | `label`   | string  | Yes      | Static label shown in the UI for this line        |
 | `scope`   | string  | Yes      | `"overview"` or `"detail"` - where line appears   |
 | `primary` | boolean | No       | If `true`, this progress line appears in tray icon |
@@ -161,6 +161,13 @@ type MetricLine =
       color?: string;
     }
   | { type: "badge"; label: string; text: string; color?: string; subtitle?: string }
+  | {
+      type: "barChart";
+      label: string;
+      points: Array<{ label: string; value: number; valueLabel?: string }>;
+      note?: string;
+      color?: string;
+    }
 ```
 
 - `color`: optional hex string (e.g. `#22c55e`)
@@ -198,6 +205,21 @@ ctx.line.progress({
   resetsAt: ctx.util.toIso("2026-02-01T00:00:00Z"),
 })
 // UI will show: "Resets in …"
+```
+
+### Bar Chart Line
+
+Shows a compact vertical bar chart for small history snapshots.
+
+```javascript
+ctx.line.barChart({
+  label: "Usage Trend",
+  points: [
+    { label: "Feb 1", value: 1200, valueLabel: "1.2K tokens" },
+    { label: "Feb 2", value: 2400, valueLabel: "2.4K tokens" },
+  ],
+  note: "Estimated from local logs",
+})
 ```
 
 ### Badge Line

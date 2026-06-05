@@ -740,7 +740,7 @@
     const isTeamAccount = (
       normalizedPlanName === "team" ||
       (su && su.limitType === "team") ||
-      (su && typeof su.pooledLimit === "number")
+      (su && typeof su.pooledLimit === "number" && su.pooledLimit > 0)
     )
 
     if (isTeamAccount) {
@@ -925,7 +925,113 @@
     )
   }
 
-  function probe(ctx) {
+  function cursorSince31DaysAgo() {
+    var d = new Date()
+    d.setDate(d.getDate() - 31)
+    var y = d.getFullYear()
+    var m = String(d.getMonth() + 1).padStart(2, "0")
+    var day = String(d.getDate()).padStart(2, "0")
+    return String(y) + m + day
+  }
+
+  function dayKeyFromCursorDate(rawDate) {
+    if (!rawDate) return null
+    var s = String(rawDate).trim()
+    if (s.length >= 10 && s.charAt(4) === "-") return s.slice(0, 10)
+    var digits = s.replace(/\D/g, "")
+    if (digits.length >= 8) {
+      return digits.slice(0, 4) + "-" + digits.slice(4, 6) + "-" + digits.slice(6, 8)
+    }
+    return null
+  }
+
+  function cursorActivityDayLabel(rawDate) {
+    var key = dayKeyFromCursorDate(rawDate)
+    if (!key) return String(rawDate || "").slice(0, 10) || "Activity"
+    return Number(key.slice(5, 7)) + "/" + Number(key.slice(8, 10))
+  }
+
+  function fmtCursorTokens(n) {
+    var v = Number(n)
+    if (!Number.isFinite(v) || v < 0) return "0"
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M"
+    if (v >= 1_000) return (v / 1_000).toFixed(1).replace(/\.0$/, "") + "k"
+    return String(Math.round(v))
+  }
+
+  function queryCursorTranscriptDaily(ctx) {
+    if (!ctx.host.cursorLogs || typeof ctx.host.cursorLogs.queryDaily !== "function") return null
+    try {
+      var resp = ctx.host.cursorLogs.queryDaily({ since: cursorSince31DaysAgo() })
+      if (!resp || resp.status !== "ok" || !resp.data || !Array.isArray(resp.data.daily)) return null
+      return resp.data.daily
+    } catch (e) {
+      ctx.host.log.warn("cursor transcript daily query failed: " + String(e))
+      return null
+    }
+  }
+
+  function collectCursorActivityChartPoints(daily) {
+    var points = []
+    for (var i = 0; i < daily.length; i++) {
+      var day = daily[i]
+      var tokens = Number(day && (day.totalTokens != null ? day.totalTokens : day.total_tokens))
+      if (!Number.isFinite(tokens) || tokens <= 0) continue
+      var key = dayKeyFromCursorDate(day.date)
+      if (!key) continue
+      points.push({
+        key: key,
+        label: cursorActivityDayLabel(day.date),
+        value: tokens,
+        valueLabel: fmtCursorTokens(tokens) + " tok (est.)",
+      })
+    }
+    return points
+      .sort(function (a, b) { return a.key.localeCompare(b.key) })
+      .slice(-31)
+      .map(function (point) {
+        return {
+          label: point.label,
+          value: point.value,
+          valueLabel: point.valueLabel,
+        }
+      })
+  }
+
+  function pushCursorActivityChartLine(lines, ctx, daily) {
+    var points = collectCursorActivityChartPoints(daily)
+    if (points.length === 0) return
+    lines.push(ctx.line.barChart({
+      label: "Activity trend",
+      points: points,
+      note: "Estimated from local Cursor agent transcripts (not billing usage).",
+      color: "#6B7280",
+    }))
+  }
+
+  function persistCursorUsageDaily(ctx, daily, displayName) {
+    if (!ctx.host.usageDaily || typeof ctx.host.usageDaily.ingest !== "function") return
+    if (!daily || !daily.length) return
+    try {
+      ctx.host.usageDaily.ingest({
+        displayName: displayName,
+        source: "cursor_transcripts",
+        daily: daily,
+      })
+    } catch (e) { /* ignore */ }
+  }
+
+  function attachCursorTranscriptActivity(ctx, result) {
+    if (!result || !Array.isArray(result.lines)) return result
+    var daily = queryCursorTranscriptDaily(ctx)
+    if (!daily || !daily.length) return result
+    var displayName = result.plan || "Cursor"
+    persistCursorUsageDaily(ctx, daily, displayName)
+    pushCursorActivityChartLine(result.lines, ctx, daily)
+    return result
+  }
+
+  function probeImpl(ctx) {
     const authState = loadAuthState(ctx)
     let accessToken = authState.accessToken
     const refreshTokenValue = authState.refreshToken
@@ -1184,6 +1290,10 @@
       return buildUnknownRequestBasedResult(ctx, accessToken, planName)
     }
     return connectResult
+  }
+
+  function probe(ctx) {
+    return attachCursorTranscriptActivity(ctx, probeImpl(ctx))
   }
 
   globalThis.__openusage_plugin = { id: "cursor", probe }

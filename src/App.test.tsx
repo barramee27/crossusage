@@ -1463,7 +1463,7 @@ describe("App", () => {
       iconUrl: "icon-a",
       lines: [{ type: "text", label: "Now", value: "OK" }],
     })
-    state.probeHandlers?.onBatchComplete()
+
     const initialCalls = state.startBatchMock.mock.calls.length
 
     // Advance time by 5 minutes to trigger the interval
@@ -1483,14 +1483,12 @@ describe("App", () => {
 
     state.loadAutoUpdateIntervalMock.mockResolvedValueOnce(5)
     state.loadPluginSettingsMock.mockResolvedValueOnce({ order: ["a"], disabled: [] })
-    // First call succeeds (initial batch), subsequent calls fail
     state.startBatchMock
       .mockResolvedValueOnce(["a"])
-      .mockRejectedValue(new Error("auto-update failed"))
+      .mockRejectedValueOnce(new Error("auto-update failed"))
 
     render(<App />)
 
-    // Wait for initial batch
     await vi.waitFor(() => expect(state.startBatchMock).toHaveBeenCalled())
     state.probeHandlers?.onResult({
       providerId: "a",
@@ -1498,9 +1496,7 @@ describe("App", () => {
       iconUrl: "icon-a",
       lines: [{ type: "text", label: "Now", value: "OK" }],
     })
-    state.probeHandlers?.onBatchComplete()
 
-    // Advance time to trigger the interval (which will fail)
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
 
     await vi.waitFor(() =>

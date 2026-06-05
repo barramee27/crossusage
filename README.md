@@ -81,7 +81,7 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | Ollama | [ollama](docs/providers/ollama.md) |
 | OpenCode Go | [opencode-go](docs/providers/opencode-go.md) |
 | Synthetic | [synthetic](docs/providers/synthetic.md) |
-| Windsurf | [windsurf](docs/providers/windsurf.md) |
+| Devin | [devin](docs/providers/devin.md) |
 | Z.ai | [zai](docs/providers/zai.md) |
 
 New provider? [Fork issues](https://github.com/barramee27/crossusage/issues) for Linux/Windows packaging; [upstream issues](https://github.com/robinebers/openusage/issues) for core/plugin API.

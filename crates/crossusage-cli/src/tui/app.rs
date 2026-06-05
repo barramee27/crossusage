@@ -1017,6 +1017,7 @@ fn format_plugin_lines(o: &PluginOutput) -> String {
                 }
                 s.push('\n');
             }
+            MetricLine::BarChart { .. } => {}
         }
     }
     s
