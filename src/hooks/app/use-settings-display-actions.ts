@@ -12,6 +12,9 @@ import {
   saveUsageAlertCustomThreshold,
   saveUsageAlertEnabled,
   saveUsageAlertSound,
+  saveUsagePaceAlertEnabled,
+  saveUsageSpikeAlertEnabled,
+  saveUsageSpikeAlertThresholdPct,
   saveUsageAlertThreshold,
   type DisplayMode,
   type MenubarIconStyle,
@@ -21,6 +24,7 @@ import {
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
+  type UsageSpikeAlertThresholdPct,
 } from "@/lib/settings"
 
 type ScheduleTrayIconUpdate = (reason: "probe" | "settings" | "init", delayMs?: number) => void
@@ -39,6 +43,9 @@ type UseSettingsDisplayActionsArgs = {
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
   setUsageAlertSound: (value: UsageAlertSound) => void
+  setUsagePaceAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertThresholdPct: (value: UsageSpikeAlertThresholdPct) => void
   scheduleTrayIconUpdate: ScheduleTrayIconUpdate
 }
 
@@ -56,6 +63,9 @@ export function useSettingsDisplayActions({
   setUsageAlertThreshold,
   setCustomUsageAlertThreshold,
   setUsageAlertSound,
+  setUsagePaceAlertEnabled,
+  setUsageSpikeAlertEnabled,
+  setUsageSpikeAlertThresholdPct,
   scheduleTrayIconUpdate,
 }: UseSettingsDisplayActionsArgs) {
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
@@ -153,6 +163,30 @@ export function useSettingsDisplayActions({
     })
   }, [setUsageAlertSound])
 
+  const handleUsagePaceAlertEnabledChange = useCallback((value: boolean) => {
+    track("setting_changed", { setting: "usage_pace_alert_enabled", value: value ? "true" : "false" })
+    setUsagePaceAlertEnabled(value)
+    void saveUsagePaceAlertEnabled(value).catch((error) => {
+      console.error("Failed to save usage pace alert enabled:", error)
+    })
+  }, [setUsagePaceAlertEnabled])
+
+  const handleUsageSpikeAlertEnabledChange = useCallback((value: boolean) => {
+    track("setting_changed", { setting: "usage_spike_alert_enabled", value: value ? "true" : "false" })
+    setUsageSpikeAlertEnabled(value)
+    void saveUsageSpikeAlertEnabled(value).catch((error) => {
+      console.error("Failed to save usage spike alert enabled:", error)
+    })
+  }, [setUsageSpikeAlertEnabled])
+
+  const handleUsageSpikeAlertThresholdPctChange = useCallback((value: UsageSpikeAlertThresholdPct) => {
+    track("setting_changed", { setting: "usage_spike_alert_threshold_pct", value: String(value) })
+    setUsageSpikeAlertThresholdPct(value)
+    void saveUsageSpikeAlertThresholdPct(value).catch((error) => {
+      console.error("Failed to save usage spike alert threshold:", error)
+    })
+  }, [setUsageSpikeAlertThresholdPct])
+
   return {
     handleThemeModeChange,
     handleDisplayModeChange,
@@ -167,5 +201,8 @@ export function useSettingsDisplayActions({
     handleUsageAlertThresholdChange,
     handleUsageAlertCustomThresholdChange,
     handleUsageAlertSoundChange,
+    handleUsagePaceAlertEnabledChange,
+    handleUsageSpikeAlertEnabledChange,
+    handleUsageSpikeAlertThresholdPctChange,
   }
 }

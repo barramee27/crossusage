@@ -38,6 +38,20 @@ Returns a single cached usage snapshot for the given provider.
 - **204 No Content** — Provider is known but has no cached snapshot yet.
 - **404 Not Found** — Provider ID is unknown.
 
+### `GET /v1/history/quota`
+
+Returns quota snapshot history from local SQLite when **Settings → Save usage snapshots** is enabled.
+
+- **200 OK** — JSON array (empty `[]` when persist is off or no rows).
+- Query: `?limit=200` (default `80`, max `2000`).
+
+### `GET /v1/history/daily`
+
+Returns daily token rows from local SQLite (`usage_daily`).
+
+- **200 OK** — JSON array (empty `[]` when persist is off or no rows).
+- Query: `?limit=120` (default `120`, max `2000`).
+
 ### Unsupported methods
 
 Any method other than `GET` or `OPTIONS` on the above routes returns **405 Method Not Allowed**.

@@ -5,6 +5,7 @@ import { SettingsPage, type ProviderAccountCredentialInput } from "@/pages/setti
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon"
+import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
 import type {
@@ -50,6 +51,9 @@ export type AppContentActionProps = {
   onUsageAlertThresholdChange: (value: UsageAlertThreshold) => void
   onUsageAlertCustomThresholdChange: (value: number | null) => void
   onUsageAlertSoundChange: (value: UsageAlertSound) => void
+  onUsagePaceAlertEnabledChange: (value: boolean) => void
+  onUsageSpikeAlertEnabledChange: (value: boolean) => void
+  onUsageSpikeAlertThresholdPctChange: (value: import("@/lib/settings").UsageSpikeAlertThresholdPct) => void
   onUIScaleChange: (value: UIScale) => void
   onShowAccountIdentityChange: (value: boolean) => void
   onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void
@@ -85,6 +89,9 @@ export function AppContent({
   onUsageAlertThresholdChange,
   onUsageAlertCustomThresholdChange,
   onUsageAlertSoundChange,
+  onUsagePaceAlertEnabledChange,
+  onUsageSpikeAlertEnabledChange,
+  onUsageSpikeAlertThresholdPctChange,
   onUIScaleChange,
   onShowAccountIdentityChange,
   onSetCursorTrayMetricForAllAccounts,
@@ -95,6 +102,8 @@ export function AppContent({
       activeView: state.activeView,
     }))
   )
+
+  const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
 
   const {
     displayMode,
@@ -110,6 +119,9 @@ export function AppContent({
     usageAlertThreshold,
     customUsageAlertThreshold,
     usageAlertSound,
+    usagePaceAlertEnabled,
+    usageSpikeAlertEnabled,
+    usageSpikeAlertThresholdPct,
     uiScale,
     showAccountIdentity,
   } = useAppPreferencesStore(
@@ -127,6 +139,9 @@ export function AppContent({
       usageAlertThreshold: state.usageAlertThreshold,
       customUsageAlertThreshold: state.customUsageAlertThreshold,
       usageAlertSound: state.usageAlertSound,
+      usagePaceAlertEnabled: state.usagePaceAlertEnabled,
+      usageSpikeAlertEnabled: state.usageSpikeAlertEnabled,
+      usageSpikeAlertThresholdPct: state.usageSpikeAlertThresholdPct,
       uiScale: state.uiScale,
       showAccountIdentity: state.showAccountIdentity,
     }))
@@ -136,6 +151,8 @@ export function AppContent({
     return (
       <OverviewPage
         plugins={displayPlugins}
+        pluginSettings={pluginSettings}
+        preferWeeklyLimit={preferMenubarWeeklyLimit}
         onRetryPlugin={onRetryPlugin}
         displayMode={displayMode}
         resetTimerDisplayMode={resetTimerDisplayMode}
@@ -184,6 +201,12 @@ export function AppContent({
         onUsageAlertCustomThresholdChange={onUsageAlertCustomThresholdChange}
         usageAlertSound={usageAlertSound}
         onUsageAlertSoundChange={onUsageAlertSoundChange}
+        usagePaceAlertEnabled={usagePaceAlertEnabled}
+        onUsagePaceAlertEnabledChange={onUsagePaceAlertEnabledChange}
+        usageSpikeAlertEnabled={usageSpikeAlertEnabled}
+        onUsageSpikeAlertEnabledChange={onUsageSpikeAlertEnabledChange}
+        usageSpikeAlertThresholdPct={usageSpikeAlertThresholdPct}
+        onUsageSpikeAlertThresholdPctChange={onUsageSpikeAlertThresholdPctChange}
         uiScale={uiScale}
         onUIScaleChange={onUIScaleChange}
         showAccountIdentity={showAccountIdentity}

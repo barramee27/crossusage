@@ -21,6 +21,7 @@
 | Auto usage | `planUsage.autoPercentUsed` | detail | percent | Omitted when field is missing or non-finite |
 | API usage | `planUsage.apiPercentUsed` | detail | percent | Omitted when field is missing or non-finite |
 | Requests | `/api/usage` (enterprise) | overview | count | Enterprise accounts only; unchanged from previous behavior |
+| MTD usage | `GET /api/dashboard/export-usage-events-csv` | overview | text | Month-to-date tokens and cost from Cursor dashboard billing export (cached ~45 min). Complements transcript-based **Activity trend**. |
 | On-demand | `spendLimitUsage` | detail | dollars | Only when individual or pooled limit > 0 |
 
 **Enterprise flow** remains request-based via the REST `/api/usage` endpoint -- unchanged.
@@ -153,7 +154,11 @@ OpenUsage reads Cursor auth in this order:
 
 #### 1) Cursor Desktop SQLite (preferred)
 
-Path: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+Path (stable): `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+
+Path (Nightly, Linux): `~/.config/Cursor Nightly/User/globalStorage/state.vscdb`
+
+CrossUsage ships **two sidebar providers**: **Cursor** (stable) and **Cursor Nightly**. Each reads only its own `state.vscdb` — they are not merged. Enable **Cursor Nightly** in Settings if you use the nightly app. Override a single install: `CURSOR_STATE_DB=/path/to/state.vscdb`.
 
 ```bash
 sqlite3 ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb \
@@ -251,7 +256,7 @@ For other **400/403** errors (without that detail), the same chain applies; the 
 **If it still fails:**
 
 1. Run **`agent login`** (CLI) *and* open the **Cursor** desktop app signed into the **same** account so `state.vscdb` tokens match, or sign out/in to refresh.
-2. Ensure `~/.config/Cursor/User/globalStorage/state.vscdb` exists on Linux (or the macOS/Windows paths above).
+2. Ensure `~/.config/Cursor/User/globalStorage/state.vscdb` or `~/.config/Cursor Nightly/User/globalStorage/state.vscdb` exists on Linux (or the macOS/Windows paths above).
 3. Update Cursor to the latest version — their Connect API can change.
 
 CrossUsage’s **CLI header “host CPU / MEM”** is your **PC’s** CPU and RAM via `sysinfo`; it is **not** Cursor cloud usage.

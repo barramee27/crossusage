@@ -27,7 +27,7 @@ You need values that match what Cursor stores after a normal login.
 1. **Sign in** to the Cursor account you want in the **Cursor** desktop app (one login per OS user profile is typical).
 2. Find `**state.vscdb`** (VS Code global storage):
   - **macOS:** `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
-  - **Linux:** `~/.config/Cursor/User/globalStorage/state.vscdb`
+  - **Linux:** `~/.config/Cursor/User/globalStorage/state.vscdb` or `~/.config/Cursor Nightly/User/globalStorage/state.vscdb`
   - **Windows:** `%APPDATA%\Cursor\User\globalStorage\state.vscdb`
 3. Read the keys (requires `sqlite3` installed, or a GUI SQLite tool):
   ```bash

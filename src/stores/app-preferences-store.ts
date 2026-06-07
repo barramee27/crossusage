@@ -15,6 +15,9 @@ import {
   DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   DEFAULT_USAGE_ALERT_ENABLED,
   DEFAULT_USAGE_ALERT_SOUND,
+  DEFAULT_USAGE_PACE_ALERT_ENABLED,
+  DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
+  DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
   DEFAULT_USAGE_ALERT_THRESHOLD,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
@@ -26,6 +29,7 @@ import {
   type TimeFormatMode,
   type UsageAlertSound,
   type UsageAlertThreshold,
+  type UsageSpikeAlertThresholdPct,
 } from "@/lib/settings"
 
 type AppPreferencesStore = {
@@ -45,6 +49,9 @@ type AppPreferencesStore = {
   usageAlertThreshold: UsageAlertThreshold
   customUsageAlertThreshold: number | null
   usageAlertSound: UsageAlertSound
+  usagePaceAlertEnabled: boolean
+  usageSpikeAlertEnabled: boolean
+  usageSpikeAlertThresholdPct: UsageSpikeAlertThresholdPct
   onboardingComplete: boolean | null
 
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
@@ -63,6 +70,9 @@ type AppPreferencesStore = {
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
   setUsageAlertSound: (value: UsageAlertSound) => void
+  setUsagePaceAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertThresholdPct: (value: UsageSpikeAlertThresholdPct) => void
   setOnboardingComplete: (value: boolean) => void
   resetState: () => void
 }
@@ -84,6 +94,9 @@ const initialState = {
   usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
   customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   usageAlertSound: DEFAULT_USAGE_ALERT_SOUND,
+  usagePaceAlertEnabled: DEFAULT_USAGE_PACE_ALERT_ENABLED,
+  usageSpikeAlertEnabled: DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
+  usageSpikeAlertThresholdPct: DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
   onboardingComplete: null as boolean | null,
 }
 
@@ -105,6 +118,9 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
   setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),
   setUsageAlertSound: (value) => set({ usageAlertSound: value }),
+  setUsagePaceAlertEnabled: (value) => set({ usagePaceAlertEnabled: value }),
+  setUsageSpikeAlertEnabled: (value) => set({ usageSpikeAlertEnabled: value }),
+  setUsageSpikeAlertThresholdPct: (value) => set({ usageSpikeAlertThresholdPct: value }),
   setOnboardingComplete: (value) => set({ onboardingComplete: value }),
   resetState: () => set(initialState),
 }))

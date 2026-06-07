@@ -2090,6 +2090,7 @@ describe("cursor plugin", () => {
     expect(ctx.host.usageDaily.ingest).toHaveBeenCalledWith(
       expect.objectContaining({
         source: "cursor_transcripts",
+        displayName: "Cursor",
         daily: [{ date: "2026-05-20", totalTokens: 4000, estimated: true }],
       })
     )
@@ -2097,5 +2098,33 @@ describe("cursor plugin", () => {
     expect(chart).toBeTruthy()
     expect(chart.points).toHaveLength(1)
     expect(chart.points[0].value).toBe(4000)
+  })
+
+  it("attaches MTD usage line from cursorUsageExport", async () => {
+    const ctx = makeCtx()
+    const accessToken = makeJwt({ exp: 9999999999 })
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        enabled: true,
+        planUsage: { totalPercentUsed: 42 },
+      }),
+    })
+    ctx.host.cursorUsageExport.queryMtd = vi.fn(() => ({
+      status: "ok",
+      data: { totalTokens: 1_200_000, inputTokens: 800_000, outputTokens: 400_000, costUsd: 4.8 },
+    }))
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.cursorUsageExport.queryMtd).toHaveBeenCalled()
+    const mtd = result.lines.find((line) => line.type === "text" && line.label === "MTD usage")
+    expect(mtd).toBeTruthy()
+    expect(mtd.value).toContain("800.0K tokens in")
+    expect(mtd.value).toContain("400.0K tokens out")
+    expect(mtd.value).toContain("$4.80")
+    expect(mtd.subtitle).toContain("dashboard export")
   })
 })

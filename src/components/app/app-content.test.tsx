@@ -76,7 +76,19 @@ function createProps(): AppContentProps {
     },
     onGlobalShortcutChange: vi.fn(),
     onStartOnLoginChange: vi.fn(),
+    onTimeFormatModeChange: vi.fn(),
+    onTrayLineToggle: vi.fn(),
+    onUsageAlertEnabledChange: vi.fn(),
+    onUsageAlertThresholdChange: vi.fn(),
+    onUsageAlertCustomThresholdChange: vi.fn(),
+    onUsageAlertSoundChange: vi.fn(),
+    onUsagePaceAlertEnabledChange: vi.fn(),
+    onUsageSpikeAlertEnabledChange: vi.fn(),
+    onUsageSpikeAlertThresholdPctChange: vi.fn(),
+    onUIScaleChange: vi.fn(),
     onShowAccountIdentityChange: vi.fn(),
+    onSetCursorTrayMetricForAllAccounts: vi.fn(),
+    cursorRequestsLineAvailable: null,
   }
 }
 

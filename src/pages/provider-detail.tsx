@@ -1,6 +1,7 @@
+import { CursorUsageStatsPanel } from "@/components/cursor-usage-stats-panel"
 import { ProviderCard } from "@/components/provider-card"
 import type { PluginDisplayState } from "@/lib/plugin-types"
-import type { DisplayMode, ResetTimerDisplayMode, TimeFormatMode } from "@/lib/settings"
+import { getBaseProviderId, type DisplayMode, type PluginSettings, type ResetTimerDisplayMode, type TimeFormatMode } from "@/lib/settings"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
 
 interface ProviderDetailPageProps {
@@ -37,26 +38,35 @@ export function ProviderDetailPage({
     : rawLines[0] === '__NONE__' ? []
     : rawLines
 
+  const baseProviderId = getBaseProviderId(
+    plugin.meta.id,
+    pluginSettings as PluginSettings | null,
+  )
+  const isCursorFamily = baseProviderId === "cursor" || baseProviderId === "cursor-nightly"
+
   return (
-    <ProviderCard
-      name={plugin.meta.name}
-      plan={plugin.data?.plan}
-      links={plugin.meta.links}
-      showSeparator={false}
-      loading={plugin.loading}
-      error={plugin.error}
-      lines={plugin.data?.lines ?? []}
-      skeletonLines={plugin.meta.lines}
-      lastManualRefreshAt={plugin.lastManualRefreshAt}
-      lastUpdatedAt={plugin.lastUpdatedAt}
-      onRetry={onRetry}
-      scopeFilter="all"
-      displayMode={displayMode}
-      resetTimerDisplayMode={resetTimerDisplayMode}
-      onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
-      timeFormatMode={timeFormatMode}
-      allowedLabels={allowedLabels}
-      showAccountIdentity={showAccountIdentity}
-    />
+    <div>
+      <ProviderCard
+        name={plugin.meta.name}
+        plan={plugin.data?.plan}
+        links={plugin.meta.links}
+        showSeparator={false}
+        loading={plugin.loading}
+        error={plugin.error}
+        lines={plugin.data?.lines ?? []}
+        skeletonLines={plugin.meta.lines}
+        lastManualRefreshAt={plugin.lastManualRefreshAt}
+        lastUpdatedAt={plugin.lastUpdatedAt}
+        onRetry={onRetry}
+        scopeFilter="all"
+        displayMode={displayMode}
+        resetTimerDisplayMode={resetTimerDisplayMode}
+        onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
+        timeFormatMode={timeFormatMode}
+        allowedLabels={allowedLabels}
+        showAccountIdentity={showAccountIdentity}
+      />
+      {isCursorFamily ? <CursorUsageStatsPanel pluginId={baseProviderId} /> : null}
+    </div>
   )
 }

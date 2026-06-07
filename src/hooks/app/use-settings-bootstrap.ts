@@ -15,6 +15,9 @@ import {
   DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   DEFAULT_USAGE_ALERT_ENABLED,
   DEFAULT_USAGE_ALERT_SOUND,
+  DEFAULT_USAGE_PACE_ALERT_ENABLED,
+  DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
+  DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
   DEFAULT_USAGE_ALERT_THRESHOLD,
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
@@ -32,6 +35,9 @@ import {
   loadUsageAlertCustomThreshold,
   loadUsageAlertEnabled,
   loadUsageAlertSound,
+  loadUsagePaceAlertEnabled,
+  loadUsageSpikeAlertEnabled,
+  loadUsageSpikeAlertThresholdPct,
   loadUsageAlertThreshold,
   loadMenubarIconStyle,
   migrateLegacyTraySettings,
@@ -80,6 +86,9 @@ type UseSettingsBootstrapArgs = {
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
   setUsageAlertSound: (value: UsageAlertSound) => void
+  setUsagePaceAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertEnabled: (value: boolean) => void
+  setUsageSpikeAlertThresholdPct: (value: import("@/lib/settings").UsageSpikeAlertThresholdPct) => void
   setOnboardingComplete: (value: boolean) => void
   setLoadingForPlugins: (ids: string[]) => void
   setErrorForPlugins: (ids: string[], error: string) => void
@@ -105,6 +114,9 @@ export function useSettingsBootstrap({
   setUsageAlertThreshold,
   setCustomUsageAlertThreshold,
   setUsageAlertSound,
+  setUsagePaceAlertEnabled,
+  setUsageSpikeAlertEnabled,
+  setUsageSpikeAlertThresholdPct,
   setOnboardingComplete,
   setLoadingForPlugins,
   setErrorForPlugins,
@@ -277,6 +289,27 @@ export function useSettingsBootstrap({
           console.error("Failed to load usage alert sound:", error)
         }
 
+        let storedUsagePaceAlertEnabled = DEFAULT_USAGE_PACE_ALERT_ENABLED
+        try {
+          storedUsagePaceAlertEnabled = await loadUsagePaceAlertEnabled()
+        } catch (error) {
+          console.error("Failed to load usage pace alert enabled:", error)
+        }
+
+        let storedUsageSpikeAlertEnabled = DEFAULT_USAGE_SPIKE_ALERT_ENABLED
+        try {
+          storedUsageSpikeAlertEnabled = await loadUsageSpikeAlertEnabled()
+        } catch (error) {
+          console.error("Failed to load usage spike alert enabled:", error)
+        }
+
+        let storedUsageSpikeAlertThresholdPct = DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT
+        try {
+          storedUsageSpikeAlertThresholdPct = await loadUsageSpikeAlertThresholdPct()
+        } catch (error) {
+          console.error("Failed to load usage spike alert threshold:", error)
+        }
+
         if (isMounted) {
           setPluginSettings(normalized)
           setAutoUpdateInterval(storedInterval)
@@ -295,6 +328,9 @@ export function useSettingsBootstrap({
           setUsageAlertThreshold(storedUsageAlertThreshold)
           setCustomUsageAlertThreshold(storedUsageAlertCustomThreshold)
           setUsageAlertSound(storedUsageAlertSound)
+          setUsagePaceAlertEnabled(storedUsagePaceAlertEnabled)
+          setUsageSpikeAlertEnabled(storedUsageSpikeAlertEnabled)
+          setUsageSpikeAlertThresholdPct(storedUsageSpikeAlertThresholdPct)
           setOnboardingComplete(onboardingDone)
 
           const enabledIds = getEnabledPluginIds(normalized)

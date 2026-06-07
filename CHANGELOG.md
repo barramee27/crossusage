@@ -2,6 +2,32 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.1.0
+
+**Theme:** Know before you run out — local-only insights on probe + history data.
+
+### New features (fork)
+
+- **Usage insights banner** on the home panel: behind-pace providers, tightest remaining quota, and next reset.
+- **Pace burn-rate alerts** for the primary progress line (low remaining % and projected to run out before reset).
+- **Rolling 7-day rollup** of tokens and estimated spend from local `usage_daily` history.
+- **Cursor MTD usage** line from dashboard CSV export on the Cursor card (45-minute in-memory cache).
+- **Insights banner v2:** click insight → open provider, dismiss rows, split token/cost deltas, 30-day rollup, 7-day sparkline.
+- **History export** (Settings) and **local API** `GET /v1/history/quota` + `GET /v1/history/daily`.
+- **Cursor billing table** on provider detail (GUI parity with `crossusage-cli usage-stats`).
+- **Spend spike alert** when 7-day estimated local spend jumps vs prior week (opt-in).
+- **Cursor Nightly** as a separate provider (`cursor-nightly`) with its own install path and icon.
+- **Provider list** sorted A–Z by display name in Settings and navigation.
+
+### Ports from [OpenUsage v0.6.27](https://github.com/robinebers/openusage/releases/tag/v0.6.27)
+
+- **Devin:** support auth from the Devin - Next app ([#554](https://github.com/robinebers/openusage/pull/554)).
+- **macOS panel:** clamp to visible screen when menu bar auto-hides ([#557](https://github.com/robinebers/openusage/pull/557)).
+- **macOS keychain:** allow `readGenericPassword(service)` without account arg ([#559](https://github.com/robinebers/openusage/pull/559)).
+- **Plugins:** remove retired Windsurf plugin from app data on startup ([#552](https://github.com/robinebers/openusage/pull/552)).
+
+---
+
 ## 1.0.11
 
 Ports **[OpenUsage v0.6.26](https://github.com/robinebers/openusage/releases/tag/v0.6.26)** while keeping CrossUsage fork UI (Linux/Windows native window, usage history, multi-account).

@@ -53,6 +53,10 @@ Linux **CLI-only** without a desktop package: add `INSTALL_MODE=cli` to the firs
 - Global shortcut to show/hide the panel
 - Plugin-based providers (ship updates without rebuilding core logic)
 - Optional **local usage history** (Settings → *Usage history*, SQLite on disk only)
+- **Usage insights** on the home panel (pace warnings, tightest quota, next reset, 7-day rollup when history is enabled)
+- **Pace burn-rate alerts** for primary quota lines (Settings → Usage Alerts)
+- **Cursor billing usage table** on provider detail (`usage-stats` / cstats parity)
+- **History CSV export** and `GET /v1/history/*` on the local API (with usage history enabled)
 - **[Local HTTP API](docs/local-http-api.md)** on `127.0.0.1:6736` while the app runs
 - Optional **[HTTP/SOCKS proxy](docs/proxy.md)** via `~/.crossusage/config.json`
 
@@ -69,6 +73,7 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | Copilot | [copilot](docs/providers/copilot.md) |
 | CrofAI | [crofai](docs/providers/crofai.md) |
 | Cursor | [cursor](docs/providers/cursor.md) |
+| Cursor Nightly | [cursor](docs/providers/cursor.md) (separate install at `~/.config/Cursor Nightly` on Linux) |
 | DeepSeek | [deepseek](docs/providers/deepseek.md) |
 | Factory / Droid | [factory](docs/providers/factory.md) |
 | Fireworks AI | [fireworks-ai](docs/providers/fireworks-ai.md) |

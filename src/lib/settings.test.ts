@@ -121,7 +121,7 @@ describe("settings", () => {
       plugins
     )
     expect(normalized).toEqual({
-      order: ["b", "a"],
+      order: ["a", "b"],
       disabled: ["a"],
       trayLines: { "a": ["x"] },
       providerInstances: {},
@@ -150,7 +150,7 @@ describe("settings", () => {
       plugins
     )
 
-    expect(normalized.order).toEqual(["claude:personal", "cursor", "claude:work", "claude"])
+    expect(normalized.order).toEqual(["claude", "claude:personal", "claude:work", "cursor"])
     expect(normalized.disabled).toEqual(["claude:personal"])
     expect(normalized.trayLines).toEqual({ "claude:work": ["Usage"] })
     expect(normalized.providerInstances).toEqual({
@@ -191,6 +191,20 @@ describe("settings", () => {
       plugins
     )
     expect(normalized.trayLines).toEqual({ cursor: ["Total usage"] })
+  })
+
+  it("sorts providers alphabetically by display name", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "claude", name: "Claude", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "codex", name: "Codex", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "cursor-nightly", name: "Cursor Nightly", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+    ]
+    const result = normalizePluginSettings(
+      { order: ["cursor", "codex", "claude", "cursor-nightly"], disabled: [] },
+      plugins
+    )
+    expect(result.order).toEqual(["claude", "codex", "cursor", "cursor-nightly"])
   })
 
   it("auto-disables new non-default plugins", () => {

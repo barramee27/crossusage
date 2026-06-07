@@ -21,8 +21,8 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 import { cn } from "@/lib/utils"
-import { getRelativeLuminance } from "@/lib/color"
 import { useDarkMode } from "@/hooks/use-dark-mode"
+import { ProviderIcon } from "@/components/provider-icon"
 
 type ActiveView = "home" | "settings" | string
 
@@ -72,14 +72,6 @@ function NavButton({ isActive, onClick, onContextMenu, children, "aria-label": a
   )
 }
 
-function getIconColor(brandColor: string | undefined, isDark: boolean): string {
-  if (!brandColor) return "currentColor"
-  const luminance = getRelativeLuminance(brandColor)
-  if (isDark && luminance < 0.15) return "#ffffff"
-  if (!isDark && luminance > 0.85) return "currentColor"
-  return brandColor
-}
-
 interface SortableNavPluginProps {
   plugin: NavPlugin
   isActive: boolean
@@ -112,21 +104,12 @@ function SortableNavPlugin({ plugin, isActive, isDark, onClick, onContextMenu }:
         onContextMenu={onContextMenu}
         aria-label={plugin.name}
       >
-        <span
-          role="img"
-          aria-label={plugin.name}
-          className="size-10 inline-block"
-          style={{
-            backgroundColor: getIconColor(plugin.brandColor, isDark),
-            WebkitMaskImage: `url(${plugin.iconUrl})`,
-            WebkitMaskSize: "contain",
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-            maskImage: `url(${plugin.iconUrl})`,
-            maskSize: "contain",
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-          }}
+        <ProviderIcon
+          iconUrl={plugin.iconUrl}
+          brandColor={plugin.brandColor}
+          isDark={isDark}
+          sizePx={40}
+          alt={plugin.name}
         />
       </NavButton>
     </div>
