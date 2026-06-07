@@ -4,6 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 unset CI
+# shellcheck disable=SC1091
+source "$(dirname "$0")/load-tauri-signing.sh"
 # Some runners set CI=1; `bun run tauri build` can mis-parse that. Prefer: bunx tauri build ...
 
 echo "==> Linux bundles (deb, rpm, appimage)"

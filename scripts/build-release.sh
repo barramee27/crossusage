@@ -3,17 +3,8 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-# Load .env (handles values with spaces)
-if [ -f .env ]; then
-  set -a
-  source .env
-  set +a
-fi
-
-# Read key contents from file path
-if [ -f "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$TAURI_SIGNING_PRIVATE_KEY")"
-fi
+# shellcheck disable=SC1091
+source "$(dirname "$0")/load-tauri-signing.sh"
 
 # Clean previous bundle (workspace: target/ at repo root)
 rm -rf target/release/bundle
