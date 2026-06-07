@@ -114,7 +114,7 @@ fn load_single_plugin(
         return Err("plugin icon must remain within plugin directory".into());
     }
     let icon_bytes = std::fs::read(&icon_file_path)?;
-    let icon_data_url = format!("data:image/svg+xml;base64,{}", STANDARD.encode(&icon_bytes));
+    let icon_data_url = icon_data_url_for_file(&icon_file_path, &icon_bytes);
 
     Ok(LoadedPlugin {
         manifest,
@@ -123,6 +123,16 @@ fn load_single_plugin(
         icon_data_url,
         icon_file_path,
     })
+}
+
+fn icon_data_url_for_file(path: &Path, bytes: &[u8]) -> String {
+    let mime = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "image/svg+xml",
+    };
+    format!("data:{mime};base64,{}", STANDARD.encode(bytes))
 }
 
 fn sanitize_plugin_links(plugin_id: &str, links: Vec<PluginLink>) -> Vec<PluginLink> {
@@ -271,6 +281,18 @@ mod tests {
         assert_eq!(manifest.links.len(), 2);
         assert_eq!(manifest.links[0].label, "Status");
         assert_eq!(manifest.links[1].url, "https://example.com/billing");
+    }
+
+    #[test]
+    fn icon_data_url_uses_png_mime_for_png_files() {
+        let mime = icon_data_url_for_file(Path::new("icon.png"), b"\x89PNG");
+        assert!(mime.starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn icon_data_url_uses_svg_mime_for_svg_files() {
+        let mime = icon_data_url_for_file(Path::new("icon.svg"), b"<svg");
+        assert!(mime.starts_with("data:image/svg+xml;base64,"));
     }
 
     #[test]

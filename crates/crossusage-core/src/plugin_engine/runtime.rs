@@ -178,6 +178,12 @@ fn run_probe_with_account_timeout(
             }
             return error_output(plugin, "cursorLogs wrapper patch failed".to_string());
         }
+        if host_api::patch_cursor_usage_export_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
+            return error_output(plugin, "cursorUsageExport wrapper patch failed".to_string());
+        }
         if host_api::patch_fireworks_wrapper(&ctx).is_err() {
             if deadline.has_elapsed() {
                 return error_output(plugin, timeout_message.clone());

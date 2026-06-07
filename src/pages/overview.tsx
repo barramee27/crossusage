@@ -1,8 +1,20 @@
+import { useEffect, useMemo } from "react"
 import { ProviderCard } from "@/components/provider-card"
+import { UsageInsightsBanner } from "@/components/usage-insights-banner"
+import { useSpendSpikeAlert } from "@/hooks/use-spend-spike-alert"
+import { useWeeklyRollup } from "@/hooks/use-weekly-rollup"
+import { usePersistUsageHistory } from "@/hooks/use-persist-usage-history"
+import { useNowTicker } from "@/hooks/use-now-ticker"
+import { useAppUiStore } from "@/stores/app-ui-store"
 import type { PluginDisplayState } from "@/lib/plugin-types"
-import type { DisplayMode, ResetTimerDisplayMode, TimeFormatMode } from "@/lib/settings"
+import { buildUsageInsights } from "@/lib/usage-insights"
+import type { DisplayMode, PluginSettings, ResetTimerDisplayMode, TimeFormatMode } from "@/lib/settings"
+
 interface OverviewPageProps {
   plugins: PluginDisplayState[]
+  pluginSettings: PluginSettings | null
+  preferWeeklyLimit?: boolean
+  onProbeComplete?: () => void
   onRetryPlugin?: (pluginId: string) => void
   displayMode: DisplayMode
   resetTimerDisplayMode: ResetTimerDisplayMode
@@ -13,6 +25,9 @@ interface OverviewPageProps {
 
 export function OverviewPage({
   plugins,
+  pluginSettings,
+  preferWeeklyLimit = false,
+  onProbeComplete,
   onRetryPlugin,
   displayMode,
   resetTimerDisplayMode,
@@ -20,6 +35,33 @@ export function OverviewPage({
   onResetTimerDisplayModeToggle,
   showAccountIdentity,
 }: OverviewPageProps) {
+  const nowMs = useNowTicker()
+  const persistEnabled = usePersistUsageHistory()
+  const { dailyRows, rollup, rollup30, scheduleReload } = useWeeklyRollup(persistEnabled)
+  const { checkSpendSpike } = useSpendSpikeAlert()
+  const setActiveView = useAppUiStore((state) => state.setActiveView)
+
+  const probeStamp = plugins.map((p) => p.lastUpdatedAt ?? 0).join(",")
+  useEffect(() => {
+    onProbeComplete?.()
+    scheduleReload()
+  }, [probeStamp, onProbeComplete, scheduleReload])
+
+  useEffect(() => {
+    checkSpendSpike(rollup)
+  }, [rollup, checkSpendSpike])
+
+  const insights = useMemo(
+    () =>
+      buildUsageInsights({
+        plugins,
+        pluginSettings,
+        preferWeeklyLimit,
+        nowMs,
+      }),
+    [plugins, pluginSettings, preferWeeklyLimit, nowMs],
+  )
+
   if (plugins.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -30,6 +72,15 @@ export function OverviewPage({
 
   return (
     <div>
+      <UsageInsightsBanner
+        insights={insights}
+        rollup={rollup}
+        rollup30={rollup30}
+        dailyRows={dailyRows}
+        persistEnabled={persistEnabled}
+        nowMs={nowMs}
+        onSelectProvider={setActiveView}
+      />
       {plugins.map((plugin, index) => (
         <ProviderCard
           key={plugin.meta.id}

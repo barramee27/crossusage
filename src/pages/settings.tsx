@@ -21,6 +21,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { ProviderIcon } from "@/components/provider-icon";
 import { GlobalShortcutSection } from "@/components/global-shortcut-section";
 import { getBarFillLayout } from "@/lib/tray-bars-icon";
 import { getTrayIconSizePx } from "@/lib/tray-icon-size";
@@ -49,6 +50,7 @@ import {
 } from "@/lib/settings";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
+import { exportUsageHistoryToFolder } from "@/lib/history-export";
 import type { UsageDailyRow } from "@/lib/usage-daily";
 import { UsageHistoryChart, usageHistoryInstanceOptions } from "@/components/usage-history-chart";
 import { UsageDailyChart, usageDailyInstanceOptions } from "@/components/usage-daily-chart";
@@ -160,32 +162,13 @@ function ProviderIconMask({
   sizePx: number;
   className?: string;
 }) {
-  const colorClass = isActive ? "bg-primary-foreground" : "bg-foreground";
-  if (iconUrl) {
-    return (
-      <div
-        aria-hidden
-        className={cn("shrink-0", colorClass, className)}
-        style={{
-          width: `${sizePx}px`,
-          height: `${sizePx}px`,
-          WebkitMaskImage: `url(${iconUrl})`,
-          WebkitMaskSize: "contain",
-          WebkitMaskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-          maskImage: `url(${iconUrl})`,
-          maskSize: "contain",
-          maskRepeat: "no-repeat",
-          maskPosition: "center",
-        }}
-      />
-    );
-  }
-  const textClass = isActive ? "text-primary-foreground" : "text-foreground";
   return (
-    <svg aria-hidden viewBox="0 0 26 26" className={cn("shrink-0", textClass, className)} style={{ width: `${sizePx}px`, height: `${sizePx}px` }}>
-      <circle cx="13" cy="13" r="9" fill="none" stroke="currentColor" strokeWidth="3.5" opacity={0.3} />
-    </svg>
+    <ProviderIcon
+      iconUrl={iconUrl}
+      isActive={isActive}
+      sizePx={sizePx}
+      className={className}
+    />
   );
 }
 
@@ -670,6 +653,8 @@ function UsageHistorySection() {
   const [rows, setRows] = useState<UsageHistoryRow[]>([]);
   const [dailyRows, setDailyRows] = useState<UsageDailyRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [chartInstanceFilter, setChartInstanceFilter] = useState<string>("all");
 
   const reload = useCallback(async () => {
@@ -742,8 +727,8 @@ function UsageHistorySection() {
       <p className="text-sm text-muted-foreground mb-2">
         Optional local SQLite history on this device — never uploaded. With saving enabled:{" "}
         <strong>quota snapshots</strong> after each successful refresh (~one per account per 32s), plus{" "}
-        <strong>daily token totals</strong> from Claude/Codex local logs (same data as the card Usage Trend, via ccusage).
-        Cursor and other providers get quota snapshots only unless they expose log-based daily usage later.
+        <strong>daily token totals</strong> from Claude/Codex local logs (ccusage) and Cursor local transcripts (token counts only — no dollar cost in export).
+        For Cursor billing dollars, use the Cursor detail page → Billing usage table.
       </p>
       <label className="flex items-center gap-2 text-sm select-none text-foreground mb-3">
         <Checkbox
@@ -757,11 +742,47 @@ function UsageHistorySection() {
         <p className="text-xs text-muted-foreground">History is only available in the desktop app.</p>
       ) : null}
       {msg ? <p className="text-xs text-destructive mb-2">{msg}</p> : null}
+      {exportMsg ? <p className="text-xs text-foreground/80 mb-2">{exportMsg}</p> : null}
       {persist && isTauri() ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => void reload()}>
               Refresh list
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting || (rows.length === 0 && dailyRows.length === 0)}
+              onClick={async () => {
+                setExportMsg(null);
+                setMsg(null);
+                setExporting(true);
+                try {
+                  const result = await exportUsageHistoryToFolder(
+                    rows.map((r) => ({
+                      capturedAtMs: r.capturedAtMs,
+                      instanceId: r.instanceId,
+                      displayName: r.displayName,
+                      primaryPercent: r.primaryPercent,
+                      plan: r.plan,
+                    })),
+                    dailyRows,
+                  );
+                  if (result) {
+                    setExportMsg(
+                      `Exported ${result.files.length} files to ${result.directory} (see crossusage-export-summary-*.txt)`,
+                    );
+                  }
+                } catch (e) {
+                  console.error(e);
+                  setMsg(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              {exporting ? "Exporting…" : "Export to folder…"}
             </Button>
             <Button
               type="button"
@@ -925,6 +946,12 @@ interface SettingsPageProps {
   onUsageAlertCustomThresholdChange: (value: number | null) => void;
   usageAlertSound: UsageAlertSound;
   onUsageAlertSoundChange: (value: UsageAlertSound) => void;
+  usagePaceAlertEnabled: boolean;
+  onUsagePaceAlertEnabledChange: (value: boolean) => void;
+  usageSpikeAlertEnabled: boolean;
+  onUsageSpikeAlertEnabledChange: (value: boolean) => void;
+  usageSpikeAlertThresholdPct: import("@/lib/settings").UsageSpikeAlertThresholdPct;
+  onUsageSpikeAlertThresholdPctChange: (value: import("@/lib/settings").UsageSpikeAlertThresholdPct) => void;
   uiScale: UIScale;
   onUIScaleChange: (value: UIScale) => void;
   showAccountIdentity: boolean;
@@ -969,6 +996,12 @@ export function SettingsPage({
   onUsageAlertCustomThresholdChange,
   usageAlertSound,
   onUsageAlertSoundChange,
+  usagePaceAlertEnabled,
+  onUsagePaceAlertEnabledChange,
+  usageSpikeAlertEnabled,
+  onUsageSpikeAlertEnabledChange,
+  usageSpikeAlertThresholdPct,
+  onUsageSpikeAlertThresholdPctChange,
   uiScale,
   onUIScaleChange,
   showAccountIdentity,
@@ -1467,7 +1500,7 @@ export function SettingsPage({
       <section>
         <h3 className="text-lg font-semibold mb-0">Usage Alerts</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Get notified before a session limit resets
+          Get notified when your primary quota is low or on pace to run out before reset
         </p>
         <label className="flex items-center gap-2 text-sm select-none text-foreground">
           <Checkbox
@@ -1475,11 +1508,45 @@ export function SettingsPage({
             checked={usageAlertEnabled}
             onCheckedChange={(checked) => onUsageAlertEnabledChange(checked === true)}
           />
-          Enable alerts <span className="text-muted-foreground">(Claude, Codex, Kimi, MiniMax, OpenCode Go, Zai)</span>
+          Enable usage alerts
         </label>
 
         {usageAlertEnabled && (
           <div className="mt-2 space-y-2">
+            <label className="flex items-center gap-2 text-sm select-none text-foreground">
+              <Checkbox
+                key={`usage-pace-alert-enabled-${usagePaceAlertEnabled}`}
+                checked={usagePaceAlertEnabled}
+                onCheckedChange={(checked) => onUsagePaceAlertEnabledChange(checked === true)}
+              />
+              Warn when on pace to run out before reset
+            </label>
+            <label className="flex items-center gap-2 text-sm select-none text-foreground">
+              <Checkbox
+                key={`usage-spike-alert-enabled-${usageSpikeAlertEnabled}`}
+                checked={usageSpikeAlertEnabled}
+                onCheckedChange={(checked) => onUsageSpikeAlertEnabledChange(checked === true)}
+              />
+              Notify when 7-day estimated spend jumps vs prior 7 days
+            </label>
+            {usageSpikeAlertEnabled ? (
+              <div className="flex gap-1" role="radiogroup" aria-label="Spend spike threshold">
+                {([25, 50, 100] as const).map((pct) => (
+                  <Button
+                    key={pct}
+                    type="button"
+                    role="radio"
+                    aria-checked={usageSpikeAlertThresholdPct === pct}
+                    variant={usageSpikeAlertThresholdPct === pct ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => onUsageSpikeAlertThresholdPctChange(pct)}
+                  >
+                    {pct}%
+                  </Button>
+                ))}
+              </div>
+            ) : null}
             <div className="bg-muted/50 rounded-lg p-1">
               <div className="flex gap-1" role="radiogroup" aria-label="Usage alert threshold">
                 {USAGE_ALERT_THRESHOLD_OPTIONS.map((option) => {

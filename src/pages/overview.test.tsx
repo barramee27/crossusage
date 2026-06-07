@@ -1,12 +1,35 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { OverviewPage } from "@/pages/overview"
+
+vi.mock("@/hooks/use-weekly-rollup", () => ({
+  useWeeklyRollup: () => ({
+    dailyRows: [],
+    rollup: null,
+    rollup30: null,
+    scheduleReload: vi.fn(),
+  }),
+}))
+
+vi.mock("@/hooks/use-spend-spike-alert", () => ({
+  useSpendSpikeAlert: () => ({ checkSpendSpike: vi.fn() }),
+}))
+
+vi.mock("@/stores/app-ui-store", () => ({
+  useAppUiStore: (selector: (s: { setActiveView: () => void }) => unknown) =>
+    selector({ setActiveView: vi.fn() }),
+}))
+
+vi.mock("@/hooks/use-persist-usage-history", () => ({
+  usePersistUsageHistory: () => false,
+}))
 
 describe("OverviewPage", () => {
   it("renders empty state", () => {
     render(
       <OverviewPage
         plugins={[]}
+        pluginSettings={null}
         displayMode="used"
         resetTimerDisplayMode="relative"
       />
@@ -28,6 +51,7 @@ describe("OverviewPage", () => {
     render(
       <OverviewPage
         plugins={plugins}
+        pluginSettings={null}
         displayMode="used"
         resetTimerDisplayMode="relative"
       />
@@ -65,6 +89,7 @@ describe("OverviewPage", () => {
     render(
       <OverviewPage
         plugins={plugins}
+        pluginSettings={null}
         displayMode="used"
         resetTimerDisplayMode="relative"
       />
@@ -96,6 +121,7 @@ describe("OverviewPage", () => {
     render(
       <OverviewPage
         plugins={plugins}
+        pluginSettings={null}
         displayMode="used"
         resetTimerDisplayMode="relative"
       />

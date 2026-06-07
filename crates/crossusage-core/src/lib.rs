@@ -5,6 +5,8 @@ pub mod plugin_engine;
 pub mod provider_accounts;
 pub mod proxy_config;
 pub mod usage_metrics;
+pub mod cursor_paths;
+pub mod cursor_usage_export;
 pub mod cursor_usage_logs;
 pub mod usage_daily;
 pub mod usage_history;

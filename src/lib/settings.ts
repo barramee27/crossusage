@@ -66,6 +66,9 @@ export const USAGE_ALERT_ENABLED_KEY = "usageAlertEnabled";
 export const USAGE_ALERT_THRESHOLD_KEY = "usageAlertThreshold";
 export const USAGE_ALERT_CUSTOM_THRESHOLD_KEY = "usageAlertCustomThreshold";
 export const USAGE_ALERT_SOUND_KEY = "usageAlertSound";
+export const USAGE_PACE_ALERT_ENABLED_KEY = "usagePaceAlertEnabled";
+export const USAGE_SPIKE_ALERT_ENABLED_KEY = "usageSpikeAlertEnabled";
+export const USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY = "usageSpikeAlertThresholdPct";
 
 const UI_SCALE_KEY = "uiScale";
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
@@ -87,6 +90,10 @@ export const DEFAULT_USAGE_ALERT_ENABLED = false;
 export const DEFAULT_USAGE_ALERT_THRESHOLD: UsageAlertThreshold = 20;
 export const DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD: number | null = null;
 export const DEFAULT_USAGE_ALERT_SOUND: UsageAlertSound = "Basso";
+export const DEFAULT_USAGE_PACE_ALERT_ENABLED = true;
+export type UsageSpikeAlertThresholdPct = 25 | 50 | 100;
+export const DEFAULT_USAGE_SPIKE_ALERT_ENABLED = false;
+export const DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT: UsageSpikeAlertThresholdPct = 50;
 
 export type UIScale = "normal" | "small" | "compact";
 export const DEFAULT_UI_SCALE: UIScale = "normal";
@@ -334,7 +341,13 @@ export function normalizePluginSettings(
     }
   }
 
-  return { order, disabled, trayLines, providerInstances };
+  const sortedOrder = sortPluginOrderAlphabetically(
+    order,
+    { providerInstances },
+    plugins
+  );
+
+  return { order: sortedOrder, disabled, trayLines, providerInstances };
 }
 
 export function arePluginSettingsEqual(
@@ -590,6 +603,28 @@ function defaultProviderInstanceLabel(baseProviderId: string, instanceId: string
   return suffix || "Account";
 }
 
+/** Provider list order: A–Z by display name (base + account label). */
+export function sortPluginOrderAlphabetically(
+  order: string[],
+  settings: Pick<PluginSettings, "providerInstances">,
+  plugins: PluginMeta[]
+): string[] {
+  const partialSettings = {
+    order,
+    disabled: [],
+    trayLines: {},
+    providerInstances: settings.providerInstances ?? {},
+  } satisfies PluginSettings;
+
+  return [...order].sort((a, b) =>
+    getProviderDisplayName(a, partialSettings, plugins).localeCompare(
+      getProviderDisplayName(b, partialSettings, plugins),
+      undefined,
+      { sensitivity: "base" }
+    )
+  );
+}
+
 function isGlobalShortcut(value: unknown): value is GlobalShortcut {
   if (value === null) return true;
   return typeof value === "string";
@@ -675,6 +710,47 @@ export async function loadUsageAlertSound(): Promise<UsageAlertSound> {
 
 export async function saveUsageAlertSound(value: UsageAlertSound): Promise<void> {
   await store.set(USAGE_ALERT_SOUND_KEY, value);
+  await store.save();
+}
+
+export async function loadUsagePaceAlertEnabled(): Promise<boolean> {
+  const stored = await store.get<unknown>(USAGE_PACE_ALERT_ENABLED_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_USAGE_PACE_ALERT_ENABLED;
+}
+
+export async function saveUsagePaceAlertEnabled(value: boolean): Promise<void> {
+  await store.set(USAGE_PACE_ALERT_ENABLED_KEY, value);
+  await store.save();
+}
+
+export function isUsageSpikeAlertThresholdPct(
+  value: unknown,
+): value is UsageSpikeAlertThresholdPct {
+  return value === 25 || value === 50 || value === 100;
+}
+
+export async function loadUsageSpikeAlertEnabled(): Promise<boolean> {
+  const stored = await store.get<unknown>(USAGE_SPIKE_ALERT_ENABLED_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_USAGE_SPIKE_ALERT_ENABLED;
+}
+
+export async function saveUsageSpikeAlertEnabled(value: boolean): Promise<void> {
+  await store.set(USAGE_SPIKE_ALERT_ENABLED_KEY, value);
+  await store.save();
+}
+
+export async function loadUsageSpikeAlertThresholdPct(): Promise<UsageSpikeAlertThresholdPct> {
+  const stored = await store.get<unknown>(USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY);
+  if (isUsageSpikeAlertThresholdPct(stored)) return stored;
+  return DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT;
+}
+
+export async function saveUsageSpikeAlertThresholdPct(
+  value: UsageSpikeAlertThresholdPct,
+): Promise<void> {
+  await store.set(USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY, value);
   await store.save();
 }
 

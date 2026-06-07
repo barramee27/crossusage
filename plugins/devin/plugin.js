@@ -12,11 +12,19 @@
   // Devin Desktop FAQ: Devin app data under Devin/; legacy Windsurf/ still read.
   var APP_STATE_VARIANTS = [
     {
+      source: "Devin app",
       appSupportRel: "Devin/User/globalStorage/state.vscdb",
       stateDbFallback:
         "~/Library/Application Support/Devin/User/globalStorage/state.vscdb",
     },
     {
+      source: "Devin - Next app",
+      appSupportRel: "Devin - Next/User/globalStorage/state.vscdb",
+      stateDbFallback:
+        "~/Library/Application Support/Devin - Next/User/globalStorage/state.vscdb",
+    },
+    {
+      source: "Devin app (legacy Windsurf)",
       appSupportRel: "Windsurf/User/globalStorage/state.vscdb",
       stateDbFallback:
         "~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb",
@@ -137,19 +145,16 @@
     return null
   }
 
-  function resolveStateDb(ctx) {
-    for (var i = 0; i < APP_STATE_VARIANTS.length; i++) {
-      var variant = APP_STATE_VARIANTS[i]
-      if (
-        ctx.host.fs &&
-        typeof ctx.host.fs.firstExistingAppSupport === "function"
-      ) {
-        var found = ctx.host.fs.firstExistingAppSupport(variant.appSupportRel)
-        if (found) return found
-      }
-      if (ctx.host.fs.exists(variant.stateDbFallback)) return variant.stateDbFallback
+  function resolveStateDbForVariant(ctx, variant) {
+    if (
+      ctx.host.fs &&
+      typeof ctx.host.fs.firstExistingAppSupport === "function"
+    ) {
+      var found = ctx.host.fs.firstExistingAppSupport(variant.appSupportRel)
+      if (found) return found
     }
-    return APP_STATE_VARIANTS[0].stateDbFallback
+    if (ctx.host.fs.exists(variant.stateDbFallback)) return variant.stateDbFallback
+    return null
   }
 
   function loadCredentialsFile(ctx) {
@@ -173,10 +178,12 @@
     }
   }
 
-  function loadAppAuth(ctx) {
+  function readAppAuth(ctx, variant) {
+    var stateDb = resolveStateDbForVariant(ctx, variant)
+    if (!stateDb) return null
     try {
       var rows = ctx.host.sqlite.query(
-        resolveStateDb(ctx),
+        stateDb,
         "SELECT value FROM ItemTable WHERE key = 'windsurfAuthStatus' LIMIT 1"
       )
       var parsed = ctx.util.tryParseJson(rows)
@@ -186,10 +193,10 @@
       return {
         apiKey: auth.apiKey,
         apiServerUrl: null,
-        source: "Devin app",
+        source: variant.source,
       }
     } catch (e) {
-      ctx.host.log.warn("failed to read Devin app auth: " + String(e))
+      ctx.host.log.warn("failed to read " + variant.source + " auth: " + String(e))
       return null
     }
   }
@@ -320,26 +327,38 @@
     }
   }
 
+  function authFingerprint(auth) {
+    return auth.apiKey + "\n" + effectiveApiServerUrl(auth)
+  }
+
+  function alreadyAttempted(attempts, auth) {
+    var fingerprint = authFingerprint(auth)
+    for (var i = 0; i < attempts.length; i++) {
+      if (attempts[i] === fingerprint) return true
+    }
+    return false
+  }
+
   function probe(ctx) {
     var sawApiKey = false
     var sawAuthFailure = false
-    var credentials = loadCredentialsFile(ctx)
+    var attempts = []
 
+    var credentials = loadCredentialsFile(ctx)
     if (credentials) {
       sawApiKey = true
+      attempts.push(authFingerprint(credentials))
       var credentialsAttempt = tryAuth(ctx, credentials)
       if (credentialsAttempt.output) return credentialsAttempt.output
       if (credentialsAttempt.authFailure) sawAuthFailure = true
     }
 
-    var appAuth = loadAppAuth(ctx)
-    if (
-      appAuth &&
-      (!credentials ||
-        appAuth.apiKey !== credentials.apiKey ||
-        effectiveApiServerUrl(appAuth) !== effectiveApiServerUrl(credentials))
-    ) {
+    for (var i = 0; i < APP_STATE_VARIANTS.length; i++) {
+      var appAuth = readAppAuth(ctx, APP_STATE_VARIANTS[i])
+      if (!appAuth) continue
+      if (alreadyAttempted(attempts, appAuth)) continue
       sawApiKey = true
+      attempts.push(authFingerprint(appAuth))
       var appAttempt = tryAuth(ctx, appAuth)
       if (appAttempt.output) return appAttempt.output
       if (appAttempt.authFailure) sawAuthFailure = true

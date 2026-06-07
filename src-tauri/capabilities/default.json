@@ -23,6 +23,11 @@
     "liquid-glass:default",
     "core:menu:default",
     "positioner:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "fs:default",
+    "fs:allow-write-text-file",
+    "fs:allow-home-write-recursive",
     "core:window:allow-hide",
     "core:window:allow-show",
     "core:window:allow-set-focus"

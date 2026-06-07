@@ -100,15 +100,38 @@
   }
 
   const CURSOR_STATE_DB_REL = "Cursor/User/globalStorage/state.vscdb"
+  const CURSOR_NIGHTLY_STATE_DB_REL = "Cursor Nightly/User/globalStorage/state.vscdb"
   const CURSOR_STATE_DB_FALLBACK =
     "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
 
+  function cursorBaseProviderId(ctx) {
+    if (ctx.account && ctx.account.baseProviderId) {
+      return String(ctx.account.baseProviderId)
+    }
+    return globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__ || "cursor"
+  }
+
   function getCursorDbPath(ctx) {
+    try {
+      if (
+        ctx.host.cursorPaths &&
+        typeof ctx.host.cursorPaths.resolveStateDb === "function"
+      ) {
+        var resolved = ctx.host.cursorPaths.resolveStateDb()
+        if (resolved) return resolved
+      }
+    } catch (e) {
+      ctx.host.log.warn("cursorPaths.resolveStateDb failed: " + String(e))
+    }
     if (
       ctx.host.fs &&
       typeof ctx.host.fs.firstExistingAppSupport === "function"
     ) {
-      const found = ctx.host.fs.firstExistingAppSupport(CURSOR_STATE_DB_REL)
+      var rel =
+        cursorBaseProviderId(ctx) === "cursor-nightly"
+          ? CURSOR_NIGHTLY_STATE_DB_REL
+          : CURSOR_STATE_DB_REL
+      var found = ctx.host.fs.firstExistingAppSupport(rel)
       if (found) return found
     }
     return CURSOR_STATE_DB_FALLBACK
@@ -925,13 +948,29 @@
     )
   }
 
-  function cursorSince31DaysAgo() {
-    var d = new Date()
-    d.setDate(d.getDate() - 31)
+  function cursorYyyymmdd(d) {
     var y = d.getFullYear()
     var m = String(d.getMonth() + 1).padStart(2, "0")
     var day = String(d.getDate()).padStart(2, "0")
     return String(y) + m + day
+  }
+
+  function cursorSince31DaysAgo() {
+    var d = new Date()
+    d.setDate(d.getDate() - 31)
+    return cursorYyyymmdd(d)
+  }
+
+  function cursorUntilToday() {
+    return cursorYyyymmdd(new Date())
+  }
+
+  function cursorAccountDisplayName(ctx) {
+    var base = cursorBaseProviderId(ctx)
+    var name = base === "cursor-nightly" ? "Cursor Nightly" : "Cursor"
+    var label = ctx.account && ctx.account.label ? String(ctx.account.label).trim() : ""
+    if (label) return name + " (" + label + ")"
+    return name
   }
 
   function dayKeyFromCursorDate(rawDate) {
@@ -1021,13 +1060,81 @@
     } catch (e) { /* ignore */ }
   }
 
+  function formatCompactTokens(n) {
+    var num = Number(n) || 0
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M tokens"
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K tokens"
+    return String(num) + " tokens"
+  }
+
+  function attachCursorMtdUsage(ctx, result) {
+    if (!result || !Array.isArray(result.lines)) return result
+    if (!ctx.host.cursorUsageExport || typeof ctx.host.cursorUsageExport.queryMtd !== "function") return result
+    try {
+      var resp = ctx.host.cursorUsageExport.queryMtd({})
+      if (!resp || resp.status !== "ok" || !resp.data) return result
+      var d = resp.data
+      var inputTok = Number(d.inputTokens) || 0
+      var outputTok = Number(d.outputTokens) || 0
+      var total = d.totalTokens != null ? d.totalTokens : inputTok + outputTok
+      var value = formatCompactTokens(total)
+      if (inputTok > 0 || outputTok > 0) {
+        value = formatCompactTokens(inputTok) + " in · " + formatCompactTokens(outputTok) + " out"
+        if (d.costUsd != null && Number(d.costUsd) > 0) value += " · $" + Number(d.costUsd).toFixed(2)
+      } else if (d.costUsd != null && Number(d.costUsd) > 0) {
+        value += " · $" + Number(d.costUsd).toFixed(2)
+      }
+      result.lines.push(ctx.line.text({
+        label: "MTD usage",
+        value: value,
+        subtitle: "From Cursor dashboard export (billing data)",
+      }))
+    } catch (e) { /* ignore */ }
+    return result
+  }
+
+  function persistCursorBillingDaily(ctx, displayName) {
+    if (!ctx.host.cursorUsageExport || typeof ctx.host.cursorUsageExport.queryDaily !== "function") return
+    if (!ctx.host.usageDaily || typeof ctx.host.usageDaily.ingest !== "function") return
+    try {
+      var resp = ctx.host.cursorUsageExport.queryDaily({
+        since: cursorSince31DaysAgo(),
+        until: cursorUntilToday(),
+      })
+      if (!resp || resp.status !== "ok" || !resp.data || !Array.isArray(resp.data.daily)) return
+      if (!resp.data.daily.length) return
+      var daily = resp.data.daily.map(function (row) {
+        return {
+          date: row.date,
+          totalTokens: row.totalTokens,
+          inputTokens: row.inputTokens,
+          outputTokens: row.outputTokens,
+          costUsd: row.costUsd,
+        }
+      })
+      ctx.host.usageDaily.ingest({
+        displayName: displayName,
+        source: "cursor_billing",
+        daily: daily,
+      })
+    } catch (e) {
+      ctx.host.log.warn("cursor billing daily ingest failed: " + String(e))
+    }
+  }
+
   function attachCursorTranscriptActivity(ctx, result) {
     if (!result || !Array.isArray(result.lines)) return result
     var daily = queryCursorTranscriptDaily(ctx)
     if (!daily || !daily.length) return result
-    var displayName = result.plan || "Cursor"
+    var displayName = cursorAccountDisplayName(ctx)
     persistCursorUsageDaily(ctx, daily, displayName)
     pushCursorActivityChartLine(result.lines, ctx, daily)
+    return result
+  }
+
+  function attachCursorBillingDaily(ctx, result) {
+    if (!result) return result
+    persistCursorBillingDaily(ctx, cursorAccountDisplayName(ctx))
     return result
   }
 
@@ -1293,8 +1400,12 @@
   }
 
   function probe(ctx) {
-    return attachCursorTranscriptActivity(ctx, probeImpl(ctx))
+    var result = probeImpl(ctx)
+    result = attachCursorTranscriptActivity(ctx, result)
+    result = attachCursorBillingDaily(ctx, result)
+    return attachCursorMtdUsage(ctx, result)
   }
 
-  globalThis.__openusage_plugin = { id: "cursor", probe }
+  var pluginId = globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__ || "cursor"
+  globalThis.__openusage_plugin = { id: pluginId, probe }
 })()

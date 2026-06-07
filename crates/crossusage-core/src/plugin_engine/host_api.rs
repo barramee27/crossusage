@@ -5,7 +5,7 @@ use aes_gcm::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use crate::provider_accounts::{self, ProviderAccountContext, ProviderCredential};
-use rquickjs::{Ctx, Exception, Function, Object};
+use rquickjs::{function::Rest, Ctx, Exception, Function, Object};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
@@ -695,6 +695,7 @@ pub(crate) fn inject_host_api_with_deadline<'js>(
     host.set("account", host_account_obj)?;
     inject_log(ctx, &host, instance_id)?;
     inject_fs(ctx, &host)?;
+    inject_cursor_paths(ctx, &host, base_plugin_id)?;
     inject_crypto(ctx, &host)?;
     inject_env(ctx, &host, base_plugin_id)?;
     inject_http(ctx, &host, instance_id, deadline)?;
@@ -705,6 +706,7 @@ pub(crate) fn inject_host_api_with_deadline<'js>(
     inject_ccusage(ctx, &host, base_plugin_id, deadline)?;
     inject_usage_daily(ctx, &host, instance_id, app_data_dir)?;
     inject_cursor_logs(ctx, &host, base_plugin_id, deadline)?;
+    inject_cursor_usage_export(ctx, &host, deadline)?;
     inject_fireworks(ctx, &host, base_plugin_id)?;
 
     probe_ctx.set("host", host)?;
@@ -1029,6 +1031,24 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
     )?;
 
     host.set("fs", fs_obj)?;
+    Ok(())
+}
+
+fn inject_cursor_paths<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    base_plugin_id: &str,
+) -> rquickjs::Result<()> {
+    let paths_obj = Object::new(ctx.clone())?;
+    let plugin_id = base_plugin_id.to_string();
+    paths_obj.set(
+        "resolveStateDb",
+        Function::new(ctx.clone(), move |_ctx: Ctx<'_>, ()| -> Option<String> {
+            crate::cursor_paths::resolve_cursor_state_db_for_plugin_id(&plugin_id)
+                .map(|p| p.to_string_lossy().to_string())
+        })?,
+    )?;
+    host.set("cursorPaths", paths_obj)?;
     Ok(())
 }
 
@@ -2975,6 +2995,105 @@ fn inject_cursor_logs<'js>(
     Ok(())
 }
 
+fn inject_cursor_usage_export<'js>(
+    ctx: &Ctx<'js>,
+    host: &Object<'js>,
+    deadline: ProbeDeadline,
+) -> rquickjs::Result<()> {
+    let export_obj = Object::new(ctx.clone())?;
+    export_obj.set(
+        "_queryMtdRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(serde_json::json!({
+                    "status": "error",
+                    "message": "probe deadline exceeded"
+                })
+                .to_string());
+            }
+            Ok(crate::cursor_usage_export::query_mtd_host_json(&opts))
+        })?,
+    )?;
+    export_obj.set(
+        "_queryStatsRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(serde_json::json!({
+                    "status": "error",
+                    "message": "probe deadline exceeded"
+                })
+                .to_string());
+            }
+            Ok(crate::cursor_usage_export::query_usage_stats_host_json(&opts))
+        })?,
+    )?;
+    export_obj.set(
+        "_queryDailyRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(serde_json::json!({
+                    "status": "error",
+                    "message": "probe deadline exceeded"
+                })
+                .to_string());
+            }
+            Ok(crate::cursor_usage_export::query_daily_billing_host_json(&opts))
+        })?,
+    )?;
+    host.set("cursorUsageExport", export_obj)?;
+    Ok(())
+}
+
+pub fn patch_cursor_usage_export_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            function cursorExportOpts(opts) {
+                var o = opts && typeof opts === "object" ? Object.assign({}, opts) : {};
+                if (!o.pluginId && __openusage_ctx.account && __openusage_ctx.account.baseProviderId) {
+                    o.pluginId = __openusage_ctx.account.baseProviderId;
+                }
+                return JSON.stringify(o);
+            }
+            var rawFn = __openusage_ctx.host.cursorUsageExport._queryMtdRaw;
+            __openusage_ctx.host.cursorUsageExport.queryMtd = function(opts) {
+                var result = rawFn(cursorExportOpts(opts));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "error", message: "invalid MTD response" };
+            };
+            var statsRawFn = __openusage_ctx.host.cursorUsageExport._queryStatsRaw;
+            __openusage_ctx.host.cursorUsageExport.queryStats = function(opts) {
+                var result = statsRawFn(cursorExportOpts(opts));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "error", message: "invalid usage stats response" };
+            };
+            var dailyRawFn = __openusage_ctx.host.cursorUsageExport._queryDailyRaw;
+            __openusage_ctx.host.cursorUsageExport.queryDaily = function(opts) {
+                var result = dailyRawFn(cursorExportOpts(opts));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "error", message: "invalid daily billing response" };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
 pub fn patch_cursor_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
     ctx.eval::<(), _>(
         r#"
@@ -3338,16 +3457,21 @@ fn inject_keychain<'js>(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>,
                   service: String,
-                  account: Option<String>|
+                  account_args: Rest<Option<String>>|
                   -> rquickjs::Result<String> {
-                let account = account.and_then(|value| {
-                    let trimmed = value.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
-                });
+                let account = account_args
+                    .0
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .and_then(|value| {
+                        let trimmed = value.trim();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed.to_string())
+                        }
+                    });
                 let redacted_account = account.as_deref().map(redact_value);
                 if let Some(ref redacted) = redacted_account {
                     log::info!(
@@ -4021,6 +4145,36 @@ mod tests {
             let _write: Function = keychain
                 .get("writeGenericPassword")
                 .expect("writeGenericPassword");
+        });
+    }
+
+    #[test]
+    fn keychain_read_generic_password_accepts_optional_account_arg_from_js() {
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
+
+            let message: String = ctx
+                .eval(
+                    r#"
+                    try {
+                        __openusage_ctx.host.keychain.readGenericPassword("__openusage_missing_service__");
+                        "ok";
+                    } catch (e) {
+                        String(e);
+                    }
+                    "#,
+                )
+                .expect("js eval");
+
+            assert!(
+                !message.contains("2 where expected"),
+                "single-arg call should reach the keychain implementation, got: {}",
+                message
+            );
         });
     }
 

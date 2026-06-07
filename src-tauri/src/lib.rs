@@ -866,6 +866,28 @@ fn list_usage_daily(
 }
 
 #[tauri::command]
+fn query_cursor_usage_stats(
+    plugin_id: Option<String>,
+    since: Option<String>,
+    until: Option<String>,
+    group: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let plugin_id = plugin_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("cursor");
+    let payload = crossusage_core::cursor_usage_export::query_usage_stats(
+        plugin_id,
+        since.as_deref(),
+        until.as_deref(),
+        group.as_deref().unwrap_or("model"),
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(payload).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn set_tray_restart_label(text: String) {
     tray::set_tray_restart_menu_text(&text);
 }
@@ -993,7 +1015,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_positioner::init());
+        .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init());
 
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_nspanel::init());
@@ -1031,6 +1055,7 @@ pub fn run() {
             get_support_bundle_json,
             list_usage_history,
             list_usage_daily,
+            query_cursor_usage_stats,
             clear_usage_history,
             get_platform,
             usage_alert_sound::play_usage_alert_sound,

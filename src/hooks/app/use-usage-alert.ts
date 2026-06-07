@@ -1,7 +1,9 @@
 import { useCallback, useRef } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import type { PluginOutput } from "@/lib/plugin-types"
+import { calculatePaceStatus } from "@/lib/pace-status"
 import { sendNotificationAsync } from "@/lib/notification"
+import { resolvePrimaryProgressLine } from "@/lib/primary-progress-line"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
@@ -11,65 +13,120 @@ export function useUsageAlert() {
     usageAlertThreshold,
     customUsageAlertThreshold,
     usageAlertSound,
+    usagePaceAlertEnabled,
+    preferMenubarWeeklyLimit,
   } = useAppPreferencesStore()
 
-  const { pluginsMeta } = useAppPluginStore()
+  const { pluginsMeta, pluginSettings } = useAppPluginStore()
 
-  const notifiedMapRef = useRef<Record<string, boolean>>({})
+  const lowRemainingNotifiedRef = useRef<Record<string, boolean>>({})
+  const paceNotifiedRef = useRef<Record<string, boolean>>({})
 
-  const checkUsageAlert = useCallback(
-    (output: PluginOutput) => {
-      const sessionLine = output.lines.find(
-        (line): line is Extract<(typeof output.lines)[number], { type: "progress" }> =>
-          line.type === "progress" && line.label === "Session"
-      )
-      if (!sessionLine) return
-      if (!Number.isFinite(sessionLine.used) || !Number.isFinite(sessionLine.limit)) return
-      if (sessionLine.limit <= 0) return
-
-      const usedPercent = (sessionLine.used / sessionLine.limit) * 100
-      const remaining = 100 - usedPercent
-
-      const effectiveThreshold =
-        usageAlertThreshold === "custom" ? customUsageAlertThreshold : usageAlertThreshold
-      if (effectiveThreshold == null) return
-
-      if (remaining > effectiveThreshold) {
-        notifiedMapRef.current[output.providerId] = false
-        return
-      }
-
-      if (!usageAlertEnabled) return
-      if (notifiedMapRef.current[output.providerId] === true) return
-
-      const meta = pluginsMeta.find((plugin) => plugin.id === output.providerId)
+  const sendAlert = useCallback(
+    (providerId: string, _displayName: string, body: string) => {
+      const meta = pluginsMeta.find((plugin) => plugin.id === providerId)
       const iconFilePath = meta?.iconFilePath
 
       void sendNotificationAsync({
         title: "Usage Alert",
-        body: `Less than ${effectiveThreshold}% remaining on ${output.displayName}`,
+        body,
         sound: usageAlertSound,
         ...(iconFilePath
           ? { attachments: [{ id: "icon", url: convertFileSrc(iconFilePath) }] }
           : {}),
+      }).catch((error) => {
+        console.error("Failed to send usage alert notification:", error)
       })
-        .then(() => {
-          notifiedMapRef.current[output.providerId] = true
-        })
-        .catch((error) => {
-          notifiedMapRef.current[output.providerId] = true
-          console.error("Failed to send usage alert notification:", error)
-        })
+    },
+    [pluginsMeta, usageAlertSound],
+  )
+
+  const checkUsageAlert = useCallback(
+    (output: PluginOutput) => {
+      if (!usageAlertEnabled) return
+      if (!pluginSettings) return
+
+      const instanceId = output.providerId
+      const meta = pluginsMeta.find((p) => p.id === instanceId)
+      if (!meta) return
+
+      const primary = resolvePrimaryProgressLine({
+        meta,
+        data: output,
+        pluginSettings,
+        instanceId,
+        preferWeeklyLimit: preferMenubarWeeklyLimit,
+      })
+
+      if (!primary) return
+      if (!Number.isFinite(primary.used) || !Number.isFinite(primary.limit)) return
+      if (primary.limit <= 0) return
+
+      const displayName = output.displayName
+      const lineLabel = primary.label
+
+      if (primary.format?.kind === "percent") {
+        const usedPercent = (primary.used / primary.limit) * 100
+        const remaining = 100 - usedPercent
+        const effectiveThreshold =
+          usageAlertThreshold === "custom" ? customUsageAlertThreshold : usageAlertThreshold
+
+        if (effectiveThreshold != null) {
+          if (remaining > effectiveThreshold) {
+            lowRemainingNotifiedRef.current[instanceId] = false
+          } else if (!lowRemainingNotifiedRef.current[instanceId]) {
+            lowRemainingNotifiedRef.current[instanceId] = true
+            sendAlert(
+              instanceId,
+              displayName,
+              `Less than ${effectiveThreshold}% remaining on ${displayName} (${lineLabel})`,
+            )
+          }
+        }
+
+        if (usagePaceAlertEnabled) {
+          const resetsAtMs = primary.resetsAt ? Date.parse(primary.resetsAt) : NaN
+          const periodDurationMs = primary.periodDurationMs
+          const paceKey = `${instanceId}:${resetsAtMs}:pace`
+
+          if (
+            Number.isFinite(resetsAtMs) &&
+            periodDurationMs != null &&
+            periodDurationMs > 0
+          ) {
+            const nowMs = Date.now()
+            const pace = calculatePaceStatus(
+              primary.used,
+              primary.limit,
+              resetsAtMs,
+              periodDurationMs,
+              nowMs,
+            )
+            if (pace?.status !== "behind") {
+              paceNotifiedRef.current[paceKey] = false
+            } else if (!paceNotifiedRef.current[paceKey]) {
+              paceNotifiedRef.current[paceKey] = true
+              sendAlert(
+                instanceId,
+                displayName,
+                `${displayName} (${lineLabel}) — projected to run out before reset`,
+              )
+            }
+          }
+        }
+      }
     },
     [
       customUsageAlertThreshold,
+      pluginSettings,
       pluginsMeta,
+      preferMenubarWeeklyLimit,
+      sendAlert,
       usageAlertEnabled,
-      usageAlertSound,
       usageAlertThreshold,
-    ]
+      usagePaceAlertEnabled,
+    ],
   )
 
   return { checkUsageAlert }
 }
-

@@ -112,6 +112,14 @@ export const makeCtx = () => {
       cursorLogs: {
         queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
       },
+      cursorPaths: {
+        resolveStateDb: vi.fn(() => null),
+      },
+      cursorUsageExport: {
+        queryMtd: vi.fn(() => ({ status: "no_data" })),
+        queryStats: vi.fn(() => ({ status: "no_data" })),
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
       fireworks: {
         exportBillingMetrics: vi.fn(() => ({ status: "unavailable" })),
       },

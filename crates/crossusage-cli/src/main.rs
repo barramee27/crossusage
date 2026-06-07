@@ -529,8 +529,10 @@ fn run_list_cmd(
             .map(|c| format!("{:.2}", c))
             .unwrap_or_else(|| "—".into());
 
-        if p.manifest.id == "cursor" {
-            if let Some(mtd) = cursor_token_usage::fetch_cursor_month_to_date_totals() {
+        if p.manifest.id == "cursor" || p.manifest.id == "cursor-nightly" {
+            if let Some(mtd) =
+                cursor_token_usage::fetch_cursor_month_to_date_totals_for_plugin(&p.manifest.id)
+            {
                 input_s = cursor_token_usage::format_token_count(mtd.input_tokens);
                 output_s = cursor_token_usage::format_token_count(mtd.output_tokens);
                 cost_s = format!("{:.2}", mtd.cost_usd);

@@ -125,12 +125,12 @@ fn handle_connection(mut stream: TcpStream, _permit: ConnectionPermit) {
         path
     };
 
-    let response = route(method, path);
+    let response = route(method, path, raw_path);
     let _ = stream.write_all(response.as_bytes());
     let _ = stream.flush();
 }
 
-fn route(method: &str, path: &str) -> String {
+fn route(method: &str, path: &str, raw_path: &str) -> String {
     if path == "/v1/usage" {
         return match method {
             "GET" => handle_get_usage_collection(),
@@ -149,7 +149,80 @@ fn route(method: &str, path: &str) -> String {
         }
     }
 
+    if path == "/v1/history/quota" {
+        return match method {
+            "GET" => handle_get_history_quota(raw_path),
+            "OPTIONS" => response_no_content(),
+            _ => response_method_not_allowed(),
+        };
+    }
+
+    if path == "/v1/history/daily" {
+        return match method {
+            "GET" => handle_get_history_daily(raw_path),
+            "OPTIONS" => response_no_content(),
+            _ => response_method_not_allowed(),
+        };
+    }
+
     response_not_found("not_found")
+}
+
+fn parse_limit_query(raw_path: &str, default: u32) -> u32 {
+    let query = raw_path.split('?').nth(1).unwrap_or("");
+    for part in query.split('&') {
+        let mut kv = part.splitn(2, '=');
+        if kv.next() == Some("limit") {
+            if let Some(v) = kv.next() {
+                if let Ok(n) = v.parse::<u32>() {
+                    return n.clamp(1, 2000);
+                }
+            }
+        }
+    }
+    default
+}
+
+fn handle_get_history_quota(raw_path: &str) -> String {
+    let limit = parse_limit_query(raw_path, 80);
+    let dir = {
+        let state = cache_state().lock().expect("cache state poisoned");
+        state.app_data_dir.clone()
+    };
+    if !crossusage_core::usage_history::persist_usage_history_enabled(&dir) {
+        return response_json(200, "OK", "[]");
+    }
+    match crossusage_core::usage_history::list_recent(&dir, limit) {
+        Ok(rows) => {
+            let body = serde_json::to_string_pretty(&rows).unwrap_or_else(|_| "[]".to_string());
+            response_json(200, "OK", &body)
+        }
+        Err(e) => {
+            let body = format!(r#"{{"error":"{}"}}"#, e);
+            response_json(500, "Internal Server Error", &body)
+        }
+    }
+}
+
+fn handle_get_history_daily(raw_path: &str) -> String {
+    let limit = parse_limit_query(raw_path, 120);
+    let dir = {
+        let state = cache_state().lock().expect("cache state poisoned");
+        state.app_data_dir.clone()
+    };
+    if !crossusage_core::usage_history::persist_usage_history_enabled(&dir) {
+        return response_json(200, "OK", "[]");
+    }
+    match crossusage_core::usage_daily::list_recent(&dir, limit, None) {
+        Ok(rows) => {
+            let body = serde_json::to_string_pretty(&rows).unwrap_or_else(|_| "[]".to_string());
+            response_json(200, "OK", &body)
+        }
+        Err(e) => {
+            let body = format!(r#"{{"error":"{}"}}"#, e);
+            response_json(500, "Internal Server Error", &body)
+        }
+    }
 }
 
 fn handle_get_usage_collection() -> String {
@@ -237,26 +310,38 @@ mod tests {
     }
 
     #[test]
+    fn route_get_history_quota_returns_200() {
+        let resp = route("GET", "/v1/history/quota", "/v1/history/quota");
+        assert!(resp.starts_with("HTTP/1.1 200"));
+    }
+
+    #[test]
+    fn route_get_history_daily_returns_200() {
+        let resp = route("GET", "/v1/history/daily", "/v1/history/daily?limit=50");
+        assert!(resp.starts_with("HTTP/1.1 200"));
+    }
+
+    #[test]
     fn route_get_usage_returns_200() {
-        let resp = route("GET", "/v1/usage");
+        let resp = route("GET", "/v1/usage", "/v1/usage");
         assert!(resp.starts_with("HTTP/1.1 200"));
     }
 
     #[test]
     fn route_unknown_path_returns_404() {
-        let resp = route("GET", "/v2/something");
+        let resp = route("GET", "/v2/something", "/v2/something");
         assert!(resp.starts_with("HTTP/1.1 404"));
     }
 
     #[test]
     fn route_post_returns_405() {
-        let resp = route("POST", "/v1/usage");
+        let resp = route("POST", "/v1/usage", "/v1/usage");
         assert!(resp.starts_with("HTTP/1.1 405"));
     }
 
     #[test]
     fn route_options_returns_204_with_cors() {
-        let resp = route("OPTIONS", "/v1/usage");
+        let resp = route("OPTIONS", "/v1/usage", "/v1/usage");
         assert!(resp.starts_with("HTTP/1.1 204"));
         assert!(resp.contains("Access-Control-Allow-Origin: *"));
     }
@@ -270,7 +355,7 @@ mod tests {
             state.snapshots.clear();
         }
 
-        let resp = route("GET", "/v1/usage/nonexistent");
+        let resp = route("GET", "/v1/usage/nonexistent", "/v1/usage/nonexistent");
         assert!(resp.starts_with("HTTP/1.1 404"));
         assert!(resp.contains("provider_not_found"));
     }
@@ -284,7 +369,7 @@ mod tests {
             state.snapshots.clear();
         }
 
-        let resp = route("GET", "/v1/usage/claude");
+        let resp = route("GET", "/v1/usage/claude", "/v1/usage/claude");
         assert!(resp.starts_with("HTTP/1.1 204"));
     }
 
@@ -299,14 +384,14 @@ mod tests {
                 .insert("claude".to_string(), make_snapshot("claude", "Claude"));
         }
 
-        let resp = route("GET", "/v1/usage/claude");
+        let resp = route("GET", "/v1/usage/claude", "/v1/usage/claude");
         assert!(resp.starts_with("HTTP/1.1 200"));
         assert!(resp.contains("fetchedAt"));
     }
 
     #[test]
     fn route_options_on_provider_returns_204() {
-        let resp = route("OPTIONS", "/v1/usage/claude");
+        let resp = route("OPTIONS", "/v1/usage/claude", "/v1/usage/claude");
         assert!(resp.starts_with("HTTP/1.1 204"));
         assert!(resp.contains("Access-Control-Allow-Methods: GET, OPTIONS"));
     }
