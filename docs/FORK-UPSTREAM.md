@@ -27,7 +27,7 @@ Update this table as work lands on `feat/port-openusage-0.7-prep`.
 | [#570](https://github.com/robinebers/openusage/pull/570) | Rust security cargo update | rust-shared | **done** (`src-tauri/Cargo.lock`) |
 | [#555](https://github.com/robinebers/openusage/pull/555) | Menubar weekly metric | fork-already | **skip** — already in CrossUsage settings/tray |
 | [#616](https://github.com/robinebers/openusage/pull/616) | Retirement notice banner | skip | **skip** — points users to openusage.ai |
-| [#612](https://github.com/robinebers/openusage/pull/612) | Codex/Devin usage bugs | plugin-easy | **todo** — diff devin/codex |
+| [#612](https://github.com/robinebers/openusage/pull/612) | Codex/Devin usage bugs | plugin-easy | **done** — Devin weekly fallback flip; Codex badge ordering already correct in JS |
 | [#613](https://github.com/robinebers/openusage/pull/613) | Settings refresh/style layout | swift-rewrite | **todo** — adapt Settings UX in Tauri |
 | [#614](https://github.com/robinebers/openusage/pull/614) | Screen pager flicker fix | swift-rewrite | **todo** — overview navigation |
 | [#615](https://github.com/robinebers/openusage/pull/615) | Debug logging → native app | swift-rewrite | **todo** — align with existing Tauri logging |

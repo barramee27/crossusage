@@ -1528,6 +1528,31 @@ describe("codex plugin", () => {
     expect(() => plugin.probe(ctx)).toThrow("Usage response invalid")
   })
 
+  it("does not show No usage data badge when ccusage has spend but live API is empty", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify({}),
+    })
+    ctx.host.ccusage.query.mockReturnValue({
+      status: "ok",
+      data: {
+        daily: [
+          { date: new Date().toISOString().slice(0, 10), totalTokens: 1200, costUSD: 0.42 },
+        ],
+      },
+    })
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((l) => l.label === "Today")).toBeTruthy()
+    expect(result.lines.find((l) => l.label === "Status")).toBeUndefined()
+  })
+
   it("shows status badge when no usage data and ccusage failed", async () => {
     const ctx = makeCtx()
     ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
