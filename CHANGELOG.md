@@ -2,6 +2,24 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.2.0
+
+**Theme:** Insights everywhere — tray, history, and local API.
+
+### New features (fork)
+
+- **History insights** on Overview: tightest quotas from saved snapshots (when usage history is on).
+- **Tray insight toggle** in Settings → Insights.
+- **Local API** `GET /v1/insights`; copy-to-clipboard curl buttons in Settings.
+- **History retention** (30 / 90 / 1 year / forever) when saving snapshots.
+- **Tray tooltip** prepends top live insight (when enabled).
+
+### Fixes
+
+- **Devin:** weekly-from-daily quota treats remaining % correctly ([#612](https://github.com/robinebers/openusage/pull/612)).
+
+---
+
 ## 1.1.0
 
 **Theme:** Know before you run out — local-only insights on probe + history data.

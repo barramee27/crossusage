@@ -839,6 +839,19 @@ fn list_usage_history(
 }
 
 #[tauri::command]
+fn get_usage_insights(
+    state: tauri::State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+) -> Result<crossusage_core::usage_history::HistoryInsightsSummary, String> {
+    let dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    crossusage_core::usage_history::insights_summary(&dir, limit.unwrap_or(5))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn clear_usage_history(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
     let dir = {
         let locked = state.lock().map_err(|e| e.to_string())?;
@@ -1054,6 +1067,7 @@ pub fn run() {
             get_log_path,
             get_support_bundle_json,
             list_usage_history,
+            get_usage_insights,
             list_usage_daily,
             query_cursor_usage_stats,
             clear_usage_history,

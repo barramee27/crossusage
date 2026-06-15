@@ -18,6 +18,7 @@ const {
   loadResetTimerDisplayModeMock,
   loadShowAccountIdentityMock,
   loadShowTrayIconMock,
+  loadShowTrayInsightMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUIScaleMock,
@@ -44,6 +45,7 @@ const {
   loadResetTimerDisplayModeMock: vi.fn(),
   loadShowAccountIdentityMock: vi.fn(),
   loadShowTrayIconMock: vi.fn(),
+  loadShowTrayInsightMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
@@ -83,12 +85,14 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_RESET_TIMER_DISPLAY_MODE: "relative",
   DEFAULT_SHOW_ACCOUNT_IDENTITY: true,
   DEFAULT_SHOW_TRAY_ICON: true,
+  DEFAULT_SHOW_TRAY_INSIGHT: true,
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_SCALE: "normal",
   DEFAULT_TIME_FORMAT_MODE: "auto",
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: loadShowTrayIconMock,
+  loadShowTrayInsight: loadShowTrayInsightMock,
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
   loadDisplayMode: loadDisplayModeMock,
   loadGlobalShortcut: loadGlobalShortcutMock,
@@ -133,6 +137,7 @@ function createArgs() {
     setPreferMenubarWeeklyLimit: vi.fn(),
     setUIScale: vi.fn(),
     setShowTrayIcon: vi.fn(),
+    setShowTrayInsight: vi.fn(),
     setUsageAlertEnabled: vi.fn(),
     setUsageAlertThreshold: vi.fn(),
     setCustomUsageAlertThreshold: vi.fn(),
@@ -165,6 +170,7 @@ describe("useSettingsBootstrap", () => {
     loadResetTimerDisplayModeMock.mockReset()
     loadShowAccountIdentityMock.mockReset()
     loadShowTrayIconMock.mockReset()
+    loadShowTrayInsightMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUIScaleMock.mockReset()
@@ -203,6 +209,7 @@ describe("useSettingsBootstrap", () => {
     loadStartOnLoginMock.mockResolvedValue(true)
     loadShowAccountIdentityMock.mockResolvedValue(false)
     loadShowTrayIconMock.mockResolvedValue(true)
+    loadShowTrayInsightMock.mockResolvedValue(true)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)

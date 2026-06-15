@@ -9,6 +9,7 @@ import {
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
+  DEFAULT_SHOW_TRAY_INSIGHT,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_TIME_FORMAT_MODE,
@@ -45,6 +46,7 @@ type AppPreferencesStore = {
   preferMenubarWeeklyLimit: boolean
   uiScale: UIScale
   showTrayIcon: boolean
+  showTrayInsight: boolean
   usageAlertEnabled: boolean
   usageAlertThreshold: UsageAlertThreshold
   customUsageAlertThreshold: number | null
@@ -66,6 +68,7 @@ type AppPreferencesStore = {
   setPreferMenubarWeeklyLimit: (value: boolean) => void
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
+  setShowTrayInsight: (value: boolean) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -90,6 +93,7 @@ const initialState = {
   preferMenubarWeeklyLimit: DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
   uiScale: DEFAULT_UI_SCALE,
   showTrayIcon: DEFAULT_SHOW_TRAY_ICON,
+  showTrayInsight: DEFAULT_SHOW_TRAY_INSIGHT,
   usageAlertEnabled: DEFAULT_USAGE_ALERT_ENABLED,
   usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
   customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
@@ -114,6 +118,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setPreferMenubarWeeklyLimit: (value) => set({ preferMenubarWeeklyLimit: value }),
   setUIScale: (value) => set({ uiScale: value }),
   setShowTrayIcon: (value) => set({ showTrayIcon: value }),
+  setShowTrayInsight: (value) => set({ showTrayInsight: value }),
   setUsageAlertEnabled: (value) => set({ usageAlertEnabled: value }),
   setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
   setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),

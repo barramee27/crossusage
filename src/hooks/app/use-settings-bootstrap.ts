@@ -24,6 +24,7 @@ import {
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
+  DEFAULT_SHOW_TRAY_INSIGHT,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_TIME_FORMAT_MODE,
@@ -47,6 +48,7 @@ import {
   loadResetTimerDisplayMode,
   loadShowAccountIdentity,
   loadShowTrayIcon,
+  loadShowTrayInsight,
   loadStartOnLogin,
   loadThemeMode,
   loadTimeFormatMode,
@@ -82,6 +84,7 @@ type UseSettingsBootstrapArgs = {
   setPreferMenubarWeeklyLimit: (value: boolean) => void
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
+  setShowTrayInsight: (value: boolean) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -110,6 +113,7 @@ export function useSettingsBootstrap({
   setPreferMenubarWeeklyLimit,
   setUIScale,
   setShowTrayIcon,
+  setShowTrayInsight,
   setUsageAlertEnabled,
   setUsageAlertThreshold,
   setCustomUsageAlertThreshold,
@@ -229,6 +233,13 @@ export function useSettingsBootstrap({
           }
         }
 
+        let storedShowTrayInsight = DEFAULT_SHOW_TRAY_INSIGHT
+        try {
+          storedShowTrayInsight = await loadShowTrayInsight()
+        } catch (error) {
+          console.error("Failed to load show tray insight:", error)
+        }
+
         try {
           await applyStartOnLogin(storedStartOnLogin)
         } catch (error) {
@@ -321,6 +332,7 @@ export function useSettingsBootstrap({
           setStartOnLogin(storedStartOnLogin)
           setShowAccountIdentity(storedShowAccountIdentity)
           setShowTrayIcon(storedShowTrayIcon)
+          setShowTrayInsight(storedShowTrayInsight)
           setMenubarIconStyle(storedMenubarIconStyle)
           setPreferMenubarWeeklyLimit(storedPreferMenubarWeeklyLimit)
           setUIScale(storedUIScale)
@@ -371,6 +383,7 @@ export function useSettingsBootstrap({
     setPluginsMeta,
     setResetTimerDisplayMode,
     setShowTrayIcon,
+    setShowTrayInsight,
     setOnboardingComplete,
     setStartOnLogin,
     setShowAccountIdentity,

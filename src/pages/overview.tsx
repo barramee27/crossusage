@@ -3,7 +3,7 @@ import { ProviderCard } from "@/components/provider-card"
 import { UsageInsightsBanner } from "@/components/usage-insights-banner"
 import { useSpendSpikeAlert } from "@/hooks/use-spend-spike-alert"
 import { useWeeklyRollup } from "@/hooks/use-weekly-rollup"
-import { usePersistUsageHistory } from "@/hooks/use-persist-usage-history"
+import { useHistoryInsights } from "@/hooks/use-history-insights"
 import { useNowTicker } from "@/hooks/use-now-ticker"
 import { useAppUiStore } from "@/stores/app-ui-store"
 import type { PluginDisplayState } from "@/lib/plugin-types"
@@ -38,6 +38,8 @@ export function OverviewPage({
   const nowMs = useNowTicker()
   const persistEnabled = usePersistUsageHistory()
   const { dailyRows, rollup, rollup30, scheduleReload } = useWeeklyRollup(persistEnabled)
+  const { summary: historyInsights, scheduleReload: scheduleHistoryInsightsReload } =
+    useHistoryInsights(persistEnabled)
   const { checkSpendSpike } = useSpendSpikeAlert()
   const setActiveView = useAppUiStore((state) => state.setActiveView)
 
@@ -45,7 +47,8 @@ export function OverviewPage({
   useEffect(() => {
     onProbeComplete?.()
     scheduleReload()
-  }, [probeStamp, onProbeComplete, scheduleReload])
+    scheduleHistoryInsightsReload()
+  }, [probeStamp, onProbeComplete, scheduleReload, scheduleHistoryInsightsReload])
 
   useEffect(() => {
     checkSpendSpike(rollup)
@@ -74,6 +77,7 @@ export function OverviewPage({
     <div>
       <UsageInsightsBanner
         insights={insights}
+        historyTightest={historyInsights?.tightest}
         rollup={rollup}
         rollup30={rollup30}
         dailyRows={dailyRows}

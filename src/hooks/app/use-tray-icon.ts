@@ -15,6 +15,7 @@ import { formatTopTrayInsightLine } from "@/lib/usage-insights"
 
 import type { PluginState } from "@/hooks/app/types"
 import { useSystemDarkMode } from "@/hooks/use-system-dark-mode"
+import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
 type TrayUpdateReason = "probe" | "settings" | "init"
 
@@ -114,9 +115,14 @@ export function useTrayIcon({
 
   const systemDark = useSystemDarkMode()
   const systemDarkRef = useRef(systemDark)
+  const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight)
+  const showTrayInsightRef = useRef(showTrayInsight)
   useEffect(() => {
     systemDarkRef.current = systemDark
   }, [systemDark])
+  useEffect(() => {
+    showTrayInsightRef.current = showTrayInsight
+  }, [showTrayInsight])
 
   useEffect(() => {
     pluginsMetaRef.current = pluginsMeta
@@ -341,11 +347,13 @@ export function useTrayIcon({
           return { meta, ...state }
         })
         .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
-      const insightLine = formatTopTrayInsightLine({
-        plugins: displayPlugins,
-        pluginSettings: currentSettings,
-        preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
-      })
+      const insightLine = showTrayInsightRef.current
+        ? formatTopTrayInsightLine({
+            plugins: displayPlugins,
+            pluginSettings: currentSettings,
+            preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+          })
+        : null
       const tooltipBody = insightLine ? `${insightLine}\n\n${baseTooltip}` : baseTooltip
       const issuesLine = formatTrayIssuesAppendage({
         pluginsMeta: pluginsMetaRef.current,
@@ -528,7 +536,7 @@ export function useTrayIcon({
   useEffect(() => {
     if (!trayReady) return
     scheduleTrayIconUpdate("settings", 0)
-  }, [activeView, displayMode, menubarIconStyle, scheduleTrayIconUpdate, trayReady])
+  }, [activeView, displayMode, menubarIconStyle, scheduleTrayIconUpdate, showTrayInsight, trayReady])
 
   useEffect(() => {
     if (!trayReady) return

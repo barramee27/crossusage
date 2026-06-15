@@ -90,6 +90,7 @@ function App() {
     setUsageSpikeAlertEnabled,
     setUsageSpikeAlertThresholdPct,
     setShowTrayIcon,
+    setShowTrayInsight,
     onboardingComplete,
     setOnboardingComplete,
   } = useAppPreferencesStore(
@@ -120,6 +121,7 @@ function App() {
       setUsageSpikeAlertEnabled: state.setUsageSpikeAlertEnabled,
       setUsageSpikeAlertThresholdPct: state.setUsageSpikeAlertThresholdPct,
       setShowTrayIcon: state.setShowTrayIcon,
+      setShowTrayInsight: state.setShowTrayInsight,
       onboardingComplete: state.onboardingComplete,
       setOnboardingComplete: state.setOnboardingComplete,
     }))
@@ -181,6 +183,7 @@ function App() {
     setShowAccountIdentity,
     setUIScale,
     setShowTrayIcon,
+    setShowTrayInsight,
     setGlobalShortcut,
     setStartOnLogin,
     setUsageAlertEnabled,

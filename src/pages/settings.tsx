@@ -41,6 +41,7 @@ import {
   loadUsageHistoryRetentionDays,
   savePersistUsageHistory,
   saveUsageHistoryRetentionDays,
+  saveShowTrayInsight,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
@@ -62,6 +63,7 @@ import { getTimeFormatter } from "@/lib/reset-tooltip";
 import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon";
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list";
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress";
+import { useAppPreferencesStore } from "@/stores/app-preferences-store";
 import {
   buildDevMockProviderCredentials,
   shouldApplyProviderAccountDevMock,
@@ -648,6 +650,70 @@ function ProviderAccountForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function InsightsSection() {
+  const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight);
+  const setShowTrayInsight = useAppPreferencesStore((state) => state.setShowTrayInsight);
+
+  const onTrayInsightChange = async (checked: boolean) => {
+    const prev = showTrayInsight;
+    setShowTrayInsight(checked);
+    try {
+      await saveShowTrayInsight(checked);
+    } catch (e) {
+      console.error(e);
+      setShowTrayInsight(prev);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">Insights</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        Live insights on Overview; optional tray line and history-backed tightest quotas when snapshots are saved.
+      </p>
+      <label className="flex items-center gap-2 text-sm select-none text-foreground">
+        <Checkbox
+          checked={showTrayInsight}
+          onCheckedChange={(checked) => void onTrayInsightChange(checked === true)}
+        />
+        Show top insight in menu bar / tray tooltip
+      </label>
+    </section>
+  );
+}
+
+const LOCAL_API_BASE = "http://127.0.0.1:6736";
+
+function LocalApiCopyButtons() {
+  const [message, setMessage] = useState<string | null>(null);
+  const endpoints = ["/v1/usage", "/v1/insights", "/v1/history/quota", "/v1/history/daily"] as const;
+
+  const copy = async (path: string) => {
+    setMessage(null);
+    const cmd = `curl -sS ${LOCAL_API_BASE}${path}`;
+    try {
+      await writeText(cmd);
+      setMessage(`Copied: ${path}`);
+    } catch (e) {
+      console.error(e);
+      setMessage("Clipboard failed");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {endpoints.map((path) => (
+          <Button key={path} type="button" variant="outline" size="sm" onClick={() => void copy(path)}>
+            Copy {path}
+          </Button>
+        ))}
+      </div>
+      {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
+    </div>
   );
 }
 
@@ -1462,13 +1528,15 @@ export function SettingsPage({
         </label>
       </section>
       <UsageHistorySection />
+      <InsightsSection />
       <section>
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          <strong>Local HTTP API</strong> (while the app runs):{" "}
-          <code className="text-xs">curl -sS http://127.0.0.1:6736/v1/usage</code> — the root URL returns{" "}
+          <strong>Local HTTP API</strong> (while the app runs) on{" "}
+          <code className="text-xs">{LOCAL_API_BASE}</code> — the root URL returns{" "}
           <code className="text-xs">not_found</code> by design.
         </p>
+        <LocalApiCopyButtons />
         <p className="text-sm text-muted-foreground mb-2">
           <strong>Copy log tail</strong> copies plain text: a short header (version, OS, enabled accounts) plus
           the redacted recent log (no JSON, no issue template). Lines tagged for provider accounts you have
