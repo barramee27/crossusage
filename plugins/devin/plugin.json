@@ -7,7 +7,7 @@
   "icon": "icon.svg",
   "brandColor": "#000000",
   "lines": [
-    { "type": "progress", "label": "Weekly quota", "scope": "overview", "primaryOrder": 1 },
+    { "type": "progress", "label": "Weekly quota", "scope": "overview", "period": "weekly", "primaryOrder": 1 },
     { "type": "progress", "label": "Daily quota", "scope": "overview" },
     { "type": "text", "label": "Extra usage balance", "scope": "detail" }
   ]

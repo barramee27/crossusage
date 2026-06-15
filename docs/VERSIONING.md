@@ -2,7 +2,7 @@
 
 CrossUsage uses [Semantic Versioning](https://semver.org/): **`MAJOR.MINOR.PATCH`** (three numbers, e.g. `1.0.10`).
 
-This is **not** the same as upstream [OpenUsage](https://github.com/robinebers/openusage) (`0.6.x`). When we port upstream releases, we bump **CrossUsage’s PATCH** (or MINOR if we add fork-only features) and document the upstream tag in [CHANGELOG.md](../CHANGELOG.md).
+This is **not** the same as upstream [OpenUsage](https://github.com/robinebers/openusage). Upstream **0.6.x** was Tauri; **0.7+** is Swift (macOS). CrossUsage stays **Tauri on Linux/Windows**. When we port upstream work, we bump **PATCH** for upstream bundles (e.g. **1.1.1** at OpenUsage **v0.7.0** GA) or **MINOR** for fork-only features (e.g. **1.2.0**). Document upstream tags in [CHANGELOG.md](../CHANGELOG.md). See [FORK-UPSTREAM.md](FORK-UPSTREAM.md).
 
 ## What each number means
 

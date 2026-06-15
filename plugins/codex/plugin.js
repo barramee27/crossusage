@@ -5,7 +5,9 @@
   const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
   const REFRESH_URL = "https://auth.openai.com/oauth/token"
   const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
+  const CREDIT_USD_RATE = 0.04
   const REFRESH_AGE_MS = 8 * 24 * 60 * 60 * 1000
+  const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
   const ERR_NOT_LOGGED_IN = "Not logged in. Run `codex` to authenticate."
   const ERR_SESSION_EXPIRED = "Session expired. Run `codex` to log in again."
   const ERR_TOKEN_CONFLICT = "Token conflict. Run `codex` to log in again."
@@ -59,69 +61,6 @@
     }
   }
 
-  function decodeBase64UrlUtf8(value) {
-    try {
-      let base64 = String(value).replace(/-/g, "+").replace(/_/g, "/")
-      while (base64.length % 4 !== 0) base64 += "="
-
-      let binary = null
-      if (typeof atob === "function") {
-        binary = atob(base64)
-      } else {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
-        binary = ""
-        for (let i = 0; i < base64.length;) {
-          const e1 = chars.indexOf(base64.charAt(i++))
-          const e2 = chars.indexOf(base64.charAt(i++))
-          const e3 = chars.indexOf(base64.charAt(i++))
-          const e4 = chars.indexOf(base64.charAt(i++))
-          if (e1 < 0 || e2 < 0) return null
-          binary += String.fromCharCode((e1 << 2) | (e2 >> 4))
-          if (e3 !== 64 && e3 >= 0) binary += String.fromCharCode(((e2 & 15) << 4) | (e3 >> 2))
-          if (e4 !== 64 && e4 >= 0) binary += String.fromCharCode(((e3 & 3) << 6) | e4)
-        }
-      }
-
-      const bytes = []
-      for (let i = 0; i < binary.length; i++) bytes.push(binary.charCodeAt(i))
-      if (typeof TextDecoder !== "undefined") {
-        return new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes))
-      }
-      return decodeURIComponent(binary.split("").map((c) => {
-        const h = c.charCodeAt(0).toString(16)
-        return "%" + (h.length === 1 ? "0" + h : h)
-      }).join(""))
-    } catch {}
-    return null
-  }
-
-  function readString(value) {
-    return typeof value === "string" && value.trim() ? value.trim() : null
-  }
-
-  function parseIdTokenClaims(ctx, idToken) {
-    if (!idToken) return null
-    if (typeof idToken === "object") return idToken
-    if (typeof idToken !== "string") return null
-    const parts = idToken.split(".")
-    if (parts.length < 2) return null
-    const payload = decodeBase64UrlUtf8(parts[1])
-    return payload ? ctx.util.tryParseJson(payload) : null
-  }
-
-  function getCodexAccountIdentity(ctx, auth) {
-    const tokens = auth && auth.tokens ? auth.tokens : null
-    if (!tokens) return null
-
-    const claims = parseIdTokenClaims(ctx, tokens.id_token)
-    const email = readString(claims?.email) ||
-      readString(claims?.profile?.email) ||
-      readString(claims?.["https://api.openai.com/profile.email"])
-    if (email) return email
-
-    return readString(tokens.account_id)
-  }
-
   function tryParseAuthJson(ctx, text) {
     if (!text) return null
     const parsed = ctx.util.tryParseJson(text)
@@ -154,6 +93,10 @@
     if (auth.tokens && auth.tokens.access_token) return true
     if (auth.OPENAI_API_KEY) return true
     return false
+  }
+
+  function hasAccessTokenAuth(auth) {
+    return !!(auth && auth.tokens && auth.tokens.access_token)
   }
 
   function isAuthFallbackError(e) {
@@ -236,10 +179,53 @@
   }
 
   function needsRefresh(ctx, auth, nowMs) {
-    if (!auth.last_refresh) return true
+    const accessToken = auth.tokens && auth.tokens.access_token
+    if (accessToken && ctx.jwt && typeof ctx.jwt.decodePayload === "function") {
+      const payload = ctx.jwt.decodePayload(accessToken)
+      const expiresAtSeconds = payload && payload.exp
+      if (typeof expiresAtSeconds === "number" && Number.isFinite(expiresAtSeconds)) {
+        const expiresAtMs = expiresAtSeconds * 1000
+        return expiresAtMs <= nowMs + ACCESS_TOKEN_REFRESH_WINDOW_MS
+      }
+    }
+
+    if (!auth.last_refresh) return false
     const lastMs = ctx.util.parseDateMs(auth.last_refresh)
-    if (lastMs === null) return true
+    if (lastMs === null) return false
     return nowMs - lastMs > REFRESH_AGE_MS
+  }
+
+  function reloadAuthState(ctx, authState) {
+    let reloaded = null
+    if (authState.source === "file" && authState.authPath) {
+      try {
+        const auth = tryParseAuthJson(ctx, ctx.host.fs.readText(authState.authPath))
+        if (hasTokenLikeAuth(auth)) {
+          reloaded = { auth, authPath: authState.authPath, source: "file" }
+        }
+      } catch (e) {
+        ctx.host.log.warn("auth reload failed for file " + authState.authPath + ": " + String(e))
+      }
+    } else if (authState.source === "keychain") {
+      reloaded = loadAuthFromKeychain(ctx)
+    }
+
+    if (!reloaded) return { status: "unchanged", authState }
+    if (!hasAccessTokenAuth(reloaded.auth)) {
+      return { status: "error", error: ERR_TOKEN_CONFLICT }
+    }
+
+    const expectedAccountId = authState.auth.tokens && authState.auth.tokens.account_id
+    const reloadedAccountId = reloaded.auth.tokens && reloaded.auth.tokens.account_id
+    if (expectedAccountId && reloadedAccountId !== expectedAccountId) {
+      return { status: "error", error: ERR_TOKEN_CONFLICT }
+    }
+
+    if (JSON.stringify(reloaded.auth) !== JSON.stringify(authState.auth)) {
+      ctx.host.log.info("auth changed during guarded reload, using updated credentials")
+      return { status: "changed", authState: reloaded }
+    }
+    return { status: "unchanged", authState }
   }
 
   function refreshToken(ctx, authState) {
@@ -612,14 +598,6 @@
     }))
   }
 
-  function persistUsageDaily(ctx, daily, displayName) {
-    if (!ctx.host.usageDaily || typeof ctx.host.usageDaily.ingest !== "function") return
-    if (!daily || !daily.length) return
-    try {
-      ctx.host.usageDaily.ingest({ displayName: displayName, daily: daily })
-    } catch (e) { /* ignore */ }
-  }
-
   function pushDayUsageLine(lines, ctx, label, dayEntry) {
     const tokens = Number(dayEntry && dayEntry.totalTokens) || 0
     const cost = usageCostUsd(dayEntry)
@@ -637,26 +615,44 @@
     }))
   }
 
-  function probeWithAuthState(ctx, authState) {
-    const auth = authState.auth
+  function probeWithAuthState(ctx, initialAuthState) {
+    let authState = initialAuthState
+    let auth = authState.auth
 
     if (auth.tokens && auth.tokens.access_token) {
       const nowMs = Date.now()
       let accessToken = auth.tokens.access_token
-      const accountId = auth.tokens.account_id
+      let accountId = auth.tokens.account_id
+      let proactiveRefreshAuthError = null
 
       if (needsRefresh(ctx, auth, nowMs)) {
-        ctx.host.log.info("token needs refresh (age > " + (REFRESH_AGE_MS / 1000 / 60 / 60 / 24) + " days)")
-        const refreshed = refreshToken(ctx, authState)
+        ctx.host.log.info("token needs refresh")
+        const reload = reloadAuthState(ctx, authState)
+        if (reload.status === "error") throw reload.error
+        authState = reload.authState
+        auth = authState.auth
+        accessToken = auth.tokens.access_token
+        accountId = auth.tokens.account_id
+        let refreshed = null
+        if (needsRefresh(ctx, auth, nowMs)) {
+          try {
+            refreshed = refreshToken(ctx, authState)
+          } catch (e) {
+            if (!isAuthFallbackError(e)) throw e
+            proactiveRefreshAuthError = e
+            ctx.host.log.warn("proactive refresh failed, trying existing token: " + String(e))
+          }
+        }
         if (refreshed) {
           accessToken = refreshed
-        } else {
+        } else if (!proactiveRefreshAuthError) {
           ctx.host.log.warn("proactive refresh failed, trying with existing token")
         }
       }
 
       let resp
       let didRefresh = false
+      let didReloadAuth = false
       try {
         resp = ctx.util.retryOnceOnAuth({
           request: (token) => {
@@ -671,6 +667,19 @@
             }
           },
           refresh: () => {
+            const reload = reloadAuthState(ctx, authState)
+            if (reload.status === "error") throw reload.error
+            if (reload.status === "changed") {
+              authState = reload.authState
+              auth = authState.auth
+              accessToken = auth.tokens.access_token
+              accountId = auth.tokens.account_id
+              proactiveRefreshAuthError = null
+              didReloadAuth = true
+              ctx.host.log.info("usage returned 401, retrying with reloaded auth")
+              return accessToken
+            }
+            if (proactiveRefreshAuthError) throw proactiveRefreshAuthError
             ctx.host.log.info("usage returned 401, attempting refresh")
             didRefresh = true
             return refreshToken(ctx, authState)
@@ -680,6 +689,20 @@
         if (typeof e === "string") throw e
         ctx.host.log.error("usage request failed: " + String(e))
         throw ERR_USAGE_CONNECTION
+      }
+
+      if (didReloadAuth && ctx.util.isAuthStatus(resp.status)) {
+        ctx.host.log.info("reloaded auth returned 401, attempting refresh")
+        didRefresh = true
+        const refreshed = refreshToken(ctx, authState)
+        if (refreshed) {
+          try {
+            resp = fetchUsage(ctx, refreshed, accountId)
+          } catch (e) {
+            ctx.host.log.error("usage request exception after reloaded auth refresh: " + String(e))
+            throw ERR_USAGE_AFTER_REFRESH
+          }
+        }
       }
 
       if (ctx.util.isAuthStatus(resp.status)) {
@@ -804,16 +827,26 @@
         }
       }
 
+      const resetCredits =
+        data.rate_limit_reset_credits &&
+        typeof data.rate_limit_reset_credits === "object" &&
+        data.rate_limit_reset_credits.available_count != null
+          ? readNumber(data.rate_limit_reset_credits.available_count)
+          : null
+      if (resetCredits !== null && resetCredits >= 0) {
+        lines.push(ctx.line.text({
+          label: "Rate Limit Resets",
+          value: Math.floor(resetCredits) + " available",
+        }))
+      }
+
       const creditsRemaining = readCreditsRemaining(resp, data)
       if (creditsRemaining !== null) {
-        const remaining = creditsRemaining
-        const limit = 1000
-        const used = Math.max(0, Math.min(limit, limit - remaining))
-        lines.push(ctx.line.progress({
+        const remaining = Math.max(0, Math.floor(creditsRemaining))
+        const usdValue = (remaining * CREDIT_USD_RATE).toFixed(2)
+        lines.push(ctx.line.text({
           label: "Credits",
-          used: used,
-          limit: limit,
-          format: { kind: "count", suffix: "credits" },
+          value: "$" + usdValue + " · " + remaining + " credits",
         }))
       }
 
@@ -876,16 +909,10 @@
 
         pushUsageChartLine(lines, ctx, tokenUsage.daily)
         pushModelUsageLines(lines, ctx, tokenUsage.daily)
-        persistUsageDaily(ctx, tokenUsage.daily, "Codex")
       }
 
       if (lines.length === 0) {
         lines.push(ctx.line.badge({ label: "Status", text: "No usage data", color: "#a3a3a3" }))
-      }
-
-      const accountIdentity = getCodexAccountIdentity(ctx, auth)
-      if (accountIdentity) {
-        lines.push(ctx.line.text({ label: "Account", value: accountIdentity }))
       }
 
       return { plan: plan, lines: lines }
@@ -915,7 +942,15 @@
     }
 
     const keychainAuth = loadAuthFromKeychain(ctx)
-    if (keychainAuth) return probeWithAuthState(ctx, keychainAuth)
+    if (keychainAuth) {
+      try {
+        return probeWithAuthState(ctx, keychainAuth)
+      } catch (e) {
+        if (!isAuthFallbackError(e)) throw e
+        lastAuthFallbackError = e
+        ctx.host.log.warn("keychain auth failed: " + String(e))
+      }
+    }
 
     if (lastAuthFallbackError) throw lastAuthFallbackError
 

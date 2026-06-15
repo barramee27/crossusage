@@ -2,7 +2,7 @@
 
 Menu-bar app for AI coding subscription usage — one panel, progress bars, no dashboard digging.
 
-**Fork of [OpenUsage](https://github.com/robinebers/openusage)** by [Robin Ebers](https://github.com/robinebers). Credit the upstream project when you share or redistribute this work. This repo focuses on **Linux and Windows**; for the **macOS desktop app**, use [upstream releases](https://github.com/robinebers/openusage/releases/latest).
+**Fork of [OpenUsage](https://github.com/robinebers/openusage)** by [Robin Ebers](https://github.com/robinebers). Credit the upstream project when you share or redistribute this work. This repo is the **Tauri app for Linux and Windows**. Upstream **0.7+** is a **Swift native macOS** app — use [upstream releases](https://github.com/robinebers/openusage/releases/latest) for macOS GUI. Maintainer porting notes: [docs/FORK-UPSTREAM.md](docs/FORK-UPSTREAM.md).
 
 | | |
 |---|---|
