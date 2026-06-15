@@ -35,8 +35,12 @@ import {
   UI_SCALE_OPTIONS,
   USAGE_ALERT_SOUND_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
+  USAGE_HISTORY_RETENTION_OPTIONS,
+  DEFAULT_USAGE_HISTORY_RETENTION_DAYS,
   loadPersistUsageHistory,
+  loadUsageHistoryRetentionDays,
   savePersistUsageHistory,
+  saveUsageHistoryRetentionDays,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
@@ -649,6 +653,7 @@ function ProviderAccountForm({
 
 function UsageHistorySection() {
   const [persist, setPersist] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(DEFAULT_USAGE_HISTORY_RETENTION_DAYS);
   const [hydrated, setHydrated] = useState(false);
   const [rows, setRows] = useState<UsageHistoryRow[]>([]);
   const [dailyRows, setDailyRows] = useState<UsageDailyRow[]>([]);
@@ -674,9 +679,10 @@ function UsageHistorySection() {
   }, []);
 
   useEffect(() => {
-    void loadPersistUsageHistory()
-      .then((p) => {
+    void Promise.all([loadPersistUsageHistory(), loadUsageHistoryRetentionDays()])
+      .then(([p, retention]) => {
         setPersist(p);
+        setRetentionDays(retention);
         setHydrated(true);
       })
       .catch((e) => {
@@ -721,6 +727,17 @@ function UsageHistorySection() {
     }
   };
 
+  const onRetentionChange = async (days: number) => {
+    const prev = retentionDays;
+    setRetentionDays(days);
+    try {
+      await saveUsageHistoryRetentionDays(days);
+    } catch (e) {
+      console.error(e);
+      setRetentionDays(prev);
+    }
+  };
+
   return (
     <section>
       <h3 className="text-lg font-semibold mb-0">Usage history</h3>
@@ -738,6 +755,38 @@ function UsageHistorySection() {
         />
         Save usage snapshots after successful refreshes
       </label>
+      {persist && hydrated ? (
+        <div className="mb-3">
+          <p className="text-sm text-muted-foreground mb-2">
+            Keep snapshots for — older rows are pruned after each save.
+          </p>
+          <div className="bg-muted/50 rounded-lg p-1">
+            <div
+              className="flex flex-wrap gap-1"
+              role="radiogroup"
+              aria-label="Usage history retention"
+            >
+              {USAGE_HISTORY_RETENTION_OPTIONS.map((option) => {
+                const isActive = option.value === retentionDays;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 min-w-[4.5rem]"
+                    onClick={() => void onRetentionChange(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {!isTauri() ? (
         <p className="text-xs text-muted-foreground">History is only available in the desktop app.</p>
       ) : null}

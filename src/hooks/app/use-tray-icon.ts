@@ -11,6 +11,7 @@ import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { formatTrayIssuesAppendage } from "@/lib/tray-health"
 import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
 import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
+import { formatTopTrayInsightLine } from "@/lib/usage-insights"
 
 import type { PluginState } from "@/hooks/app/types"
 import { useSystemDarkMode } from "@/hooks/use-system-dark-mode"
@@ -325,12 +326,33 @@ export function useTrayIcon({
         pluginsMetaRef.current,
         displayModeRef.current
       )
+      const displayPlugins = enabledPluginIds
+        .map((id) => {
+          const meta = getProviderInstanceMeta(id, currentSettings, pluginsMetaRef.current)
+          if (!meta) return null
+          const state =
+            pluginStatesRef.current[id] ?? {
+              data: null,
+              loading: false,
+              error: null,
+              lastManualRefreshAt: null,
+              lastUpdatedAt: null,
+            }
+          return { meta, ...state }
+        })
+        .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
+      const insightLine = formatTopTrayInsightLine({
+        plugins: displayPlugins,
+        pluginSettings: currentSettings,
+        preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+      })
+      const tooltipBody = insightLine ? `${insightLine}\n\n${baseTooltip}` : baseTooltip
       const issuesLine = formatTrayIssuesAppendage({
         pluginsMeta: pluginsMetaRef.current,
         pluginSettings: currentSettings,
         pluginStates: pluginStatesRef.current,
       })
-      const tooltip = issuesLine ? `${baseTooltip}\n${issuesLine}` : baseTooltip
+      const tooltip = issuesLine ? `${tooltipBody}\n${issuesLine}` : tooltipBody
       mirrorTrayUsageSummaryToBackend(tooltip)
       const updateTooltip = () => setTrayTooltip(tooltip)
 

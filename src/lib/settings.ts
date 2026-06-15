@@ -74,6 +74,7 @@ const UI_SCALE_KEY = "uiScale";
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
 const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
 const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
+const USAGE_HISTORY_RETENTION_DAYS_KEY = "usageHistoryRetentionDays";
 const ONBOARDING_COMPLETE_V1_KEY = "onboardingCompleteV1";
 
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
@@ -106,6 +107,14 @@ export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
 
 export const DEFAULT_SHOW_TRAY_ICON = true;
 export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
+/** `0` = keep forever (row cap still applies in SQLite). */
+export const DEFAULT_USAGE_HISTORY_RETENTION_DAYS = 90;
+export const USAGE_HISTORY_RETENTION_OPTIONS: { value: number; label: string }[] = [
+  { value: 30, label: "30 days" },
+  { value: 90, label: "90 days" },
+  { value: 365, label: "1 year" },
+  { value: 0, label: "Forever" },
+];
 
 const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
@@ -799,6 +808,19 @@ export async function loadPersistUsageHistory(): Promise<boolean> {
 
 export async function savePersistUsageHistory(value: boolean): Promise<void> {
   await store.set(PERSIST_USAGE_HISTORY_KEY, value);
+  await store.save();
+}
+
+export async function loadUsageHistoryRetentionDays(): Promise<number> {
+  const stored = await store.get<unknown>(USAGE_HISTORY_RETENTION_DAYS_KEY);
+  if (typeof stored === "number" && Number.isFinite(stored) && stored >= 0) {
+    return stored;
+  }
+  return DEFAULT_USAGE_HISTORY_RETENTION_DAYS;
+}
+
+export async function saveUsageHistoryRetentionDays(value: number): Promise<void> {
+  await store.set(USAGE_HISTORY_RETENTION_DAYS_KEY, value);
   await store.save();
 }
 

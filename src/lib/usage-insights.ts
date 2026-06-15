@@ -1,4 +1,5 @@
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
+import { filterDismissedInsights } from "@/lib/insight-dismiss"
 import { calculatePaceStatus } from "@/lib/pace-status"
 import { formatRunsOutText } from "@/lib/pace-tooltip"
 import { formatResetRelativeLabel } from "@/lib/reset-tooltip"
@@ -170,4 +171,25 @@ export function buildUsageInsights(args: {
   }
 
   return out
+}
+
+/** One-line top insight for tray tooltip (respects dismiss state). */
+export function formatTopTrayInsightLine(args: {
+  plugins: DisplayPluginState[]
+  pluginSettings: PluginSettings | null
+  preferWeeklyLimit?: boolean
+  nowMs?: number
+}): string | null {
+  const nowMs = args.nowMs ?? Date.now()
+  const insights = filterDismissedInsights(
+    buildUsageInsights({
+      plugins: args.plugins,
+      pluginSettings: args.pluginSettings,
+      preferWeeklyLimit: args.preferWeeklyLimit,
+      nowMs,
+      maxRows: 1,
+    }),
+    nowMs,
+  )
+  return insights[0]?.message ?? null
 }
