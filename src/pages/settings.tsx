@@ -1014,7 +1014,6 @@ export function SettingsPage({
   const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
   const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
-  const [localHttpApiToken, setLocalHttpApiToken] = useState<string | null>(null);
   const [cursorTrayIconDialog, setCursorTrayIconDialog] = useState<{
     nextStyle: MenubarIconStyle;
     selectedLine: string;
@@ -1036,23 +1035,6 @@ export function SettingsPage({
         setTroubleshootingOsLine(formatOsDiagnosticsLine(raw));
       } catch (e) {
         console.error("get_os_diagnostics:", e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await invoke<string>("get_local_http_api_token");
-        if (cancelled) return;
-        setLocalHttpApiToken(token);
-      } catch (e) {
-        console.error("get_local_http_api_token:", e);
       }
     })();
     return () => {
@@ -1435,30 +1417,9 @@ export function SettingsPage({
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
         <p className="text-sm text-muted-foreground mb-2">
           <strong>Local HTTP API</strong> (while the app runs):{" "}
-          <code className="text-xs break-all">
-            curl -sS -H &quot;Authorization: Bearer $TOKEN&quot; http://127.0.0.1:6736/v1/usage
-          </code>{" "}
-          — requires the per-device bearer token (stored in app data). The root URL returns{" "}
+          <code className="text-xs">curl -sS http://127.0.0.1:6736/v1/usage</code> — the root URL returns{" "}
           <code className="text-xs">not_found</code> by design.
         </p>
-        {localHttpApiToken ? (
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <code className="text-xs break-all text-muted-foreground">
-              Authorization: Bearer {localHttpApiToken}
-            </code>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-fit"
-              onClick={() => {
-                void writeText(`Authorization: Bearer ${localHttpApiToken}`).catch(console.error);
-              }}
-            >
-              Copy auth header
-            </Button>
-          </div>
-        ) : null}
         <p className="text-sm text-muted-foreground mb-2">
           <strong>Copy log tail</strong> copies plain text: a short header (version, OS, enabled accounts) plus
           the redacted recent log (no JSON, no issue template). Lines tagged for provider accounts you have

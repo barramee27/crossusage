@@ -42,6 +42,18 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
+      - name: Cargo fetch
+        shell: bash
+        run: |
+          for attempt in 1 2 3 4; do
+            if cargo fetch --locked; then
+              exit 0
+            fi
+            echo "cargo fetch attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 4))
+          done
+          exit 1
+
       - name: Cargo test (crossusage-cli)
         run: cargo test -p crossusage-cli --locked
 

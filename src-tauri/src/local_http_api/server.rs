@@ -1,4 +1,3 @@
-use super::auth;
 use super::cache::{cache_state, enabled_snapshots_ordered};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -126,11 +125,7 @@ fn handle_connection(mut stream: TcpStream, _permit: ConnectionPermit) {
         path
     };
 
-    let response = if !auth::is_authorized(&request, method) {
-        response_unauthorized()
-    } else {
-        route(method, path, raw_path)
-    };
+    let response = route(method, path, raw_path);
     let _ = stream.write_all(response.as_bytes());
     let _ = stream.flush();
 }
@@ -263,7 +258,7 @@ fn handle_get_usage_single(provider_id: &str) -> String {
 const CORS_HEADERS: &str = "\
 Access-Control-Allow-Origin: *\r\n\
 Access-Control-Allow-Methods: GET, OPTIONS\r\n\
-Access-Control-Allow-Headers: Content-Type, Authorization";
+Access-Control-Allow-Headers: Content-Type";
 
 fn json_error_body(message: &str) -> String {
     serde_json::json!({ "error": message }).to_string()
@@ -290,11 +285,6 @@ fn response_no_content() -> String {
 fn response_not_found(error_code: &str) -> String {
     let body = json_error_body(error_code);
     response_json(404, "Not Found", &body)
-}
-
-fn response_unauthorized() -> String {
-    let body = json_error_body("unauthorized");
-    response_json(401, "Unauthorized", &body)
 }
 
 fn response_method_not_allowed() -> String {
@@ -452,10 +442,4 @@ mod tests {
         assert_eq!(parsed["error"], "bad\"quote\nline");
     }
 
-    #[test]
-    fn response_unauthorized_returns_401_json() {
-        let resp = response_unauthorized();
-        assert!(resp.starts_with("HTTP/1.1 401"));
-        assert!(resp.contains(r#""error":"unauthorized""#));
-    }
 }
