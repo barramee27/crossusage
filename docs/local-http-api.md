@@ -6,18 +6,31 @@ CrossUsage exposes a read-only HTTP API on the loopback interface so other local
 
 The server starts automatically with the app. If the port is already in use, the feature is silently disabled for that session.
 
+## Authentication
+
+Every request except `OPTIONS` must include a bearer token generated on first launch and stored in app data as `local-http-api-token`:
+
+```bash
+curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:6736/v1/usage
+```
+
+In CrossUsage, open **Settings → Troubleshooting** to copy the `Authorization` header value.
+
+Requests without a valid token return **401 Unauthorized** with `{"error":"unauthorized"}`.
+
 ## Manual smoke test (curl)
 
 With **CrossUsage running** (tray app started and at least one successful probe has cached data):
 
 ```bash
-curl -sS http://127.0.0.1:6736/v1/usage
+TOKEN="$(cat ~/.local/share/com.barramee27.crossusage/local-http-api-token)"
+curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:6736/v1/usage
 ```
 
 You should see **HTTP 200** and a JSON array (possibly empty `[]` before the first successful probe). For one provider:
 
 ```bash
-curl -sS -i http://127.0.0.1:6736/v1/usage/cursor
+curl -sS -i -H "Authorization: Bearer $TOKEN" http://127.0.0.1:6736/v1/usage/cursor
 ```
 
 If nothing listens, check logs for `failed to bind local HTTP API` (port **6736** in use) or confirm the app is actually running.
@@ -117,10 +130,10 @@ All responses include permissive CORS headers:
 ```
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, OPTIONS
-Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Headers: Content-Type, Authorization
 ```
 
-`OPTIONS` requests return **204 No Content** with these headers for preflight support.
+`OPTIONS` requests return **204 No Content** with these headers for preflight support. All other routes still require the bearer token above.
 
 ## Error Responses
 
@@ -132,6 +145,6 @@ Error responses use this shape:
 }
 ```
 
-Possible error codes: `provider_not_found`, `not_found`, `method_not_allowed`, `server_busy`.
+Possible error codes: `unauthorized`, `provider_not_found`, `not_found`, `method_not_allowed`, `server_busy`.
 
 `server_busy` returns **503 Service Unavailable** when the local API is already handling the maximum number of concurrent connections. Clients should back off and retry later.

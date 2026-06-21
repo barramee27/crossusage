@@ -970,6 +970,7 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
         Function::new(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>, path: String| -> rquickjs::Result<String> {
+                reject_path_traversal(&ctx_inner, &path)?;
                 let expanded = expand_path(&path);
                 std::fs::read_to_string(&expanded)
                     .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()))
@@ -982,6 +983,7 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
         Function::new(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>, path: String, content: String| -> rquickjs::Result<()> {
+                reject_path_traversal(&ctx_inner, &path)?;
                 let expanded = expand_path(&path);
                 std::fs::write(&expanded, &content)
                     .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()))
@@ -994,6 +996,7 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
         Function::new(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>, path: String| -> rquickjs::Result<Vec<String>> {
+                reject_path_traversal(&ctx_inner, &path)?;
                 let expanded = expand_path(&path);
                 let entries = std::fs::read_dir(&expanded)
                     .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()))?;
@@ -3869,6 +3872,7 @@ fn inject_sqlite<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()
         Function::new(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>, db_path: String, sql: String| -> rquickjs::Result<String> {
+                reject_path_traversal(&ctx_inner, &db_path)?;
                 if sql.lines().any(|line| line.trim_start().starts_with('.')) {
                     return Err(Exception::throw_message(
                         &ctx_inner,
@@ -3886,6 +3890,7 @@ fn inject_sqlite<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()
         Function::new(
             ctx.clone(),
             move |ctx_inner: Ctx<'_>, db_path: String, sql: String| -> rquickjs::Result<()> {
+                reject_path_traversal(&ctx_inner, &db_path)?;
                 if sql.lines().any(|line| line.trim_start().starts_with('.')) {
                     return Err(Exception::throw_message(
                         &ctx_inner,
@@ -3909,6 +3914,17 @@ fn iso_now() -> String {
             log::error!("nowIso format failed: {}", err);
             "1970-01-01T00:00:00Z".to_string()
         })
+}
+
+fn path_has_parent_segment(path: &str) -> bool {
+    path.split(&['/', '\\']).any(|segment| segment == "..")
+}
+
+fn reject_path_traversal<'js>(ctx: &Ctx<'js>, path: &str) -> rquickjs::Result<()> {
+    if path_has_parent_segment(path) {
+        return Err(Exception::throw_message(ctx, "path traversal is not allowed"));
+    }
+    Ok(())
 }
 
 fn expand_path(path: &str) -> String {
@@ -4043,6 +4059,13 @@ mod tests {
         )
         .expect_err("tag length");
         assert!(tag_err.contains("auth tag length"));
+    }
+
+    #[test]
+    fn path_has_parent_segment_detects_dot_dot() {
+        assert!(path_has_parent_segment("~/../../etc/passwd"));
+        assert!(path_has_parent_segment("/tmp/../etc/passwd"));
+        assert!(!path_has_parent_segment("~/.config/Cursor/User/globalStorage/state.vscdb"));
     }
 
     #[test]

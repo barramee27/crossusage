@@ -811,6 +811,11 @@ fn update_tray_usage_summary(summary: String) {
 }
 
 #[tauri::command]
+fn get_local_http_api_token() -> String {
+    local_http_api::api_token()
+}
+
+#[tauri::command]
 fn get_support_bundle_json(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
     support_bundle::build_support_bundle(&app_handle)
 }
@@ -1052,6 +1057,7 @@ pub fn run() {
             delete_provider_account,
             list_plugins,
             get_log_path,
+            get_local_http_api_token,
             get_support_bundle_json,
             list_usage_history,
             list_usage_daily,

@@ -1,7 +1,5 @@
-# Choices
+## 2026-06-21
 
-## 2026-05-13
-
-- Fireworks billing export now uses a temporary `~/.fireworks/auth.ini` for the `firectl` subprocess instead of passing the API key on argv.
-- Fireworks zero-valued quotas and zero-token billing windows are treated as real data, not as missing data.
-- Fireworks billing export is bounded with a 15 second timeout so one stuck CLI run cannot wedge probe batches.
+- Local HTTP API: per-device bearer token in `local-http-api-token` (app data); `OPTIONS` stays unauthenticated for CORS preflight; kept `Access-Control-Allow-Origin: *` because clients with the token still need browser preflight.
+- Provider credentials: `provider_accounts.json` written `0600` on Unix only (no Windows ACL change in this pass).
+- Plugin host `fs`/`sqlite`: reject `..` path segments before `expand_path`; absolute paths outside home still allowed for legitimate provider DB reads.

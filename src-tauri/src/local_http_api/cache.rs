@@ -216,6 +216,7 @@ fn flush_pending_cache_once() -> CacheFlushResult {
 // ---------------------------------------------------------------------------
 
 pub fn init(app_data_dir: &Path, known_plugin_ids: Vec<String>) {
+    super::auth::init_api_token(app_data_dir);
     let snapshots = load_cache(app_data_dir);
     let mut state = cache_state().lock().expect("cache state poisoned");
     state.snapshots = snapshots;
