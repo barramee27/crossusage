@@ -99,7 +99,19 @@ pub fn save_store_path(path: &Path, store: &ProviderAccountsStore) -> io::Result
         fs::create_dir_all(parent)?;
     }
     let text = serde_json::to_string_pretty(store).map_err(io::Error::other)?;
-    fs::write(path, text)
+    fs::write(path, text)?;
+    restrict_private_file_permissions(path)
+}
+
+#[cfg(unix)]
+fn restrict_private_file_permissions(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn restrict_private_file_permissions(_path: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 pub fn get_account(app_data_dir: &Path, instance_id: &str) -> io::Result<Option<ProviderAccount>> {
@@ -209,6 +221,25 @@ mod tests {
                 .as_deref(),
             Some("new")
         );
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn save_store_path_sets_private_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = temp_dir("perms");
+        let path = store_path(&dir);
+        save_store_path(
+            &path,
+            &ProviderAccountsStore {
+                accounts: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
         let _ = fs::remove_dir_all(dir);
     }
 }

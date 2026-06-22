@@ -110,17 +110,17 @@ The `lines` array uses the same metric line types as the internal plugin output:
 - Only **successful** probe results are cached. A failed probe never overwrites a previous successful snapshot.
 - The single-provider endpoint (`/v1/usage/:providerId`) works for any known provider, including disabled ones.
 
-## CORS
+## Browser vs CLI access
 
-All responses include permissive CORS headers:
+The API binds to **127.0.0.1 only** (not reachable from other machines). No bearer token — `curl` and scripts work with zero setup:
 
-```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, OPTIONS
-Access-Control-Allow-Headers: Content-Type
+```bash
+curl -sS http://127.0.0.1:6736/v1/usage
 ```
 
-`OPTIONS` requests return **204 No Content** with these headers for preflight support.
+**Malicious websites** cannot read your usage data: responses omit CORS headers, and requests with browser `Sec-Fetch-Site: cross-site` or a foreign `Origin` header are rejected with **403**. Browsers cannot spoof those headers from JavaScript; `curl`, PowerShell, Python, etc. do not send them.
+
+`OPTIONS` preflight from a random website therefore fails before any data is returned.
 
 ## Error Responses
 
@@ -132,6 +132,6 @@ Error responses use this shape:
 }
 ```
 
-Possible error codes: `provider_not_found`, `not_found`, `method_not_allowed`, `server_busy`.
+Possible error codes: `provider_not_found`, `not_found`, `method_not_allowed`, `server_busy`, `browser_request_not_allowed`.
 
 `server_busy` returns **503 Service Unavailable** when the local API is already handling the maximum number of concurrent connections. Clients should back off and retry later.
