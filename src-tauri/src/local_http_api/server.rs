@@ -111,6 +111,12 @@ fn handle_connection(mut stream: TcpStream, _permit: ConnectionPermit) {
     };
     let request = String::from_utf8_lossy(&buf[..n]);
 
+    if is_browser_cross_origin_request(&request) {
+        let _ = stream.write_all(response_forbidden("browser_request_not_allowed").as_bytes());
+        let _ = stream.flush();
+        return;
+    }
+
     // Parse request line: "METHOD /path HTTP/1.x\r\n..."
     let first_line = request.lines().next().unwrap_or("");
     let mut parts = first_line.split_whitespace();
@@ -128,6 +134,44 @@ fn handle_connection(mut stream: TcpStream, _permit: ConnectionPermit) {
     let response = route(method, path, raw_path);
     let _ = stream.write_all(response.as_bytes());
     let _ = stream.flush();
+}
+
+/// Browsers attach Sec-Fetch-Site / Origin on cross-origin fetches; curl and scripts do not.
+/// We block those instead of bearer auth so `curl http://127.0.0.1:6736/v1/usage` stays zero-config.
+fn is_browser_cross_origin_request(request: &str) -> bool {
+    if let Some(site) = header_value(request, "Sec-Fetch-Site") {
+        if site.eq_ignore_ascii_case("cross-site") {
+            return true;
+        }
+    }
+    if let Some(origin) = header_value(request, "Origin") {
+        if !origin.is_empty() && !origin_is_loopback(origin) {
+            return true;
+        }
+    }
+    false
+}
+
+fn header_value<'a>(request: &'a str, name: &str) -> Option<&'a str> {
+    for line in request.lines().skip(1) {
+        if line.is_empty() {
+            break;
+        }
+        if let Some((key, value)) = line.split_once(':') {
+            if key.trim().eq_ignore_ascii_case(name) {
+                return Some(value.trim());
+            }
+        }
+    }
+    None
+}
+
+fn origin_is_loopback(origin: &str) -> bool {
+    let lower = origin.to_ascii_lowercase();
+    lower.starts_with("http://127.0.0.1")
+        || lower.starts_with("http://localhost")
+        || lower.starts_with("https://127.0.0.1")
+        || lower.starts_with("https://localhost")
 }
 
 fn route(method: &str, path: &str, raw_path: &str) -> String {
@@ -255,31 +299,27 @@ fn handle_get_usage_single(provider_id: &str) -> String {
 // HTTP response builders
 // ---------------------------------------------------------------------------
 
-const CORS_HEADERS: &str = "\
-Access-Control-Allow-Origin: *\r\n\
-Access-Control-Allow-Methods: GET, OPTIONS\r\n\
-Access-Control-Allow-Headers: Content-Type";
-
 fn json_error_body(message: &str) -> String {
     serde_json::json!({ "error": message }).to_string()
 }
 
 fn response_json(status: u16, reason: &str, body: &str) -> String {
     format!(
-        "HTTP/1.1 {} {}\r\nConnection: close\r\nContent-Type: application/json; charset=utf-8\r\n{}\r\nContent-Length: {}\r\n\r\n{}",
+        "HTTP/1.1 {} {}\r\nConnection: close\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
         status,
         reason,
-        CORS_HEADERS,
         body.len(),
         body,
     )
 }
 
 fn response_no_content() -> String {
-    format!(
-        "HTTP/1.1 204 No Content\r\nConnection: close\r\n{}\r\n\r\n",
-        CORS_HEADERS,
-    )
+    "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".to_string()
+}
+
+fn response_forbidden(error_code: &str) -> String {
+    let body = json_error_body(error_code);
+    response_json(403, "Forbidden", &body)
 }
 
 fn response_not_found(error_code: &str) -> String {
@@ -344,10 +384,10 @@ mod tests {
     }
 
     #[test]
-    fn route_options_returns_204_with_cors() {
+    fn route_options_returns_204() {
         let resp = route("OPTIONS", "/v1/usage", "/v1/usage");
         assert!(resp.starts_with("HTTP/1.1 204"));
-        assert!(resp.contains("Access-Control-Allow-Origin: *"));
+        assert!(!resp.contains("Access-Control-Allow-Origin"));
     }
 
     #[test]
@@ -397,14 +437,37 @@ mod tests {
     fn route_options_on_provider_returns_204() {
         let resp = route("OPTIONS", "/v1/usage/claude", "/v1/usage/claude");
         assert!(resp.starts_with("HTTP/1.1 204"));
-        assert!(resp.contains("Access-Control-Allow-Methods: GET, OPTIONS"));
     }
 
     #[test]
-    fn response_json_includes_cors_headers() {
+    fn response_json_omits_cors_headers() {
         let resp = response_json(200, "OK", "[]");
-        assert!(resp.contains("Access-Control-Allow-Origin: *"));
+        assert!(!resp.contains("Access-Control-Allow-Origin"));
         assert!(resp.contains("Content-Type: application/json; charset=utf-8"));
+    }
+
+    #[test]
+    fn is_browser_cross_origin_request_blocks_sec_fetch_site() {
+        let req = "GET /v1/usage HTTP/1.1\r\nHost: 127.0.0.1:6736\r\nSec-Fetch-Site: cross-site\r\n\r\n";
+        assert!(is_browser_cross_origin_request(req));
+    }
+
+    #[test]
+    fn is_browser_cross_origin_request_blocks_foreign_origin() {
+        let req = "GET /v1/usage HTTP/1.1\r\nHost: 127.0.0.1:6736\r\nOrigin: https://evil.example\r\n\r\n";
+        assert!(is_browser_cross_origin_request(req));
+    }
+
+    #[test]
+    fn is_browser_cross_origin_request_allows_curl_like_request() {
+        let req = "GET /v1/usage HTTP/1.1\r\nHost: 127.0.0.1:6736\r\nUser-Agent: curl/8.5.0\r\n\r\n";
+        assert!(!is_browser_cross_origin_request(req));
+    }
+
+    #[test]
+    fn is_browser_cross_origin_request_allows_loopback_origin() {
+        let req = "GET /v1/usage HTTP/1.1\r\nHost: 127.0.0.1:6736\r\nOrigin: http://127.0.0.1:3000\r\n\r\n";
+        assert!(!is_browser_cross_origin_request(req));
     }
 
     #[test]
@@ -432,7 +495,7 @@ mod tests {
 
         assert!(resp.starts_with("HTTP/1.1 503"));
         assert!(resp.contains(r#""error":"server_busy""#));
-        assert!(resp.contains("Access-Control-Allow-Origin: *"));
+        assert!(!resp.contains("Access-Control-Allow-Origin"));
     }
 
     #[test]
