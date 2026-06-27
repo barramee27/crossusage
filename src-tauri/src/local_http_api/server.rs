@@ -536,4 +536,5 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&body).expect("valid json");
         assert_eq!(parsed["error"], "bad\"quote\nline");
     }
+
 }
