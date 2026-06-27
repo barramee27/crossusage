@@ -106,6 +106,7 @@ fn get_stored_log_level(app_handle: &AppHandle) -> log::LevelFilter {
         Some("info") => log::LevelFilter::Info,
         Some("debug") => log::LevelFilter::Debug,
         Some("trace") => log::LevelFilter::Trace,
+        Some("off") => log::LevelFilter::Off,
         _ => log::LevelFilter::Info, // Default: match upstream 0.7 / #615
     }
 }
@@ -125,6 +126,7 @@ pub fn log_level_from_str(level: &str) -> Option<log::LevelFilter> {
         "info" => Some(log::LevelFilter::Info),
         "debug" => Some(log::LevelFilter::Debug),
         "trace" => Some(log::LevelFilter::Trace),
+        "off" => Some(log::LevelFilter::Off),
         _ => None,
     }
 }
@@ -222,6 +224,14 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         current_level == log::LevelFilter::Trace,
         None::<&str>,
     )?;
+    let log_off = CheckMenuItem::with_id(
+        app_handle,
+        "log_off",
+        "Off",
+        true,
+        current_level == log::LevelFilter::Off,
+        None::<&str>,
+    )?;
     let log_level_separator = PredefinedMenuItem::separator(app_handle)?;
     let copy_log_path = MenuItem::with_id(
         app_handle,
@@ -240,6 +250,7 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
             &log_info,
             &log_debug,
             &log_trace,
+            &log_off,
             &log_level_separator,
             &copy_log_path,
         ],
@@ -252,6 +263,7 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         (log_info.clone(), log::LevelFilter::Info),
         (log_debug.clone(), log::LevelFilter::Debug),
         (log_trace.clone(), log::LevelFilter::Trace),
+        (log_off.clone(), log::LevelFilter::Off),
     ];
 
     let separator = PredefinedMenuItem::separator(app_handle)?;
@@ -353,13 +365,14 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                     log::info!("quit requested via tray");
                     app_handle.exit(0);
                 }
-                "log_error" | "log_warn" | "log_info" | "log_debug" | "log_trace" => {
+                "log_error" | "log_warn" | "log_info" | "log_debug" | "log_trace" | "log_off" => {
                     let selected_level = match event.id.as_ref() {
                         "log_error" => log::LevelFilter::Error,
                         "log_warn" => log::LevelFilter::Warn,
                         "log_info" => log::LevelFilter::Info,
                         "log_debug" => log::LevelFilter::Debug,
                         "log_trace" => log::LevelFilter::Trace,
+                        "log_off" => log::LevelFilter::Off,
                         _ => unreachable!(),
                     };
                     set_stored_log_level(app_handle, selected_level);

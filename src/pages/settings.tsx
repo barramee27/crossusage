@@ -57,6 +57,7 @@ import {
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
+import { DEFAULT_LOG_LEVEL, LOG_LEVEL_OPTIONS } from "@/lib/log-level";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
 import { exportUsageHistoryToFolder } from "@/lib/history-export";
@@ -1167,7 +1168,7 @@ export function SettingsPage({
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
   const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
-  const [logLevel, setLogLevel] = useState("info");
+  const [logLevel, setLogLevel] = useState(DEFAULT_LOG_LEVEL);
   const [logPathMessage, setLogPathMessage] = useState<string | null>(null);
   const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
@@ -1729,18 +1730,22 @@ export function SettingsPage({
             Controls how much detail is written to the log file. Default is Info.
           </p>
           <div className="flex flex-wrap gap-2">
-            {(["error", "warn", "info", "debug", "trace"] as const).map((level) => (
+            {LOG_LEVEL_OPTIONS.map((opt) => (
               <Button
-                key={level}
+                key={opt.value}
                 type="button"
                 size="sm"
-                variant={logLevel === level ? "default" : "outline"}
-                onClick={() => void handleLogLevelChange(level)}
+                variant={logLevel === opt.value ? "default" : "outline"}
+                title={opt.hint}
+                onClick={() => void handleLogLevelChange(opt.value)}
               >
-                {level}
+                {opt.label}
               </Button>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {LOG_LEVEL_OPTIONS.find((opt) => opt.value === logLevel)?.hint ?? ""}
+          </p>
         </div>
         <div className="bg-muted/50 rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Button
