@@ -50,6 +50,7 @@ Linux **CLI-only** without a desktop package: add `INSTALL_MODE=cli` to the firs
 ## What you get
 
 - Tray panel with usage bars, badges, and refresh on a schedule you choose
+- **Classic or Modern UI** — pick at first run or in Settings → Appearance; same providers in both ([0.7 port spec](docs/OPENUSAGE-0.7-UI-SPEC.md))
 - Global shortcut to show/hide the panel
 - Plugin-based providers (ship updates without rebuilding core logic)
 - Optional **local usage history** (Settings → *Usage history*, SQLite on disk only)
@@ -70,6 +71,7 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | Antigravity / Antigravity CLI / Antigravity IDE | [antigravity](docs/providers/antigravity.md) · [cli](docs/providers/antigravity-cli.md) · [ide](docs/providers/antigravity-ide.md) |
 | Claude | [claude](docs/providers/claude.md) |
 | Codex | [codex](docs/providers/codex.md) |
+| Command Code | [command-code](docs/providers/command-code.md) |
 | Copilot | [copilot](docs/providers/copilot.md) |
 | CrofAI | [crofai](docs/providers/crofai.md) |
 | Cursor | [cursor](docs/providers/cursor.md) |
@@ -85,6 +87,7 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | Neuralwatt | [neuralwatt](docs/providers/neuralwatt.md) |
 | Ollama | [ollama](docs/providers/ollama.md) |
 | OpenCode Go | [opencode-go](docs/providers/opencode-go.md) |
+| Perplexity | [perplexity](docs/providers/perplexity.md) |
 | Synthetic | [synthetic](docs/providers/synthetic.md) |
 | Devin | [devin](docs/providers/devin.md) |
 | Z.ai | [zai](docs/providers/zai.md) |

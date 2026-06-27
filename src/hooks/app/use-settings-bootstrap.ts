@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react"
+import { getVersion } from "@tauri-apps/api/app"
 import { invoke, isTauri } from "@tauri-apps/api/core"
 import {
   disable as disableAutostart,
@@ -24,8 +25,11 @@ import {
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
+  DEFAULT_SHOW_TRAY_INSIGHT,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
+  DEFAULT_UI_LAYOUT,
+  DEFAULT_MODERN_DENSITY,
   DEFAULT_TIME_FORMAT_MODE,
   getEnabledPluginIds,
   loadAutoUpdateInterval,
@@ -47,8 +51,11 @@ import {
   loadResetTimerDisplayMode,
   loadShowAccountIdentity,
   loadShowTrayIcon,
+  loadShowTrayInsight,
   loadStartOnLogin,
   loadThemeMode,
+  loadUILayout,
+  loadModernDensity,
   loadTimeFormatMode,
   normalizePluginSettings,
   resolveOnboardingComplete,
@@ -61,17 +68,22 @@ import {
   type PluginSettings,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type UILayout,
+  type ModernDensity,
   type TimeFormatMode,
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings"
+import { hydrateModernLayoutStore } from "@/stores/modern-layout-store"
 
 type UseSettingsBootstrapArgs = {
   setPluginSettings: (value: PluginSettings | null) => void
   setPluginsMeta: (value: PluginMeta[]) => void
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
+  setUILayout: (value: UILayout) => void
+  setModernDensity: (value: ModernDensity) => void
   setDisplayMode: (value: DisplayMode) => void
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setTimeFormatMode: (value: TimeFormatMode) => void
@@ -82,6 +94,7 @@ type UseSettingsBootstrapArgs = {
   setPreferMenubarWeeklyLimit: (value: boolean) => void
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
+  setShowTrayInsight: (value: boolean) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -100,6 +113,8 @@ export function useSettingsBootstrap({
   setPluginsMeta,
   setAutoUpdateInterval,
   setThemeMode,
+  setUILayout,
+  setModernDensity,
   setDisplayMode,
   setResetTimerDisplayMode,
   setTimeFormatMode,
@@ -110,6 +125,7 @@ export function useSettingsBootstrap({
   setPreferMenubarWeeklyLimit,
   setUIScale,
   setShowTrayIcon,
+  setShowTrayInsight,
   setUsageAlertEnabled,
   setUsageAlertThreshold,
   setCustomUsageAlertThreshold,
@@ -149,7 +165,13 @@ export function useSettingsBootstrap({
 
         let onboardingDone = false
         try {
-          onboardingDone = await resolveOnboardingComplete(migratedSettings)
+          let appVersion = "0.0.0"
+          try {
+            appVersion = await getVersion()
+          } catch (versionError) {
+            console.error("Failed to get app version for onboarding:", versionError)
+          }
+          onboardingDone = await resolveOnboardingComplete(migratedSettings, appVersion)
         } catch (error) {
           console.error("Failed to resolve onboarding state:", error)
         }
@@ -171,6 +193,26 @@ export function useSettingsBootstrap({
           storedThemeMode = await loadThemeMode()
         } catch (error) {
           console.error("Failed to load theme mode:", error)
+        }
+
+        let storedUILayout = DEFAULT_UI_LAYOUT
+        try {
+          storedUILayout = await loadUILayout()
+        } catch (error) {
+          console.error("Failed to load UI layout:", error)
+        }
+
+        let storedModernDensity = DEFAULT_MODERN_DENSITY
+        try {
+          storedModernDensity = await loadModernDensity()
+        } catch (error) {
+          console.error("Failed to load modern density:", error)
+        }
+
+        try {
+          await hydrateModernLayoutStore()
+        } catch (error) {
+          console.error("Failed to hydrate modern layout store:", error)
         }
 
         let storedDisplayMode = DEFAULT_DISPLAY_MODE
@@ -227,6 +269,13 @@ export function useSettingsBootstrap({
           } catch (error) {
             console.error("Failed to migrate show tray icon to on:", error)
           }
+        }
+
+        let storedShowTrayInsight = DEFAULT_SHOW_TRAY_INSIGHT
+        try {
+          storedShowTrayInsight = await loadShowTrayInsight()
+        } catch (error) {
+          console.error("Failed to load show tray insight:", error)
         }
 
         try {
@@ -314,6 +363,8 @@ export function useSettingsBootstrap({
           setPluginSettings(normalized)
           setAutoUpdateInterval(storedInterval)
           setThemeMode(storedThemeMode)
+          setUILayout(storedUILayout)
+          setModernDensity(storedModernDensity)
           setDisplayMode(storedDisplayMode)
           setResetTimerDisplayMode(storedResetTimerDisplayMode)
           setTimeFormatMode(storedTimeFormatMode)
@@ -321,6 +372,7 @@ export function useSettingsBootstrap({
           setStartOnLogin(storedStartOnLogin)
           setShowAccountIdentity(storedShowAccountIdentity)
           setShowTrayIcon(storedShowTrayIcon)
+          setShowTrayInsight(storedShowTrayInsight)
           setMenubarIconStyle(storedMenubarIconStyle)
           setPreferMenubarWeeklyLimit(storedPreferMenubarWeeklyLimit)
           setUIScale(storedUIScale)
@@ -371,10 +423,13 @@ export function useSettingsBootstrap({
     setPluginsMeta,
     setResetTimerDisplayMode,
     setShowTrayIcon,
+    setShowTrayInsight,
     setOnboardingComplete,
     setStartOnLogin,
     setShowAccountIdentity,
     setThemeMode,
+    setUILayout,
+    setModernDensity,
     setTimeFormatMode,
     setUIScale,
     setUsageAlertEnabled,

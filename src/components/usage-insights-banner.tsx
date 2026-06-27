@@ -12,10 +12,15 @@ import {
   rollingWindowDays,
   type WeeklyRollupResult,
 } from "@/lib/weekly-rollup"
+import {
+  formatHistoryTightestMessage,
+  type HistoryInsightTightest,
+} from "@/lib/usage-history-insights"
 import { cn } from "@/lib/utils"
 
 type UsageInsightsBannerProps = {
   insights: UsageInsight[]
+  historyTightest?: HistoryInsightTightest[]
   rollup: WeeklyRollupResult | null
   rollup30: WeeklyRollupResult | null
   dailyRows?: UsageDailyRow[]
@@ -33,6 +38,7 @@ function insightIcon(kind: UsageInsight["kind"]): string {
 
 export function UsageInsightsBanner({
   insights,
+  historyTightest = [],
   rollup,
   rollup30,
   dailyRows = [],
@@ -62,9 +68,10 @@ export function UsageInsightsBanner({
 
   const showRollupHint = !persistEnabled
   const hasInsights = visibleInsights.length > 0
+  const hasHistoryTightest = persistEnabled && historyTightest.length > 0
   const hasRollup = rollup != null
 
-  if (!hasInsights && !hasRollup && !showRollup30 && !showSparkline && !showRollupHint) {
+  if (!hasInsights && !hasHistoryTightest && !hasRollup && !showRollup30 && !showSparkline && !showRollupHint) {
     return null
   }
 
@@ -107,6 +114,25 @@ export function UsageInsightsBanner({
                 onClick={(e) => handleDismiss(row, e)}
               >
                 ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {hasHistoryTightest ? (
+        <ul className="space-y-1">
+          {historyTightest.map((row) => (
+            <li key={`history-${row.instanceId}`} className="text-foreground/90">
+              <button
+                type="button"
+                className="text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                onClick={() => onSelectProvider?.(row.instanceId)}
+              >
+                <span className="text-muted-foreground mr-1.5" aria-hidden>
+                  ⧉
+                </span>
+                {formatHistoryTightestMessage(row)}
               </button>
             </li>
           ))}

@@ -64,6 +64,8 @@ function createProps(): AppContentProps {
     onRemoveProviderAccount: vi.fn(),
     onAutoUpdateIntervalChange: vi.fn(),
     onThemeModeChange: vi.fn(),
+    onUILayoutChange: vi.fn(),
+    onModernDensityChange: vi.fn(),
     onDisplayModeChange: vi.fn(),
     onResetTimerDisplayModeChange: vi.fn(),
     onResetTimerDisplayModeToggle: vi.fn(),

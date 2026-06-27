@@ -562,6 +562,7 @@ describe("App", () => {
     await waitFor(() => expect(state.renderTrayBarsIconMock).toHaveBeenCalled())
     const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
     expect(firstCall.providerIconUrl).toBe("icon-a")
+    expect(firstCall.percentText).toBe("--%")
     await waitFor(() => expect(state.traySetTitleMock).toHaveBeenCalledWith(null))
   })
 
@@ -727,6 +728,7 @@ describe("App", () => {
     const firstCall = state.renderTrayBarsIconMock.mock.calls[0]?.[0]
     expect(firstCall.style).toBe("provider")
     expect(firstCall.providerIconUrl).toBe("icon-a")
+    expect(firstCall.percentText).toBe("--%")
     expect(state.traySetTitleMock).not.toHaveBeenCalled()
   })
 
@@ -1857,6 +1859,7 @@ describe("App", () => {
           sizePx: expect.any(Number),
           style: "provider",
           providerIconUrl: "icon-a",
+          percentText: "--%",
           hideIcon: false,
         }))
       )

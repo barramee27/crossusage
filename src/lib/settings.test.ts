@@ -617,4 +617,22 @@ describe("settings", () => {
       await expect(loadUsageAlertSound()).resolves.toBe("Basso")
     })
   })
+
+  describe("resolveOnboardingComplete", () => {
+    const pluginSettings = { order: ["cursor"], disabled: [] as string[] }
+
+    it("returns false when dualUiOnboardingVersion is missing", async () => {
+      await expect(resolveOnboardingComplete(pluginSettings, "1.1.0")).resolves.toBe(false)
+    })
+
+    it("returns false when stored version differs from app version", async () => {
+      storeState.set("dualUiOnboardingVersion", "1.0.0")
+      await expect(resolveOnboardingComplete(pluginSettings, "1.1.0")).resolves.toBe(false)
+    })
+
+    it("returns true when stored version matches app version", async () => {
+      storeState.set("dualUiOnboardingVersion", "1.1.0")
+      await expect(resolveOnboardingComplete(pluginSettings, "1.1.0")).resolves.toBe(true)
+    })
+  })
 })

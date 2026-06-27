@@ -106,7 +106,37 @@ fn get_stored_log_level(app_handle: &AppHandle) -> log::LevelFilter {
         Some("info") => log::LevelFilter::Info,
         Some("debug") => log::LevelFilter::Debug,
         Some("trace") => log::LevelFilter::Trace,
-        _ => log::LevelFilter::Error, // Default: least verbose
+        _ => log::LevelFilter::Info, // Default: match upstream 0.7 / #615
+    }
+}
+
+pub fn apply_log_level(app_handle: &AppHandle, level: log::LevelFilter) {
+    set_stored_log_level(app_handle, level);
+}
+
+pub fn current_log_level(app_handle: &AppHandle) -> log::LevelFilter {
+    get_stored_log_level(app_handle)
+}
+
+pub fn log_level_from_str(level: &str) -> Option<log::LevelFilter> {
+    match level {
+        "error" => Some(log::LevelFilter::Error),
+        "warn" => Some(log::LevelFilter::Warn),
+        "info" => Some(log::LevelFilter::Info),
+        "debug" => Some(log::LevelFilter::Debug),
+        "trace" => Some(log::LevelFilter::Trace),
+        _ => None,
+    }
+}
+
+pub fn log_level_to_str(level: log::LevelFilter) -> &'static str {
+    match level {
+        log::LevelFilter::Error => "error",
+        log::LevelFilter::Warn => "warn",
+        log::LevelFilter::Info => "info",
+        log::LevelFilter::Debug => "debug",
+        log::LevelFilter::Trace => "trace",
+        log::LevelFilter::Off => "off",
     }
 }
 

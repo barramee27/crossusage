@@ -1,0 +1,35 @@
+# Cursor AI blocklist — keeps chat/indexing fast; gitignore syntax.
+# See also .cursorindexingignore (index-only) and .gitignore.
+
+# Dependencies & compiled output
+node_modules/
+dist/
+dist-ssr/
+target/
+coverage/
+tmpcov-gem/
+
+# Local release binaries (hundreds of MB each — never needed in chat)
+releases/*.exe
+releases/*.AppImage
+releases/*.deb
+releases/*.rpm
+releases/*.dmg
+releases/*_x64-setup.exe
+/crossusage_*_onefile.exe
+/crossusage_*_windows_amd64_onefile*.exe
+
+# Large archives at repo root (from local packaging)
+/crossusage-cli_*_windows_amd64.zip
+/crossusage_*_windows_amd64.zip
+/crossusage_*_linux_*.tar.gz
+/crossusage_*_darwin_*.tar.gz
+
+# Research / scratch
+docs/research/crawl-output/
+
+# Secrets (belt-and-suspenders; also in .gitignore)
+.env*
+!.env.example
+src-tauri/.tauri/updater.key
+.tauri/crossusage.key

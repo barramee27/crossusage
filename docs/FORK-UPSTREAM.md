@@ -1,8 +1,10 @@
 # Forking upstream OpenUsage
 
-CrossUsage is the **Tauri Linux/Windows** line. Upstream **OpenUsage 0.7+** is a **Swift native macOS** app (`v0.7.0-beta`). We do not merge Swift sources wholesale — we **rewrite** applicable UX in this repo or **copy** portable `plugins/` changes.
+CrossUsage is the **Tauri Linux/Windows** line. Upstream **OpenUsage 0.7+** is a **Swift native macOS** app on branch **`upstream/swift`** (`v0.7.0-beta`). We do not merge Swift sources wholesale — we **rewrite** applicable UX in this repo or **copy** portable `plugins/` changes.
 
-**Release trigger:** CrossUsage **1.1.1** ships when upstream **`v0.7.0` GA** (non-prerelease) drops, after prep on `feat/port-openusage-0.7-prep`. **1.2.0** follows ~7 days later (fork-only polish).
+**UI diff target:** compare Modern layout work against **`upstream/swift`**, not `upstream/main`. Port spec: [OPENUSAGE-0.7-UI-SPEC.md](./OPENUSAGE-0.7-UI-SPEC.md).
+
+**Release trigger:** CrossUsage **1.2.0** ships the OpenUsage **v0.7.0** Modern UI port plus fork insights polish (combined release).
 
 ## What to port
 
@@ -28,15 +30,15 @@ Update this table as work lands on `feat/port-openusage-0.7-prep`.
 | [#555](https://github.com/robinebers/openusage/pull/555) | Menubar weekly metric | fork-already | **skip** — already in CrossUsage settings/tray |
 | [#616](https://github.com/robinebers/openusage/pull/616) | Retirement notice banner | skip | **skip** — points users to openusage.ai |
 | [#612](https://github.com/robinebers/openusage/pull/612) | Codex/Devin usage bugs | plugin-easy | **done** — Devin weekly fallback flip; Codex badge ordering already correct in JS |
-| [#613](https://github.com/robinebers/openusage/pull/613) | Settings refresh/style layout | swift-rewrite | **todo** — adapt Settings UX in Tauri |
-| [#614](https://github.com/robinebers/openusage/pull/614) | Screen pager flicker fix | swift-rewrite | **todo** — overview navigation |
-| [#615](https://github.com/robinebers/openusage/pull/615) | Debug logging → native app | swift-rewrite | **todo** — align with existing Tauri logging |
-| beta.2 | Pre-pin common stats on first launch | swift-rewrite | **todo** — onboarding/settings bootstrap |
+| [#613](https://github.com/robinebers/openusage/pull/613) | Settings refresh/style layout | swift-rewrite | **done** — Modern shell + dual `uiLayout` |
+| [#614](https://github.com/robinebers/openusage/pull/614) | Screen pager flicker fix | swift-rewrite | **done** — Modern tab nav |
+| [#615](https://github.com/robinebers/openusage/pull/615) | Debug logging → native app | swift-rewrite | **done** — Settings log level + log path/reveal; default Info; `[refresh]` tags |
+| beta.2 | Pre-pin common stats on first launch | swift-rewrite | **done** — `DefaultLayout` + tray migration in Modern |
 
 ## Workflow
 
 1. `git fetch upstream --tags`
-2. Diff: `git log v0.6.27..upstream/main --oneline` and `git diff v0.6.27..upstream/main -- plugins/`
+2. Diff: `git log v0.6.27..upstream/swift --oneline` and `git diff v0.6.27..upstream/swift -- plugins/`
 3. Classify each change (table above).
 4. Port on **`feat/port-openusage-0.7-prep`** — **no version bump** until `v0.7.0` GA.
 5. At GA: `git diff feat/port-openusage-0.7-prep...v0.7.0` → gap-fill → bump **1.1.1** → release.
@@ -57,4 +59,8 @@ When copying a plugin from upstream:
 ./scripts/diff-upstream-plugins.sh
 ```
 
-Lists plugins whose `plugin.js` differs between `HEAD` and `upstream/main`.
+Lists plugins whose `plugin.js` differs between `HEAD` and `upstream/swift` (override: `UPSTREAM_REF=upstream/main`).
+
+## Dual UI (Classic + Modern)
+
+One binary ships both layouts via Settings → **UI layout** (`uiLayout`: `classic` | `modern`). Default: **Classic**. Modern ports OpenUsage 0.7 grouped cards, Customize pins, and tray pin strip. See [OPENUSAGE-0.7-UI-SPEC.md](./OPENUSAGE-0.7-UI-SPEC.md).

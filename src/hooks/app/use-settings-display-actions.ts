@@ -8,6 +8,8 @@ import {
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
   saveThemeMode,
+  saveUILayout,
+  saveModernDensity,
   saveTimeFormatMode,
   saveUsageAlertCustomThreshold,
   saveUsageAlertEnabled,
@@ -20,6 +22,8 @@ import {
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type UILayout,
+  type ModernDensity,
   type TimeFormatMode,
   type UIScale,
   type UsageAlertSound,
@@ -31,6 +35,8 @@ type ScheduleTrayIconUpdate = (reason: "probe" | "settings" | "init", delayMs?: 
 
 type UseSettingsDisplayActionsArgs = {
   setThemeMode: (value: ThemeMode) => void
+  setUILayout: (value: UILayout) => void
+  setModernDensity: (value: ModernDensity) => void
   setDisplayMode: (value: DisplayMode) => void
   resetTimerDisplayMode: ResetTimerDisplayMode
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
@@ -51,6 +57,8 @@ type UseSettingsDisplayActionsArgs = {
 
 export function useSettingsDisplayActions({
   setThemeMode,
+  setUILayout,
+  setModernDensity,
   setDisplayMode,
   resetTimerDisplayMode,
   setResetTimerDisplayMode,
@@ -68,6 +76,21 @@ export function useSettingsDisplayActions({
   setUsageSpikeAlertThresholdPct,
   scheduleTrayIconUpdate,
 }: UseSettingsDisplayActionsArgs) {
+  const handleUILayoutChange = useCallback((layout: UILayout) => {
+    setUILayout(layout)
+    scheduleTrayIconUpdate("settings", 0)
+    void saveUILayout(layout).catch((error) => {
+      console.error("Failed to save UI layout:", error)
+    })
+  }, [scheduleTrayIconUpdate, setUILayout])
+
+  const handleModernDensityChange = useCallback((density: ModernDensity) => {
+    setModernDensity(density)
+    void saveModernDensity(density).catch((error) => {
+      console.error("Failed to save modern density:", error)
+    })
+  }, [setModernDensity])
+
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
     setThemeMode(mode)
     void saveThemeMode(mode).catch((error) => {
@@ -189,6 +212,8 @@ export function useSettingsDisplayActions({
 
   return {
     handleThemeModeChange,
+    handleUILayoutChange,
+    handleModernDensityChange,
     handleDisplayModeChange,
     handleResetTimerDisplayModeChange,
     handleResetTimerDisplayModeToggle,
