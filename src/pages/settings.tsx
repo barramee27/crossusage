@@ -57,7 +57,7 @@ import {
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
-import { DEFAULT_LOG_LEVEL, LOG_LEVEL_OPTIONS } from "@/lib/log-level";
+import { DEFAULT_LOG_LEVEL, isLogLevel, LOG_LEVEL_OPTIONS, type LogLevel } from "@/lib/log-level";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
 import { exportUsageHistoryToFolder } from "@/lib/history-export";
@@ -1168,7 +1168,7 @@ export function SettingsPage({
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
   const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
-  const [logLevel, setLogLevel] = useState(DEFAULT_LOG_LEVEL);
+  const [logLevel, setLogLevel] = useState<LogLevel>(DEFAULT_LOG_LEVEL);
   const [logPathMessage, setLogPathMessage] = useState<string | null>(null);
   const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
@@ -1205,7 +1205,7 @@ export function SettingsPage({
     let cancelled = false;
     void invoke<string>("get_log_level")
       .then((level) => {
-        if (!cancelled) setLogLevel(level);
+        if (!cancelled && isLogLevel(level)) setLogLevel(level);
       })
       .catch(console.error);
     return () => {
@@ -1213,7 +1213,7 @@ export function SettingsPage({
     };
   }, []);
 
-  const handleLogLevelChange = async (level: string) => {
+  const handleLogLevelChange = async (level: LogLevel) => {
     setLogPathMessage(null);
     if (!isTauri()) return;
     try {
