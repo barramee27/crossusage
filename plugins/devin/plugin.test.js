@@ -357,6 +357,7 @@ describe("devin plugin", () => {
       bodyText: JSON.stringify(
         makeQuotaResponse({
           planInfo: { hideDailyQuota: true },
+          dailyQuotaRemainingPercent: 30,
           weeklyQuotaRemainingPercent: undefined,
         })
       ),
@@ -368,7 +369,7 @@ describe("devin plugin", () => {
     expect(result.lines.find((line) => line.label === "Daily quota")).toBeUndefined()
     expect(result.lines.find((line) => line.label === "Weekly quota")).toMatchObject({
       type: "progress",
-      used: 100,
+      used: 70,
       limit: 100,
       format: { kind: "percent" },
       resetsAt: "2026-03-22T08:00:00.000Z",

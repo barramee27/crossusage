@@ -32,22 +32,32 @@ import {
   RESET_TIMER_DISPLAY_OPTIONS,
   THEME_OPTIONS,
   TIME_FORMAT_OPTIONS,
+  UI_LAYOUT_OPTIONS,
+  MODERN_DENSITY_OPTIONS,
   UI_SCALE_OPTIONS,
   USAGE_ALERT_SOUND_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
+  USAGE_HISTORY_RETENTION_OPTIONS,
+  DEFAULT_USAGE_HISTORY_RETENTION_DAYS,
   loadPersistUsageHistory,
+  loadUsageHistoryRetentionDays,
   savePersistUsageHistory,
+  saveUsageHistoryRetentionDays,
+  saveShowTrayInsight,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type UILayout,
+  type ModernDensity,
   type TimeFormatMode,
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
+import { DEFAULT_LOG_LEVEL, isLogLevel, LOG_LEVEL_OPTIONS, type LogLevel } from "@/lib/log-level";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
 import { exportUsageHistoryToFolder } from "@/lib/history-export";
@@ -64,6 +74,8 @@ import {
 } from "@/lib/provider-account-dev-mock";
 import { formatOsDiagnosticsLine, type OsDiagnosticsPayload } from "@/lib/os-diagnostics-format";
 import { cn } from "@/lib/utils";
+import { LayoutPreviewClassic, LayoutPreviewModern } from "@/components/ui-layout-preview";
+import { useAppPreferencesStore } from "@/stores/app-preferences-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
 import { FORK_REPO_URL } from "@/lib/fork-meta";
@@ -389,6 +401,7 @@ function SortablePluginItem({
   onRemoveAccount,
   cursorRequestsLineAvailable,
   accountFormSlot,
+  hideTrayLines = false,
 }: {
   plugin: SettingsPluginState;
   onToggle: (id: string) => void;
@@ -400,6 +413,7 @@ function SortablePluginItem({
   /** When `plugin.id === "cursor"`, gates the Requests tray line (API may not expose it). */
   cursorRequestsLineAvailable: boolean | null;
   accountFormSlot: ReactNode;
+  hideTrayLines?: boolean;
 }) {
   const {
     attributes,
@@ -436,7 +450,7 @@ function SortablePluginItem({
       </button>
 
       <div className="flex-1 min-w-0 space-y-2">
-        {plugin.primaryCandidates.length > 0 && (
+        {!hideTrayLines && plugin.primaryCandidates.length > 0 && (
           <div
             className="space-y-1.5 pl-0.5"
             onClick={(e) => e.stopPropagation()}
@@ -647,8 +661,81 @@ function ProviderAccountForm({
   );
 }
 
+function InsightsSection() {
+  const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight);
+  const setShowTrayInsight = useAppPreferencesStore((state) => state.setShowTrayInsight);
+
+  const onTrayInsightChange = async (checked: boolean) => {
+    const prev = showTrayInsight;
+    setShowTrayInsight(checked);
+    try {
+      await saveShowTrayInsight(checked);
+    } catch (e) {
+      console.error(e);
+      setShowTrayInsight(prev);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">Insights</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        Live insights on Dashboard; optional tray line and history-backed tightest quotas when snapshots are saved.
+      </p>
+      <label className="flex items-center gap-2 text-sm select-none text-foreground">
+        <Checkbox
+          checked={showTrayInsight}
+          onCheckedChange={(checked) => void onTrayInsightChange(checked === true)}
+        />
+        Show top insight in menu bar / tray tooltip
+      </label>
+    </section>
+  );
+}
+
+const LOCAL_API_BASE = "http://127.0.0.1:6736";
+
+function LocalApiSection() {
+  const [message, setMessage] = useState<string | null>(null);
+  const endpoints = ["/v1/usage", "/v1/insights", "/v1/history/quota", "/v1/history/daily"] as const;
+
+  const copy = async (path: string) => {
+    setMessage(null);
+    const cmd = `curl -sS ${LOCAL_API_BASE}${path}`;
+    try {
+      await writeText(cmd);
+      setMessage(`Copied: ${path}`);
+    } catch (e) {
+      console.error(e);
+      setMessage("Clipboard failed");
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">Local API (troubleshooting)</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        While the app runs, HTTP endpoints are available at{" "}
+        <code className="text-xs">{LOCAL_API_BASE}</code>. The root URL returns{" "}
+        <code className="text-xs">not_found</code> by design. Copy a curl command below to test in a terminal.
+      </p>
+      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {endpoints.map((path) => (
+            <Button key={path} type="button" variant="outline" size="sm" onClick={() => void copy(path)}>
+              Copy {path}
+            </Button>
+          ))}
+        </div>
+        {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
+      </div>
+    </section>
+  );
+}
+
 function UsageHistorySection() {
   const [persist, setPersist] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(DEFAULT_USAGE_HISTORY_RETENTION_DAYS);
   const [hydrated, setHydrated] = useState(false);
   const [rows, setRows] = useState<UsageHistoryRow[]>([]);
   const [dailyRows, setDailyRows] = useState<UsageDailyRow[]>([]);
@@ -674,9 +761,10 @@ function UsageHistorySection() {
   }, []);
 
   useEffect(() => {
-    void loadPersistUsageHistory()
-      .then((p) => {
+    void Promise.all([loadPersistUsageHistory(), loadUsageHistoryRetentionDays()])
+      .then(([p, retention]) => {
         setPersist(p);
+        setRetentionDays(retention);
         setHydrated(true);
       })
       .catch((e) => {
@@ -721,6 +809,17 @@ function UsageHistorySection() {
     }
   };
 
+  const onRetentionChange = async (days: number) => {
+    const prev = retentionDays;
+    setRetentionDays(days);
+    try {
+      await saveUsageHistoryRetentionDays(days);
+    } catch (e) {
+      console.error(e);
+      setRetentionDays(prev);
+    }
+  };
+
   return (
     <section>
       <h3 className="text-lg font-semibold mb-0">Usage history</h3>
@@ -738,6 +837,38 @@ function UsageHistorySection() {
         />
         Save usage snapshots after successful refreshes
       </label>
+      {persist && hydrated ? (
+        <div className="mb-3">
+          <p className="text-sm text-muted-foreground mb-2">
+            Keep snapshots for — older rows are pruned after each save.
+          </p>
+          <div className="bg-muted/50 rounded-lg p-1">
+            <div
+              className="flex flex-wrap gap-1"
+              role="radiogroup"
+              aria-label="Usage history retention"
+            >
+              {USAGE_HISTORY_RETENTION_OPTIONS.map((option) => {
+                const isActive = option.value === retentionDays;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 min-w-[4.5rem]"
+                    onClick={() => void onRetentionChange(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {!isTauri() ? (
         <p className="text-xs text-muted-foreground">History is only available in the desktop app.</p>
       ) : null}
@@ -923,6 +1054,10 @@ interface SettingsPageProps {
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void;
   themeMode: ThemeMode;
   onThemeModeChange: (value: ThemeMode) => void;
+  uiLayout: UILayout;
+  onUILayoutChange: (value: UILayout) => void;
+  modernDensity: ModernDensity;
+  onModernDensityChange: (value: ModernDensity) => void;
   displayMode: DisplayMode;
   onDisplayModeChange: (value: DisplayMode) => void;
   resetTimerDisplayMode: ResetTimerDisplayMode;
@@ -958,6 +1093,7 @@ interface SettingsPageProps {
   onShowAccountIdentityChange: (value: boolean) => void;
   cursorRequestsLineAvailable: boolean | null;
   onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void;
+  presentation?: "classic" | "modern";
 }
 
 export function SettingsPage({
@@ -973,6 +1109,10 @@ export function SettingsPage({
   onAutoUpdateIntervalChange,
   themeMode,
   onThemeModeChange,
+  uiLayout,
+  onUILayoutChange,
+  modernDensity,
+  onModernDensityChange,
   displayMode,
   onDisplayModeChange,
   resetTimerDisplayMode,
@@ -1008,10 +1148,28 @@ export function SettingsPage({
   onShowAccountIdentityChange,
   cursorRequestsLineAvailable,
   onSetCursorTrayMetricForAllAccounts,
+  presentation = "classic",
 }: SettingsPageProps) {
+  const isModern = presentation === "modern";
+  type ModernSettingsTab = "general" | "tray" | "appearance" | "providers" | "advanced";
+  const [modernTab, setModernTab] = useState<ModernSettingsTab>("general");
+  const modernTabs: { id: ModernSettingsTab; label: string }[] = [
+    { id: "general", label: "General" },
+    { id: "tray", label: "Tray" },
+    { id: "appearance", label: "Look" },
+    { id: "providers", label: "Providers" },
+    { id: "advanced", label: "More" },
+  ];
+  const showModernSection = (tab: ModernSettingsTab | ModernSettingsTab[]) => {
+    if (!isModern) return true;
+    const tabs = Array.isArray(tab) ? tab : [tab];
+    return tabs.includes(modernTab);
+  };
   const [accountForm, setAccountForm] = useState<AccountFormState | null>(null);
   const [devMockSaveNotice, setDevMockSaveNotice] = useState<string | null>(null);
   const [supportBundleMessage, setSupportBundleMessage] = useState<string | null>(null);
+  const [logLevel, setLogLevel] = useState<LogLevel>(DEFAULT_LOG_LEVEL);
+  const [logPathMessage, setLogPathMessage] = useState<string | null>(null);
   const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
   const [cursorTrayIconDialog, setCursorTrayIconDialog] = useState<{
@@ -1041,6 +1199,31 @@ export function SettingsPage({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    void invoke<string>("get_log_level")
+      .then((level) => {
+        if (!cancelled && isLogLevel(level)) setLogLevel(level);
+      })
+      .catch(console.error);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleLogLevelChange = async (level: LogLevel) => {
+    setLogPathMessage(null);
+    if (!isTauri()) return;
+    try {
+      await invoke("set_log_level", { level });
+      setLogLevel(level);
+    } catch (e) {
+      console.error("set_log_level:", e);
+      setLogPathMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const handleMenubarIconStyleOptionClick = (style: MenubarIconStyle) => {
     if (style === menubarIconStyle) return;
@@ -1148,7 +1331,13 @@ export function SettingsPage({
   };
 
   return (
-    <div className="py-3 space-y-4">
+    <div
+      className={cn(
+        isModern
+          ? "space-y-2 pb-2 [&_section]:rounded-xl [&_section]:border [&_section]:border-border/50 [&_section]:bg-card/30 [&_section]:px-3 [&_section]:py-2.5 [&_h3]:text-sm [&_h3]:font-semibold [&_section>p.text-sm]:text-xs [&_section>p.text-sm]:text-muted-foreground [&_section>p.text-sm]:mb-2"
+          : "py-3 space-y-4",
+      )}
+    >
       {devMockSaveNotice ? (
         <div
           className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100"
@@ -1157,6 +1346,27 @@ export function SettingsPage({
           {devMockSaveNotice}
         </div>
       ) : null}
+      {isModern ? (
+        <nav
+          className="flex gap-1 overflow-x-auto scrollbar-none sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/90 backdrop-blur border-b border-border/40"
+          aria-label="Settings sections"
+        >
+          {modernTabs.map((tab) => (
+            <Button
+              key={tab.id}
+              type="button"
+              size="sm"
+              variant={modernTab === tab.id ? "default" : "ghost"}
+              className="shrink-0"
+              onClick={() => setModernTab(tab.id)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </nav>
+      ) : null}
+      {showModernSection("general") ? (
+      <>
       <section>
         <h3 className="text-lg font-semibold mb-0">Auto Refresh</h3>
         <p className="text-sm text-muted-foreground mb-2">
@@ -1285,13 +1495,23 @@ export function SettingsPage({
           </div>
         </div>
       </section>
+      </>
+      ) : null}
+      {showModernSection("tray") ? (
       <section>
         <h3 className="text-lg font-semibold mb-0">Tray / menu bar icon</h3>
-        <p className="text-sm text-muted-foreground mb-2">
-          What shows next to the clock (Linux/Windows) or in the menu bar (macOS). New installs default to Plugin
-          (provider logo + usage). When Cursor is enabled and you pick Plugin, Logo fill, Logo grid, or Pie, you can
-          choose which Cursor metric drives the readout (Credits show as dollars in the tray).
-        </p>
+        {isModern ? (
+          <p className="text-sm text-muted-foreground mb-2">
+            Pick the icon style below. Tray metrics use each provider&apos;s primary usage lines
+            (same as Classic). Configure per-provider tray lines under Providers when needed.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground mb-2">
+            What shows next to the clock (Linux/Windows) or in the menu bar (macOS). New installs default to Plugin
+            (provider logo + usage). When Cursor is enabled and you pick Plugin, Logo fill, Logo grid, or Pie, you can
+            choose which Cursor metric drives the readout (Credits show as dollars in the tray).
+          </p>
+        )}
         <div className="bg-muted/50 rounded-lg p-1">
           <div className="flex gap-1" role="radiogroup" aria-label="Menubar icon style">
             {MENUBAR_ICON_STYLE_OPTIONS.map((option) => {
@@ -1340,6 +1560,71 @@ export function SettingsPage({
           Prefer weekly limits when available
         </label>
       </section>
+      ) : null}
+      {showModernSection("appearance") ? (
+      <>
+      <section>
+        <h3 className="text-lg font-semibold mb-0">UI layout</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          Switch anytime. Providers, accounts, and which metrics you show are shared between Classic and Modern.
+        </p>
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+          role="radiogroup"
+          aria-label="UI layout"
+        >
+          {UI_LAYOUT_OPTIONS.map((option) => {
+            const isActive = option.value === uiLayout;
+            const Preview =
+              option.value === "modern" ? LayoutPreviewModern : LayoutPreviewClassic;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                className={cn(
+                  "rounded-lg border p-2 text-left transition-colors",
+                  isActive ? "border-primary ring-1 ring-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                )}
+                onClick={() => onUILayoutChange(option.value)}
+              >
+                <span className="text-sm font-medium block mb-2">{option.label}</span>
+                <Preview isActive={isActive} />
+              </button>
+            );
+          })}
+        </div>
+      </section>
+      {uiLayout === "modern" ? (
+        <section>
+          <h3 className="text-lg font-semibold mb-0">Modern density</h3>
+          <p className="text-sm text-muted-foreground mb-2">
+            Row spacing in the Modern dashboard and Customize screens
+          </p>
+          <div className="bg-muted/50 rounded-lg p-1">
+            <div className="flex gap-1" role="radiogroup" aria-label="Modern density">
+              {MODERN_DENSITY_OPTIONS.map((option) => {
+                const isActive = option.value === modernDensity;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => onModernDensityChange(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : null}
       <section>
         <h3 className="text-lg font-semibold mb-0">App Theme</h3>
         <p className="text-sm text-muted-foreground mb-2">
@@ -1394,6 +1679,10 @@ export function SettingsPage({
           </div>
         </div>
       </section>
+      </>
+      ) : null}
+      {showModernSection("advanced") ? (
+      <>
       <GlobalShortcutSection
         globalShortcut={globalShortcut}
         onGlobalShortcutChange={onGlobalShortcutChange}
@@ -1412,14 +1701,11 @@ export function SettingsPage({
           Start on login
         </label>
       </section>
+      <InsightsSection />
+      <LocalApiSection />
       <UsageHistorySection />
       <section>
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
-        <p className="text-sm text-muted-foreground mb-2">
-          <strong>Local HTTP API</strong> (while the app runs):{" "}
-          <code className="text-xs">curl -sS http://127.0.0.1:6736/v1/usage</code> — the root URL returns{" "}
-          <code className="text-xs">not_found</code> by design.
-        </p>
         <p className="text-sm text-muted-foreground mb-2">
           <strong>Copy log tail</strong> copies plain text: a short header (version, OS, enabled accounts) plus
           the redacted recent log (no JSON, no issue template). Lines tagged for provider accounts you have
@@ -1438,7 +1724,30 @@ export function SettingsPage({
         {troubleshootingOsLine ? (
           <p className="text-xs font-mono text-muted-foreground mb-2">{troubleshootingOsLine}</p>
         ) : null}
-        <div className="bg-muted/50 rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="mb-3">
+          <p className="text-sm font-medium mb-1">Log level</p>
+          <p className="text-xs text-muted-foreground mb-2">
+            Controls how much detail is written to the log file. Default is Info.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {LOG_LEVEL_OPTIONS.map((opt) => (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={logLevel === opt.value ? "default" : "outline"}
+                title={opt.hint}
+                onClick={() => void handleLogLevelChange(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {LOG_LEVEL_OPTIONS.find((opt) => opt.value === logLevel)?.hint ?? ""}
+          </p>
+        </div>
+        <div className="bg-muted/50 rounded-lg p-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Button
             type="button"
             variant="outline"
@@ -1478,8 +1787,56 @@ export function SettingsPage({
           >
             Copy log tail
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={async () => {
+              setLogPathMessage(null);
+              if (!isTauri()) {
+                setLogPathMessage("Log path is only available in the desktop app.");
+                return;
+              }
+              try {
+                const path = await invoke<string>("get_log_path");
+                await writeText(path);
+                setLogPathMessage("Copied log file path.");
+              } catch (e) {
+                console.error("get_log_path:", e);
+                setLogPathMessage(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            Copy log path
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={async () => {
+              setLogPathMessage(null);
+              if (!isTauri()) {
+                setLogPathMessage("Reveal log is only available in the desktop app.");
+                return;
+              }
+              try {
+                await invoke("reveal_log_in_folder");
+                setLogPathMessage("Opened log folder.");
+              } catch (e) {
+                console.error("reveal_log_in_folder:", e);
+                setLogPathMessage(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            Reveal log file
+          </Button>
           {supportBundleMessage ? (
             <span className="text-xs text-muted-foreground">{supportBundleMessage}</span>
+          ) : null}
+          {logPathMessage ? (
+            <span className="text-xs text-muted-foreground">{logPathMessage}</span>
           ) : null}
         </div>
       </section>
@@ -1647,6 +2004,9 @@ export function SettingsPage({
           </div>
         )}
       </section>
+      </>
+      ) : null}
+      {showModernSection("providers") ? (
       <section>
         <h3 className="text-lg font-semibold mb-0">Plugins</h3>
         <p className="text-sm text-muted-foreground mb-2">
@@ -1680,6 +2040,7 @@ export function SettingsPage({
                   onRenameAccount={openRenameForm}
                   onRemoveAccount={onRemoveProviderAccount}
                   cursorRequestsLineAvailable={cursorRequestsLineAvailable}
+                  hideTrayLines={isModern}
                   accountFormSlot={
                     accountForm && accountFormAnchorPluginId(accountForm) === plugin.id ? (
                       <div className="pt-2 mt-2 border-t border-border">
@@ -1705,6 +2066,7 @@ export function SettingsPage({
           </DndContext>
         </div>
       </section>
+      ) : null}
       {cursorTrayIconDialog ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"

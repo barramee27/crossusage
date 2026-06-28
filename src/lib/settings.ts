@@ -1,5 +1,6 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
+import { normalizeModernLayout, type ModernLayoutState } from "@/lib/modern-layout";
 
 // Refresh cooldown duration in milliseconds (5 minutes)
 export const REFRESH_COOLDOWN_MS = 300_000;
@@ -28,6 +29,10 @@ export type ResetTimerDisplayMode = "relative" | "absolute";
 export type TimeFormatMode = "auto" | "12h" | "24h";
 
 export type MenubarIconStyle = "provider" | "logoBar" | "logoGrid" | "bars" | "donut";
+
+export type UILayout = "classic" | "modern";
+
+export type ModernDensity = "regular" | "compact";
 
 export type GlobalShortcut = string | null;
 
@@ -72,9 +77,16 @@ export const USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY = "usageSpikeAlertThresholdPct"
 
 const UI_SCALE_KEY = "uiScale";
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
+const SHOW_TRAY_INSIGHT_KEY = "showTrayInsight";
 const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
 const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
+const USAGE_HISTORY_RETENTION_DAYS_KEY = "usageHistoryRetentionDays";
 const ONBOARDING_COMPLETE_V1_KEY = "onboardingCompleteV1";
+/** App version string when user last completed the dual-UI onboarding wizard. */
+const DUAL_UI_ONBOARDING_VERSION_KEY = "dualUiOnboardingVersion";
+const UI_LAYOUT_KEY = "uiLayout";
+const MODERN_LAYOUT_KEY = "modernLayout";
+const MODERN_DENSITY_KEY = "modernDensity";
 
 export const DEFAULT_AUTO_UPDATE_INTERVAL: AutoUpdateIntervalMinutes = 15;
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
@@ -104,8 +116,29 @@ export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
   { value: "compact", label: "Compact" },
 ];
 
+export const UI_LAYOUT_OPTIONS: { value: UILayout; label: string }[] = [
+  { value: "classic", label: "Classic" },
+  { value: "modern", label: "Modern" },
+];
+
+export const MODERN_DENSITY_OPTIONS: { value: ModernDensity; label: string }[] = [
+  { value: "regular", label: "Regular" },
+  { value: "compact", label: "Compact" },
+];
+
 export const DEFAULT_SHOW_TRAY_ICON = true;
+export const DEFAULT_SHOW_TRAY_INSIGHT = true;
+export const DEFAULT_UI_LAYOUT: UILayout = "classic";
+export const DEFAULT_MODERN_DENSITY: ModernDensity = "regular";
 export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
+/** `0` = keep forever (row cap still applies in SQLite). */
+export const DEFAULT_USAGE_HISTORY_RETENTION_DAYS = 90;
+export const USAGE_HISTORY_RETENTION_OPTIONS: { value: number; label: string }[] = [
+  { value: 30, label: "30 days" },
+  { value: 90, label: "90 days" },
+  { value: 365, label: "1 year" },
+  { value: 0, label: "Forever" },
+];
 
 const AUTO_UPDATE_INTERVALS: AutoUpdateIntervalMinutes[] = [5, 15, 30, 60];
 const THEME_MODES: ThemeMode[] = ["system", "light", "dark", "glass"];
@@ -780,6 +813,17 @@ export async function saveShowTrayIcon(value: boolean): Promise<void> {
   await store.save();
 }
 
+export async function loadShowTrayInsight(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_TRAY_INSIGHT_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_TRAY_INSIGHT;
+}
+
+export async function saveShowTrayInsight(value: boolean): Promise<void> {
+  await store.set(SHOW_TRAY_INSIGHT_KEY, value);
+  await store.save();
+}
+
 export async function loadShowAccountIdentity(): Promise<boolean> {
   const stored = await store.get<unknown>(SHOW_ACCOUNT_IDENTITY_KEY);
   if (typeof stored === "boolean") return stored;
@@ -802,25 +846,86 @@ export async function savePersistUsageHistory(value: boolean): Promise<void> {
   await store.save();
 }
 
-function hasLegacyMultiAccount(providerInstances: PluginSettings["providerInstances"]): boolean {
-  if (!providerInstances) return false;
-  return Object.keys(providerInstances).some((id) => id.includes(":"));
+export async function loadUsageHistoryRetentionDays(): Promise<number> {
+  const stored = await store.get<unknown>(USAGE_HISTORY_RETENTION_DAYS_KEY);
+  if (typeof stored === "number" && Number.isFinite(stored) && stored >= 0) {
+    return stored;
+  }
+  return DEFAULT_USAGE_HISTORY_RETENTION_DAYS;
 }
 
-/** Raw loaded settings (before normalize) for legacy migration. */
-export async function resolveOnboardingComplete(storedPluginSettings: PluginSettings): Promise<boolean> {
-  const raw = await store.get<unknown>(ONBOARDING_COMPLETE_V1_KEY);
-  if (raw === true) return true;
-  if (raw === false) return false;
-  if (hasLegacyMultiAccount(storedPluginSettings.providerInstances)) {
-    await store.set(ONBOARDING_COMPLETE_V1_KEY, true);
-    await store.save();
+export async function saveUsageHistoryRetentionDays(value: number): Promise<void> {
+  await store.set(USAGE_HISTORY_RETENTION_DAYS_KEY, value);
+  await store.save();
+}
+
+/**
+ * Whether to skip the onboarding wizard.
+ * Show wizard when `dualUiOnboardingVersion` !== current app version (first install or after update).
+ * Settings.json is preserved — only the version key is written on completion.
+ */
+export async function resolveOnboardingComplete(
+  _storedPluginSettings: PluginSettings,
+  appVersion: string,
+): Promise<boolean> {
+  const seenVersion = await store.get<unknown>(DUAL_UI_ONBOARDING_VERSION_KEY);
+  if (typeof seenVersion === "string" && seenVersion === appVersion) {
     return true;
   }
   return false;
 }
 
+export async function saveDualUiOnboardingComplete(appVersion: string): Promise<void> {
+  await store.set(ONBOARDING_COMPLETE_V1_KEY, true);
+  await store.set(DUAL_UI_ONBOARDING_VERSION_KEY, appVersion);
+  await store.save();
+}
+
+/** @deprecated Use saveDualUiOnboardingComplete — kept for direct v1 writes */
 export async function saveOnboardingCompleteV1(done: boolean): Promise<void> {
   await store.set(ONBOARDING_COMPLETE_V1_KEY, done);
+  await store.save();
+}
+
+const UI_LAYOUTS: UILayout[] = ["classic", "modern"];
+const MODERN_DENSITIES: ModernDensity[] = ["regular", "compact"];
+
+function isUILayout(value: unknown): value is UILayout {
+  return typeof value === "string" && UI_LAYOUTS.includes(value as UILayout);
+}
+
+function isModernDensity(value: unknown): value is ModernDensity {
+  return typeof value === "string" && MODERN_DENSITIES.includes(value as ModernDensity);
+}
+
+export async function loadUILayout(): Promise<UILayout> {
+  const stored = await store.get<unknown>(UI_LAYOUT_KEY);
+  if (isUILayout(stored)) return stored;
+  return DEFAULT_UI_LAYOUT;
+}
+
+export async function saveUILayout(value: UILayout): Promise<void> {
+  await store.set(UI_LAYOUT_KEY, value);
+  await store.save();
+}
+
+export async function loadModernLayout(): Promise<ModernLayoutState> {
+  const stored = await store.get<unknown>(MODERN_LAYOUT_KEY);
+  return normalizeModernLayout(stored);
+}
+
+export async function saveModernLayout(value: ModernLayoutState): Promise<void> {
+  await store.set(MODERN_LAYOUT_KEY, value);
+  await store.save();
+}
+
+export async function loadModernDensity(): Promise<ModernDensity> {
+  const stored = await store.get<unknown>(MODERN_DENSITY_KEY);
+  if (isModernDensity(stored)) return stored;
+  return DEFAULT_MODERN_DENSITY;
+}
+
+export async function saveModernDensity(value: ModernDensity): Promise<void> {
+  await store.set(MODERN_DENSITY_KEY, value);
   await store.save();
 }

@@ -209,6 +209,14 @@ fn route(method: &str, path: &str, raw_path: &str) -> String {
         };
     }
 
+    if path == "/v1/insights" {
+        return match method {
+            "GET" => handle_get_insights(raw_path),
+            "OPTIONS" => response_no_content(),
+            _ => response_method_not_allowed(),
+        };
+    }
+
     response_not_found("not_found")
 }
 
@@ -260,6 +268,24 @@ fn handle_get_history_daily(raw_path: &str) -> String {
     match crossusage_core::usage_daily::list_recent(&dir, limit, None) {
         Ok(rows) => {
             let body = serde_json::to_string_pretty(&rows).unwrap_or_else(|_| "[]".to_string());
+            response_json(200, "OK", &body)
+        }
+        Err(e) => {
+            let body = json_error_body(&e.to_string());
+            response_json(500, "Internal Server Error", &body)
+        }
+    }
+}
+
+fn handle_get_insights(raw_path: &str) -> String {
+    let limit = parse_limit_query(raw_path, 5);
+    let dir = {
+        let state = cache_state().lock().expect("cache state poisoned");
+        state.app_data_dir.clone()
+    };
+    match crossusage_core::usage_history::insights_summary(&dir, limit) {
+        Ok(summary) => {
+            let body = serde_json::to_string_pretty(&summary).unwrap_or_else(|_| "{}".to_string());
             response_json(200, "OK", &body)
         }
         Err(e) => {
@@ -362,6 +388,12 @@ mod tests {
     #[test]
     fn route_get_history_daily_returns_200() {
         let resp = route("GET", "/v1/history/daily", "/v1/history/daily?limit=50");
+        assert!(resp.starts_with("HTTP/1.1 200"));
+    }
+
+    #[test]
+    fn route_get_insights_returns_200() {
+        let resp = route("GET", "/v1/insights", "/v1/insights?limit=5");
         assert!(resp.starts_with("HTTP/1.1 200"));
     }
 

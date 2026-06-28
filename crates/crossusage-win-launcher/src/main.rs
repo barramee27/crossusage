@@ -1,6 +1,6 @@
 //! Windows portable entry. In directory mode it writes `WebView2Loader.dll` next to this exe, then
 //! runs sibling `crossusage_gui.exe`. In onefile mode it extracts the GUI, DLL, CLI, and resources
-//! from an embedded payload into temp first, then runs the extracted GUI.
+//! from an embedded payload into a stable per-user app directory first, then runs the extracted GUI.
 
 #![cfg_attr(
     all(target_os = "windows", not(debug_assertions)),
@@ -39,12 +39,26 @@ fn prepare_directory_mode() -> io::Result<PathBuf> {
 }
 
 fn prepare_onefile_mode() -> io::Result<PathBuf> {
-    let base = env::temp_dir()
-        .join("CrossUsage")
-        .join("onefile")
-        .join(ONEFILE_PAYLOAD_ID.trim());
+    let base = onefile_extract_root().join(ONEFILE_PAYLOAD_ID.trim());
     extract_payload(&base, ONEFILE_PAYLOAD)?;
     Ok(base)
+}
+
+fn onefile_extract_root() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(base) = env::var_os("LOCALAPPDATA").or_else(|| env::var_os("APPDATA")) {
+            return PathBuf::from(base).join("CrossUsage").join("onefile");
+        }
+
+        if let Ok(exe) = env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                return parent.join("CrossUsage.onefile");
+            }
+        }
+    }
+
+    env::temp_dir().join("CrossUsage").join("onefile")
 }
 
 fn run_gui(dir: &Path) -> io::Result<()> {

@@ -18,8 +18,11 @@ const {
   loadResetTimerDisplayModeMock,
   loadShowAccountIdentityMock,
   loadShowTrayIconMock,
+  loadShowTrayInsightMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
+  loadUILayoutMock,
+  loadModernDensityMock,
   loadUIScaleMock,
   loadTimeFormatModeMock,
   migrateLegacyTraySettingsMock,
@@ -27,6 +30,7 @@ const {
   normalizePluginSettingsMock,
   savePluginSettingsMock,
   resolveOnboardingCompleteMock,
+  getVersionMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   isTauriMock: vi.fn(),
@@ -44,8 +48,11 @@ const {
   loadResetTimerDisplayModeMock: vi.fn(),
   loadShowAccountIdentityMock: vi.fn(),
   loadShowTrayIconMock: vi.fn(),
+  loadShowTrayInsightMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
+  loadUILayoutMock: vi.fn(),
+  loadModernDensityMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
   loadTimeFormatModeMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
@@ -53,11 +60,16 @@ const {
   normalizePluginSettingsMock: vi.fn(),
   savePluginSettingsMock: vi.fn(),
   resolveOnboardingCompleteMock: vi.fn(),
+  getVersionMock: vi.fn(),
 }))
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
   isTauri: isTauriMock,
+}))
+
+vi.mock("@tauri-apps/api/app", () => ({
+  getVersion: getVersionMock,
 }))
 
 vi.mock("@tauri-apps/plugin-autostart", () => ({
@@ -83,12 +95,16 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_RESET_TIMER_DISPLAY_MODE: "relative",
   DEFAULT_SHOW_ACCOUNT_IDENTITY: true,
   DEFAULT_SHOW_TRAY_ICON: true,
+  DEFAULT_SHOW_TRAY_INSIGHT: true,
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
+  DEFAULT_UI_LAYOUT: "classic",
+  DEFAULT_MODERN_DENSITY: "regular",
   DEFAULT_UI_SCALE: "normal",
   DEFAULT_TIME_FORMAT_MODE: "auto",
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: loadShowTrayIconMock,
+  loadShowTrayInsight: loadShowTrayInsightMock,
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
   loadDisplayMode: loadDisplayModeMock,
   loadGlobalShortcut: loadGlobalShortcutMock,
@@ -106,6 +122,8 @@ vi.mock("@/lib/settings", () => ({
   loadShowAccountIdentity: loadShowAccountIdentityMock,
   loadStartOnLogin: loadStartOnLoginMock,
   loadThemeMode: loadThemeModeMock,
+  loadUILayout: loadUILayoutMock,
+  loadModernDensity: loadModernDensityMock,
   loadUIScale: loadUIScaleMock,
   loadTimeFormatMode: loadTimeFormatModeMock,
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
@@ -113,6 +131,10 @@ vi.mock("@/lib/settings", () => ({
   normalizePluginSettings: normalizePluginSettingsMock,
   savePluginSettings: savePluginSettingsMock,
   resolveOnboardingComplete: resolveOnboardingCompleteMock,
+}))
+
+vi.mock("@/stores/modern-layout-store", () => ({
+  hydrateModernLayoutStore: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { useSettingsBootstrap } from "@/hooks/app/use-settings-bootstrap"
@@ -123,6 +145,8 @@ function createArgs() {
     setPluginsMeta: vi.fn(),
     setAutoUpdateInterval: vi.fn(),
     setThemeMode: vi.fn(),
+    setUILayout: vi.fn(),
+    setModernDensity: vi.fn(),
     setDisplayMode: vi.fn(),
     setResetTimerDisplayMode: vi.fn(),
     setTimeFormatMode: vi.fn(),
@@ -133,6 +157,7 @@ function createArgs() {
     setPreferMenubarWeeklyLimit: vi.fn(),
     setUIScale: vi.fn(),
     setShowTrayIcon: vi.fn(),
+    setShowTrayInsight: vi.fn(),
     setUsageAlertEnabled: vi.fn(),
     setUsageAlertThreshold: vi.fn(),
     setCustomUsageAlertThreshold: vi.fn(),
@@ -165,8 +190,11 @@ describe("useSettingsBootstrap", () => {
     loadResetTimerDisplayModeMock.mockReset()
     loadShowAccountIdentityMock.mockReset()
     loadShowTrayIconMock.mockReset()
+    loadShowTrayInsightMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
+    loadUILayoutMock.mockReset()
+    loadModernDensityMock.mockReset()
     loadUIScaleMock.mockReset()
     loadTimeFormatModeMock.mockReset()
     migrateLegacyTraySettingsMock.mockReset()
@@ -174,6 +202,8 @@ describe("useSettingsBootstrap", () => {
     normalizePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockReset()
     resolveOnboardingCompleteMock.mockReset()
+    getVersionMock.mockReset()
+    getVersionMock.mockResolvedValue("1.1.0")
 
     isTauriMock.mockReturnValue(true)
     isAutostartEnabledMock.mockResolvedValue(true)
@@ -194,6 +224,8 @@ describe("useSettingsBootstrap", () => {
     arePluginSettingsEqualMock.mockReturnValue(true)
     loadAutoUpdateIntervalMock.mockResolvedValue(15)
     loadThemeModeMock.mockResolvedValue("dark")
+    loadUILayoutMock.mockResolvedValue("classic")
+    loadModernDensityMock.mockResolvedValue("regular")
     loadDisplayModeMock.mockResolvedValue("used")
     loadResetTimerDisplayModeMock.mockResolvedValue("relative")
     loadTimeFormatModeMock.mockResolvedValue("auto")
@@ -203,6 +235,7 @@ describe("useSettingsBootstrap", () => {
     loadStartOnLoginMock.mockResolvedValue(true)
     loadShowAccountIdentityMock.mockResolvedValue(false)
     loadShowTrayIconMock.mockResolvedValue(true)
+    loadShowTrayInsightMock.mockResolvedValue(true)
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)
@@ -249,7 +282,10 @@ describe("useSettingsBootstrap", () => {
     renderHook(() => useSettingsBootstrap(args))
 
     await waitFor(() => {
-      expect(resolveOnboardingCompleteMock).toHaveBeenCalledWith({ order: ["codex"], disabled: [] })
+      expect(resolveOnboardingCompleteMock).toHaveBeenCalledWith(
+        { order: ["codex"], disabled: [] },
+        "1.1.0",
+      )
       expect(args.setOnboardingComplete).toHaveBeenCalledWith(false)
     })
   })

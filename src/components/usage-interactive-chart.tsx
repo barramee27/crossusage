@@ -131,6 +131,47 @@ function findNearestHover(
   return best ? { seriesId: best.seriesId, index: best.index, x: best.x } : null
 }
 
+function findNearestBarHover(
+  series: InteractiveChartSeries[],
+  svgX: number,
+  keys: string[],
+): { seriesId: string; index: number; x: number } | null {
+  if (keys.length === 0 || series.length === 0) return null
+  const innerW = VB_W - PAD_X * 2
+  const slotW = keys.length <= 1 ? innerW : innerW / keys.length
+
+  let bestSlot = 0
+  let bestDist = Number.POSITIVE_INFINITY
+  for (let i = 0; i < keys.length; i++) {
+    const centerX = PAD_X + (i + 0.5) * slotW
+    const dist = Math.abs(svgX - centerX)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestSlot = i
+    }
+  }
+
+  const key = keys[bestSlot]
+  const x = PAD_X + (bestSlot + 0.5) * slotW
+  for (const s of series) {
+    const index = s.points.findIndex((p) => p.key === key)
+    if (index >= 0) return { seriesId: s.id, index, x }
+  }
+  return null
+}
+
+function barChartDayKeys(series: InteractiveChartSeries[]): string[] {
+  const keys = new Set<string>()
+  for (const s of series) {
+    for (const p of s.points) keys.add(p.key)
+  }
+  return [...keys].sort()
+}
+
+function pointIndexForKey(series: InteractiveChartSeries, key: string): number {
+  return series.points.findIndex((p) => p.key === key)
+}
+
 export function UsageInteractiveChart({
   series,
   mode,
@@ -164,16 +205,23 @@ export function UsageInteractiveChart({
   }, [filteredSeries, yMax])
 
   const domain = useMemo(() => timeDomain(filteredSeries), [filteredSeries])
+  const barDayKeys = useMemo(
+    () => (mode === "bar" ? barChartDayKeys(filteredSeries) : []),
+    [filteredSeries, mode],
+  )
 
   const onPointer = useCallback(
     (clientX: number) => {
       const svg = svgRef.current
       if (!svg || filteredSeries.length === 0) return
       const svgX = clientXToSvgX(svg, clientX)
-      const hit = findNearestHover(filteredSeries, svgX, domain)
+      const hit =
+        mode === "bar"
+          ? findNearestBarHover(filteredSeries, svgX, barDayKeys)
+          : findNearestHover(filteredSeries, svgX, domain)
       if (hit) setHover({ seriesId: hit.seriesId, index: hit.index, x: hit.x })
     },
-    [filteredSeries, domain]
+    [filteredSeries, domain, mode, barDayKeys],
   )
 
   const hasAnyData = series.some((s) => s.points.length > 0)
@@ -325,28 +373,46 @@ export function UsageInteractiveChart({
             )
           }
 
-          const singleDayBar = pts.length === 1
-          const barW = singleDayBar ? innerW : innerW / pts.length
-          const gap = singleDayBar ? 0 : Math.min(3, barW * 0.2)
-          const barInner = singleDayBar
-            ? Math.min(96, innerW * 0.22)
-            : Math.max(2, barW - gap)
+          const slotCount = barDayKeys.length
+          const singleDaySlot = slotCount === 1
+          const slotW = singleDaySlot ? innerW : innerW / Math.max(1, slotCount)
+          const gap = singleDaySlot ? 0 : Math.min(3, slotW * 0.2)
+          const seriesCount = filteredSeries.length
+          const seriesIndex = filteredSeries.findIndex((row) => row.id === s.id)
+
+          let slotInnerW: number
+          let barInnerW: number
+          if (singleDaySlot) {
+            const groupW = Math.min(innerW * 0.72, Math.max(48, seriesCount * 28))
+            barInnerW = Math.max(4, (groupW - Math.max(0, seriesCount - 1) * 2) / seriesCount)
+            slotInnerW = groupW
+          } else {
+            slotInnerW = Math.max(2, slotW - gap)
+            barInnerW = Math.max(2, (slotInnerW - Math.max(0, seriesCount - 1) * 1) / seriesCount)
+          }
+
           return (
             <g key={s.id}>
-              {pts.map((p, i) => {
+              {barDayKeys.map((dayKey) => {
+                const i = pointIndexForKey(s, dayKey)
+                if (i < 0) return null
+                const p = s.points[i]
                 const val = p.value
                 const h = val > 0 ? Math.max(2, (val / maxY) * innerH) : 1
-                const x = singleDayBar
-                  ? PAD_X + (innerW - barInner) / 2
-                  : PAD_X + i * barW + gap / 2
+                const slotIndex = barDayKeys.indexOf(dayKey)
+                const slotX = singleDaySlot
+                  ? PAD_X + (innerW - slotInnerW) / 2
+                  : PAD_X + slotIndex * slotW + gap / 2
+                const groupPad = singleDaySlot ? 0 : Math.max(0, (slotInnerW - barInnerW * seriesCount) / 2)
+                const x = slotX + groupPad + seriesIndex * (barInnerW + (singleDaySlot ? 2 : 1))
                 const y = VB_H - PAD_Y - h
                 const activeBar = hover?.seriesId === s.id && hover.index === i
                 return (
                   <rect
-                    key={`${s.id}-${i}-${p.key}`}
+                    key={`${s.id}-${dayKey}`}
                     x={x}
                     y={y}
-                    width={barInner}
+                    width={barInnerW}
                     height={h}
                     rx={2}
                     fill={s.color}

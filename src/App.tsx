@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import { getVersion } from "@tauri-apps/api/app"
 import { invoke } from "@tauri-apps/api/core"
 import { useShallow } from "zustand/react/shallow"
 import { AppShell } from "@/components/app/app-shell"
+import { ModernShell } from "@/components/app/modern-shell"
 import { useAppPluginViews } from "@/hooks/app/use-app-plugin-views"
 import { useProbe } from "@/hooks/app/use-probe"
 import { useSettingsBootstrap } from "@/hooks/app/use-settings-bootstrap"
@@ -19,8 +21,11 @@ import {
   getBaseProviderId,
   getProviderInstanceLabel,
   REFRESH_COOLDOWN_MS,
-  saveOnboardingCompleteV1,
+  DEFAULT_UI_LAYOUT,
+  saveDualUiOnboardingComplete,
   savePluginSettings,
+  saveUILayout,
+  type UILayout,
 } from "@/lib/settings"
 import { type PluginContextAction } from "@/components/side-nav"
 import type { PluginOutput } from "@/lib/plugin-types"
@@ -68,6 +73,9 @@ function App() {
     setAutoUpdateInterval,
     themeMode,
     setThemeMode,
+    uiLayout,
+    setUILayout,
+    setModernDensity,
     displayMode,
     setDisplayMode,
     menubarIconStyle,
@@ -90,6 +98,7 @@ function App() {
     setUsageSpikeAlertEnabled,
     setUsageSpikeAlertThresholdPct,
     setShowTrayIcon,
+    setShowTrayInsight,
     onboardingComplete,
     setOnboardingComplete,
   } = useAppPreferencesStore(
@@ -98,6 +107,9 @@ function App() {
       setAutoUpdateInterval: state.setAutoUpdateInterval,
       themeMode: state.themeMode,
       setThemeMode: state.setThemeMode,
+      uiLayout: state.uiLayout,
+      setUILayout: state.setUILayout,
+      setModernDensity: state.setModernDensity,
       displayMode: state.displayMode,
       setDisplayMode: state.setDisplayMode,
       menubarIconStyle: state.menubarIconStyle,
@@ -120,6 +132,7 @@ function App() {
       setUsageSpikeAlertEnabled: state.setUsageSpikeAlertEnabled,
       setUsageSpikeAlertThresholdPct: state.setUsageSpikeAlertThresholdPct,
       setShowTrayIcon: state.setShowTrayIcon,
+      setShowTrayInsight: state.setShowTrayInsight,
       onboardingComplete: state.onboardingComplete,
       setOnboardingComplete: state.setOnboardingComplete,
     }))
@@ -160,6 +173,7 @@ function App() {
     menubarIconStyle,
     preferMenubarWeeklyLimit,
     activeView,
+    uiLayout,
   })
 
   useEffect(() => {
@@ -173,6 +187,8 @@ function App() {
     setPluginsMeta,
     setAutoUpdateInterval,
     setThemeMode,
+    setUILayout,
+    setModernDensity,
     setDisplayMode,
     setMenubarIconStyle,
     setPreferMenubarWeeklyLimit,
@@ -181,6 +197,7 @@ function App() {
     setShowAccountIdentity,
     setUIScale,
     setShowTrayIcon,
+    setShowTrayInsight,
     setGlobalShortcut,
     setStartOnLogin,
     setUsageAlertEnabled,
@@ -201,6 +218,8 @@ function App() {
 
   const {
     handleThemeModeChange,
+    handleUILayoutChange,
+    handleModernDensityChange,
     handleDisplayModeChange,
     handleResetTimerDisplayModeChange,
     handleResetTimerDisplayModeToggle,
@@ -218,6 +237,8 @@ function App() {
     handleUsageSpikeAlertThresholdPctChange,
   } = useSettingsDisplayActions({
     setThemeMode,
+    setUILayout,
+    setModernDensity,
     setDisplayMode,
     resetTimerDisplayMode,
     setResetTimerDisplayMode,
@@ -254,6 +275,8 @@ function App() {
     handleToggle,
     handleTrayLineToggle,
     handleSetCursorTrayMetricForAllAccounts,
+    handleDashboardMetricToggle,
+    handleProviderDashboardMetrics,
   } = useSettingsPluginActions({
     pluginSettings,
     pluginsMeta,
@@ -316,26 +339,40 @@ function App() {
 
   const showOnboardingWizard = onboardingComplete === false && pluginSettings !== null
 
-  const handleOnboardingGetStarted = useCallback(() => {
-    void saveOnboardingCompleteV1(true)
-      .then(() => {
-        setOnboardingComplete(true)
-        setActiveView("settings")
-      })
-      .catch((error) => {
-        console.error("Failed to save onboarding completion:", error)
-      })
-  }, [setActiveView, setOnboardingComplete])
+  const handleOnboardingComplete = useCallback(
+    (layout: UILayout) => {
+      void getVersion()
+        .then((appVersion) =>
+          Promise.all([saveUILayout(layout), saveDualUiOnboardingComplete(appVersion)]),
+        )
+        .then(() => {
+          setUILayout(layout)
+          setOnboardingComplete(true)
+          setActiveView("settings")
+        })
+        .catch((error) => {
+          console.error("Failed to save onboarding completion:", error)
+        })
+    },
+    [setActiveView, setOnboardingComplete, setUILayout],
+  )
 
   const handleOnboardingSkip = useCallback(() => {
-    void saveOnboardingCompleteV1(true)
+    void getVersion()
+      .then((appVersion) =>
+        Promise.all([
+          saveUILayout(DEFAULT_UI_LAYOUT),
+          saveDualUiOnboardingComplete(appVersion),
+        ]),
+      )
       .then(() => {
+        setUILayout(DEFAULT_UI_LAYOUT)
         setOnboardingComplete(true)
       })
       .catch((error) => {
         console.error("Failed to save onboarding completion:", error)
       })
-  }, [setOnboardingComplete])
+  }, [setOnboardingComplete, setUILayout])
 
   const handlePluginContextAction = useCallback(
     (pluginId: string, action: PluginContextAction) => {
@@ -552,55 +589,72 @@ function App() {
     [activeView, pluginSettings, scheduleTrayIconUpdate, setActiveView, setPluginSettings]
   )
 
+  const shellProps = {
+    onRefreshAll: handleRefreshAll,
+    displayPlugins,
+    settingsPlugins,
+    autoUpdateNextAt,
+    updateStatus,
+    onUpdateInstall: triggerInstall,
+    onUpdateCheck: checkForUpdates,
+    showOnboardingWizard,
+    onOnboardingComplete: handleOnboardingComplete,
+    onOnboardingSkip: handleOnboardingSkip,
+    appContentProps: {
+      onRetryPlugin: handleRetryPlugin,
+      onReorder: handleReorder,
+      onToggle: handleToggle,
+      onTrayLineToggle: handleTrayLineToggle,
+      onDashboardMetricToggle: handleDashboardMetricToggle,
+      onProviderDashboardMetrics: handleProviderDashboardMetrics,
+      onAddProviderAccount: handleAddProviderAccount,
+      onUpdateProviderAccountCredentials: handleUpdateProviderAccountCredentials,
+      onRenameProviderAccount: handleRenameProviderAccount,
+      onRemoveProviderAccount: handleRemoveProviderAccount,
+      onAutoUpdateIntervalChange: handleAutoUpdateIntervalChange,
+      onThemeModeChange: handleThemeModeChange,
+      onUILayoutChange: handleUILayoutChange,
+      onModernDensityChange: handleModernDensityChange,
+      onDisplayModeChange: handleDisplayModeChange,
+      onResetTimerDisplayModeChange: handleResetTimerDisplayModeChange,
+      onResetTimerDisplayModeToggle: handleResetTimerDisplayModeToggle,
+      onTimeFormatModeChange: handleTimeFormatModeChange,
+      onMenubarIconStyleChange: handleMenubarIconStyleChange,
+      onPreferMenubarWeeklyLimitChange: handlePreferMenubarWeeklyLimitChange,
+      traySettingsPreview,
+      onGlobalShortcutChange: handleGlobalShortcutChange,
+      onStartOnLoginChange: handleStartOnLoginChange,
+      onUsageAlertEnabledChange: handleUsageAlertEnabledChange,
+      onUsageAlertThresholdChange: handleUsageAlertThresholdChange,
+      onUsageAlertCustomThresholdChange: handleUsageAlertCustomThresholdChange,
+      onUsageAlertSoundChange: handleUsageAlertSoundChange,
+      onUsagePaceAlertEnabledChange: handleUsagePaceAlertEnabledChange,
+      onUsageSpikeAlertEnabledChange: handleUsageSpikeAlertEnabledChange,
+      onUsageSpikeAlertThresholdPctChange: handleUsageSpikeAlertThresholdPctChange,
+      onUIScaleChange: handleUIScaleChange,
+      onShowAccountIdentityChange: handleShowAccountIdentityChange,
+      onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
+      cursorRequestsLineAvailable,
+    },
+  }
+
+  if (uiLayout === "modern") {
+    return (
+      <ModernShell
+        {...shellProps}
+        preferWeeklyLimit={preferMenubarWeeklyLimit}
+      />
+    )
+  }
+
   return (
     <AppShell
-      onRefreshAll={handleRefreshAll}
+      {...shellProps}
       navPlugins={navPlugins}
-      displayPlugins={displayPlugins}
-      settingsPlugins={settingsPlugins}
-      autoUpdateNextAt={autoUpdateNextAt}
       selectedPlugin={selectedPlugin}
       onPluginContextAction={handlePluginContextAction}
       isPluginRefreshAvailable={isPluginRefreshAvailable}
       onNavReorder={handleReorder}
-      updateStatus={updateStatus}
-      onUpdateInstall={triggerInstall}
-      onUpdateCheck={checkForUpdates}
-      showOnboardingWizard={showOnboardingWizard}
-      onOnboardingGetStarted={handleOnboardingGetStarted}
-      onOnboardingSkip={handleOnboardingSkip}
-      appContentProps={{
-        onRetryPlugin: handleRetryPlugin,
-        onReorder: handleReorder,
-        onToggle: handleToggle,
-        onTrayLineToggle: handleTrayLineToggle,
-        onAddProviderAccount: handleAddProviderAccount,
-        onUpdateProviderAccountCredentials: handleUpdateProviderAccountCredentials,
-        onRenameProviderAccount: handleRenameProviderAccount,
-        onRemoveProviderAccount: handleRemoveProviderAccount,
-        onAutoUpdateIntervalChange: handleAutoUpdateIntervalChange,
-        onThemeModeChange: handleThemeModeChange,
-        onDisplayModeChange: handleDisplayModeChange,
-        onResetTimerDisplayModeChange: handleResetTimerDisplayModeChange,
-        onResetTimerDisplayModeToggle: handleResetTimerDisplayModeToggle,
-        onTimeFormatModeChange: handleTimeFormatModeChange,
-        onMenubarIconStyleChange: handleMenubarIconStyleChange,
-        onPreferMenubarWeeklyLimitChange: handlePreferMenubarWeeklyLimitChange,
-        traySettingsPreview,
-        onGlobalShortcutChange: handleGlobalShortcutChange,
-        onStartOnLoginChange: handleStartOnLoginChange,
-        onUsageAlertEnabledChange: handleUsageAlertEnabledChange,
-        onUsageAlertThresholdChange: handleUsageAlertThresholdChange,
-        onUsageAlertCustomThresholdChange: handleUsageAlertCustomThresholdChange,
-        onUsageAlertSoundChange: handleUsageAlertSoundChange,
-        onUsagePaceAlertEnabledChange: handleUsagePaceAlertEnabledChange,
-        onUsageSpikeAlertEnabledChange: handleUsageSpikeAlertEnabledChange,
-        onUsageSpikeAlertThresholdPctChange: handleUsageSpikeAlertThresholdPctChange,
-        onUIScaleChange: handleUIScaleChange,
-        onShowAccountIdentityChange: handleShowAccountIdentityChange,
-        onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
-        cursorRequestsLineAvailable,
-      }}
     />
   )
 }

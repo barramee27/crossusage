@@ -9,8 +9,11 @@ import {
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
+  DEFAULT_SHOW_TRAY_INSIGHT,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
+  DEFAULT_UI_LAYOUT,
+  DEFAULT_MODERN_DENSITY,
   DEFAULT_TIME_FORMAT_MODE,
   DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   DEFAULT_USAGE_ALERT_ENABLED,
@@ -26,6 +29,8 @@ import {
   type MenubarIconStyle,
   type ResetTimerDisplayMode,
   type ThemeMode,
+  type UILayout,
+  type ModernDensity,
   type TimeFormatMode,
   type UsageAlertSound,
   type UsageAlertThreshold,
@@ -35,6 +40,8 @@ import {
 type AppPreferencesStore = {
   autoUpdateInterval: AutoUpdateIntervalMinutes
   themeMode: ThemeMode
+  uiLayout: UILayout
+  modernDensity: ModernDensity
   displayMode: DisplayMode
   resetTimerDisplayMode: ResetTimerDisplayMode
   timeFormatMode: TimeFormatMode
@@ -45,6 +52,7 @@ type AppPreferencesStore = {
   preferMenubarWeeklyLimit: boolean
   uiScale: UIScale
   showTrayIcon: boolean
+  showTrayInsight: boolean
   usageAlertEnabled: boolean
   usageAlertThreshold: UsageAlertThreshold
   customUsageAlertThreshold: number | null
@@ -56,6 +64,8 @@ type AppPreferencesStore = {
 
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
+  setUILayout: (value: UILayout) => void
+  setModernDensity: (value: ModernDensity) => void
   setDisplayMode: (value: DisplayMode) => void
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setTimeFormatMode: (value: TimeFormatMode) => void
@@ -66,6 +76,7 @@ type AppPreferencesStore = {
   setPreferMenubarWeeklyLimit: (value: boolean) => void
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
+  setShowTrayInsight: (value: boolean) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -80,6 +91,8 @@ type AppPreferencesStore = {
 const initialState = {
   autoUpdateInterval: DEFAULT_AUTO_UPDATE_INTERVAL,
   themeMode: DEFAULT_THEME_MODE,
+  uiLayout: DEFAULT_UI_LAYOUT,
+  modernDensity: DEFAULT_MODERN_DENSITY,
   displayMode: DEFAULT_DISPLAY_MODE,
   resetTimerDisplayMode: DEFAULT_RESET_TIMER_DISPLAY_MODE,
   timeFormatMode: DEFAULT_TIME_FORMAT_MODE,
@@ -90,6 +103,7 @@ const initialState = {
   preferMenubarWeeklyLimit: DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
   uiScale: DEFAULT_UI_SCALE,
   showTrayIcon: DEFAULT_SHOW_TRAY_ICON,
+  showTrayInsight: DEFAULT_SHOW_TRAY_INSIGHT,
   usageAlertEnabled: DEFAULT_USAGE_ALERT_ENABLED,
   usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
   customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
@@ -104,6 +118,8 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   ...initialState,
   setAutoUpdateInterval: (value) => set({ autoUpdateInterval: value }),
   setThemeMode: (value) => set({ themeMode: value }),
+  setUILayout: (value) => set({ uiLayout: value }),
+  setModernDensity: (value) => set({ modernDensity: value }),
   setDisplayMode: (value) => set({ displayMode: value }),
   setResetTimerDisplayMode: (value) => set({ resetTimerDisplayMode: value }),
   setTimeFormatMode: (value) => set({ timeFormatMode: value }),
@@ -114,6 +130,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setPreferMenubarWeeklyLimit: (value) => set({ preferMenubarWeeklyLimit: value }),
   setUIScale: (value) => set({ uiScale: value }),
   setShowTrayIcon: (value) => set({ showTrayIcon: value }),
+  setShowTrayInsight: (value) => set({ showTrayInsight: value }),
   setUsageAlertEnabled: (value) => set({ usageAlertEnabled: value }),
   setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
   setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),

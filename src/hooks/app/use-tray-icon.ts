@@ -5,15 +5,21 @@ import { TrayIcon } from "@tauri-apps/api/tray"
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { DisplayMode, MenubarIconStyle, PluginSettings } from "@/lib/settings"
 import { getEnabledPluginIds, getProviderInstanceMeta } from "@/lib/settings"
+import { resolveTrayBarsForLayout } from "@/lib/modern-tray-bars"
+import { parseMetricId } from "@/lib/metric-id"
 
 import { getTrayForegroundHex, renderTrayBarsIcon, type TrayProviderIcon } from "@/lib/tray-bars-icon"
 import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { formatTrayIssuesAppendage } from "@/lib/tray-health"
-import { getTrayPrimaryBars, type TrayPrimaryBar } from "@/lib/tray-primary-progress"
+import type { TrayPrimaryBar } from "@/lib/tray-primary-progress"
 import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
+import { formatTopTrayInsightLine } from "@/lib/usage-insights"
+import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
 import type { PluginState } from "@/hooks/app/types"
 import { useSystemDarkMode } from "@/hooks/use-system-dark-mode"
+import { useModernLayoutStore } from "@/stores/modern-layout-store"
+import type { UILayout } from "@/lib/settings"
 
 type TrayUpdateReason = "probe" | "settings" | "init"
 
@@ -25,6 +31,7 @@ type UseTrayIconArgs = {
   menubarIconStyle: MenubarIconStyle
   preferMenubarWeeklyLimit: boolean
   activeView: string
+  uiLayout: UILayout
 }
 
 export type TraySettingsPreview = {
@@ -91,6 +98,7 @@ export function useTrayIcon({
   menubarIconStyle,
   preferMenubarWeeklyLimit,
   activeView,
+  uiLayout,
 }: UseTrayIconArgs) {
   const trayRef = useRef<TrayIcon | null>(null)
   const trayGaugeIconPathRef = useRef<string | null>(null)
@@ -109,13 +117,21 @@ export function useTrayIcon({
   const menubarIconStyleRef = useRef(menubarIconStyle)
   const preferMenubarWeeklyLimitRef = useRef(preferMenubarWeeklyLimit)
   const activeViewRef = useRef(activeView)
+  const uiLayoutRef = useRef(uiLayout)
+  const pinnedMetricIdsRef = useRef<string[]>([])
+  const trayFocusProviderIdRef = useRef<string | null>(null)
   const lastTrayProviderIdRef = useRef<string | null>(null)
 
   const systemDark = useSystemDarkMode()
+  const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight)
+  const showTrayInsightRef = useRef(showTrayInsight)
   const systemDarkRef = useRef(systemDark)
   useEffect(() => {
     systemDarkRef.current = systemDark
   }, [systemDark])
+  useEffect(() => {
+    showTrayInsightRef.current = showTrayInsight
+  }, [showTrayInsight])
 
   useEffect(() => {
     pluginsMetaRef.current = pluginsMeta
@@ -144,6 +160,20 @@ export function useTrayIcon({
   useEffect(() => {
     activeViewRef.current = activeView
   }, [activeView])
+
+  useEffect(() => {
+    uiLayoutRef.current = uiLayout
+  }, [uiLayout])
+
+  useEffect(() => {
+    const layout = useModernLayoutStore.getState()
+    pinnedMetricIdsRef.current = layout.pinnedMetricIds
+    trayFocusProviderIdRef.current = layout.trayFocusProviderId
+    return useModernLayoutStore.subscribe((state) => {
+      pinnedMetricIdsRef.current = state.pinnedMetricIds
+      trayFocusProviderIdRef.current = state.trayFocusProviderId
+    })
+  }, [])
 
   const scheduleTrayIconUpdate = useCallback((
     _reason: TrayUpdateReason,
@@ -247,36 +277,54 @@ export function useTrayIcon({
       const activeProviderId =
         nextActiveView !== "home" && nextActiveView !== "settings" ? nextActiveView : null
 
+      const pinnedIds = pinnedMetricIdsRef.current
+      const firstPinnedProviderId = (() => {
+        for (const id of pinnedIds) {
+          const parsed = parseMetricId(id)
+          if (parsed && enabledPluginIds.includes(parsed.pluginId)) return parsed.pluginId
+        }
+        return null
+      })()
+
+      const focusFromLayout = trayFocusProviderIdRef.current
       let trayProviderId: string | null = null
-      if (activeProviderId && enabledPluginIds.includes(activeProviderId)) {
+      if (focusFromLayout && enabledPluginIds.includes(focusFromLayout)) {
+        trayProviderId = focusFromLayout
+      } else if (activeProviderId && enabledPluginIds.includes(activeProviderId)) {
         trayProviderId = activeProviderId
       } else if (
         lastTrayProviderIdRef.current &&
         enabledPluginIds.includes(lastTrayProviderIdRef.current)
       ) {
         trayProviderId = lastTrayProviderIdRef.current
+      } else if (firstPinnedProviderId) {
+        trayProviderId = firstPinnedProviderId
       } else {
         trayProviderId = enabledPluginIds[0] ?? null
       }
 
-      const barsForPreview = getTrayPrimaryBars({
+      const barsForPreview = resolveTrayBarsForLayout({
+        uiLayout: uiLayoutRef.current,
+        pinnedMetricIds: pinnedMetricIdsRef.current,
         pluginsMeta: pluginsMetaRef.current,
         pluginSettings: currentSettings,
         pluginStates: pluginStatesRef.current,
-        maxBars: 4,
         displayMode: displayModeRef.current,
         preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+        maxBars: 4,
       })
 
       const providerBars = trayProviderId
-        ? getTrayPrimaryBars({
+        ? resolveTrayBarsForLayout({
+            uiLayout: uiLayoutRef.current,
+            pinnedMetricIds: pinnedMetricIdsRef.current,
             pluginsMeta: pluginsMetaRef.current,
             pluginSettings: currentSettings,
             pluginStates: pluginStatesRef.current,
-            maxBars: 1,
             displayMode: displayModeRef.current,
-            pluginId: trayProviderId,
             preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+            maxBars: 1,
+            pluginId: trayProviderId,
           })
         : []
 
@@ -312,25 +360,50 @@ export function useTrayIcon({
         isSameTraySettingsPreview(prev, nextPreview) ? prev : nextPreview
       )
 
-      const tooltipBars = getTrayPrimaryBars({
+      const tooltipBars = resolveTrayBarsForLayout({
+        uiLayout: uiLayoutRef.current,
+        pinnedMetricIds: pinnedMetricIdsRef.current,
         pluginsMeta: pluginsMetaRef.current,
         pluginSettings: currentSettings,
         pluginStates: pluginStatesRef.current,
-        maxBars: 20,
         displayMode: displayModeRef.current,
         preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+        maxBars: 20,
       })
       const baseTooltip = formatTrayTooltip(
         tooltipBars,
         pluginsMetaRef.current,
         displayModeRef.current
       )
+      const displayPlugins = enabledPluginIds
+        .map((id) => {
+          const meta = getProviderInstanceMeta(id, currentSettings, pluginsMetaRef.current)
+          if (!meta) return null
+          const state =
+            pluginStatesRef.current[id] ?? {
+              data: null,
+              loading: false,
+              error: null,
+              lastManualRefreshAt: null,
+              lastUpdatedAt: null,
+            }
+          return { meta, ...state }
+        })
+        .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
+      const insightLine = showTrayInsightRef.current
+        ? formatTopTrayInsightLine({
+            plugins: displayPlugins,
+            pluginSettings: currentSettings,
+            preferWeeklyLimit: preferMenubarWeeklyLimitRef.current,
+          })
+        : null
+      const tooltipBody = insightLine ? `${insightLine}\n\n${baseTooltip}` : baseTooltip
       const issuesLine = formatTrayIssuesAppendage({
         pluginsMeta: pluginsMetaRef.current,
         pluginSettings: currentSettings,
         pluginStates: pluginStatesRef.current,
       })
-      const tooltip = issuesLine ? `${baseTooltip}\n${issuesLine}` : baseTooltip
+      const tooltip = issuesLine ? `${tooltipBody}\n${issuesLine}` : tooltipBody
       mirrorTrayUsageSummaryToBackend(tooltip)
       const updateTooltip = () => setTrayTooltip(tooltip)
 
@@ -439,21 +512,17 @@ export function useTrayIcon({
       renderTrayBarsIcon({
         bars: providerBars,
         sizePx,
-
         style: "provider",
         providerIconUrl: providerIconUrlToRender,
         providerColor,
+        percentText: providerPercentText,
         hideIcon: false,
         foregroundHex: ink,
-
       })
         .then(async (img) => {
           await tray.setIcon(img)
           await tray.setIconAsTemplate(rasterUsesTemplate)
 
-          // Keep the tray slot for the logo only. Native titles clip badly in
-          // Windows/Linux trays, and drawing the percent into the bitmap makes
-          // provider icons too small at tray size.
           await setTrayTitle(null)
           await updateTooltip()
         })
@@ -505,8 +574,25 @@ export function useTrayIcon({
 
   useEffect(() => {
     if (!trayReady) return
+    let lastPins = useModernLayoutStore.getState().pinnedMetricIds.join("|")
+    let lastFocus = useModernLayoutStore.getState().trayFocusProviderId ?? ""
+    let lastInit = useModernLayoutStore.getState().initialized
+    return useModernLayoutStore.subscribe((state) => {
+      const pins = state.pinnedMetricIds.join("|")
+      const focus = state.trayFocusProviderId ?? ""
+      if (pins !== lastPins || focus !== lastFocus || state.initialized !== lastInit) {
+        lastPins = pins
+        lastFocus = focus
+        lastInit = state.initialized
+        scheduleTrayIconUpdate("settings", 0)
+      }
+    })
+  }, [scheduleTrayIconUpdate, trayReady])
+
+  useEffect(() => {
+    if (!trayReady) return
     scheduleTrayIconUpdate("settings", 0)
-  }, [activeView, displayMode, menubarIconStyle, scheduleTrayIconUpdate, trayReady])
+  }, [activeView, displayMode, menubarIconStyle, uiLayout, scheduleTrayIconUpdate, showTrayInsight, trayReady])
 
   useEffect(() => {
     if (!trayReady) return

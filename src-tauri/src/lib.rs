@@ -617,7 +617,7 @@ async fn start_probe_batch(
         .collect();
 
     log::info!(
-        "probe batch {} starting: {:?}",
+        "[refresh] batch {} starting: {:?}",
         batch_id,
         response_plugin_ids
     );
@@ -639,7 +639,7 @@ async fn start_probe_batch(
     let worker_count = probe_worker_count(selected_count);
     if worker_count < selected_count {
         log::info!(
-            "probe batch {} using {} workers for {} plugins",
+            "[refresh] batch {} using {} workers for {} plugins",
             batch_id,
             worker_count,
             selected_count
@@ -753,7 +753,7 @@ async fn start_probe_batch(
             }
 
             if counter.fetch_sub(1, Ordering::SeqCst) == 1 {
-                log::info!("probe batch {} complete", completion_bid);
+                log::info!("[refresh] batch {} complete", completion_bid);
                 let _ = completion_handle.emit(
                     "probe:batch-complete",
                     ProbeBatchComplete {
@@ -791,6 +791,48 @@ pub(crate) fn resolve_log_file_path(app_handle: &tauri::AppHandle) -> Result<Str
 #[tauri::command]
 fn get_log_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     log_path::for_app(&app_handle).map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_log_level(app_handle: tauri::AppHandle) -> String {
+    tray::log_level_to_str(tray::current_log_level(&app_handle)).to_string()
+}
+
+#[tauri::command]
+fn set_log_level(app_handle: tauri::AppHandle, level: String) -> Result<(), String> {
+    let filter = tray::log_level_from_str(level.trim())
+        .ok_or_else(|| format!("invalid log level: {level}"))?;
+    tray::apply_log_level(&app_handle, filter);
+    Ok(())
+}
+
+#[tauri::command]
+fn reveal_log_in_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let path = log_path::for_app(&app_handle).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path.display()))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = path.parent().ok_or_else(|| "log file has no parent directory".to_string())?;
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Returns `std::env::consts::OS` for the **built** target (e.g. `linux`, `windows`, `macos`).
@@ -836,6 +878,19 @@ fn list_usage_history(
         locked.app_data_dir.clone()
     };
     crossusage_core::usage_history::list_recent(&dir, limit.unwrap_or(80)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_usage_insights(
+    state: tauri::State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+) -> Result<crossusage_core::usage_history::HistoryInsightsSummary, String> {
+    let dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.app_data_dir.clone()
+    };
+    crossusage_core::usage_history::insights_summary(&dir, limit.unwrap_or(5))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1052,8 +1107,12 @@ pub fn run() {
             delete_provider_account,
             list_plugins,
             get_log_path,
+            get_log_level,
+            set_log_level,
+            reveal_log_in_folder,
             get_support_bundle_json,
             list_usage_history,
+            get_usage_insights,
             list_usage_daily,
             query_cursor_usage_stats,
             clear_usage_history,

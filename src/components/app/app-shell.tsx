@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core"
 import { X } from "lucide-react"
 import { AppContent, type AppContentActionProps } from "@/components/app/app-content"
 import { OnboardingWizard } from "@/components/onboarding-wizard"
+import type { UILayout } from "@/lib/settings"
 import { LiquidGlassFilter } from "@/components/liquid-glass-filter"
 import { PanelFooter } from "@/components/panel-footer"
 import { SideNav, type NavPlugin, type PluginContextAction } from "@/components/side-nav"
@@ -32,7 +33,7 @@ type AppShellProps = {
   appContentProps: AppContentActionProps
 
   showOnboardingWizard: boolean
-  onOnboardingGetStarted: () => void
+  onOnboardingComplete: (layout: UILayout) => void
   onOnboardingSkip: () => void
 }
 
@@ -51,7 +52,7 @@ export function AppShell({
   onUpdateCheck,
   appContentProps,
   showOnboardingWizard,
-  onOnboardingGetStarted,
+  onOnboardingComplete,
   onOnboardingSkip,
 }: AppShellProps) {
   const { themeMode } = useAppPreferencesStore(
@@ -127,7 +128,7 @@ export function AppShell({
             ) : null}
             <div className="relative flex min-h-0 flex-1 flex-col">
               {showOnboardingWizard ? (
-                <OnboardingWizard onGetStarted={onOnboardingGetStarted} onSkip={onOnboardingSkip} />
+                <OnboardingWizard onComplete={onOnboardingComplete} onSkip={onOnboardingSkip} />
               ) : null}
               <div
                 ref={scrollRef}

@@ -38,18 +38,53 @@ pub fn usage_history_db_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("usage_history.sqlite3")
 }
 
+fn read_settings_json(app_data_dir: &Path) -> Option<serde_json::Value> {
+    let path = app_data_dir.join("settings.json");
+    let data = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&data).ok()
+}
+
 /// Reads Tauri `settings.json` in app data (same file as the desktop settings store).
 pub fn persist_usage_history_enabled(app_data_dir: &Path) -> bool {
-    let path = app_data_dir.join("settings.json");
-    let Ok(data) = std::fs::read_to_string(path) else {
-        return false;
-    };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) else {
-        return false;
-    };
-    v.get("persistUsageHistory")
-        .and_then(|x| x.as_bool())
+    read_settings_json(app_data_dir)
+        .and_then(|v| v.get("persistUsageHistory").and_then(|x| x.as_bool()))
         .unwrap_or(false)
+}
+
+/// Days to keep history rows (`0` = no age-based prune; row cap still applies).
+pub fn usage_history_retention_days(app_data_dir: &Path) -> u32 {
+    read_settings_json(app_data_dir)
+        .and_then(|v| v.get("usageHistoryRetentionDays").and_then(|x| x.as_u64()))
+        .map(|n| n.min(3650) as u32)
+        .unwrap_or(90)
+}
+
+pub fn prune_by_retention(app_data_dir: &Path) -> rusqlite::Result<()> {
+    let days = usage_history_retention_days(app_data_dir);
+    if days == 0 {
+        return Ok(());
+    }
+    let path = usage_history_db_path(app_data_dir);
+    if !path.exists() {
+        return Ok(());
+    }
+    let cutoff_ms = chrono::Utc::now().timestamp_millis() - i64::from(days) * 86_400_000;
+    let conn = Connection::open(&path)?;
+    init_schema(&conn)?;
+    conn.execute(
+        "DELETE FROM usage_history WHERE captured_at_ms < ?1",
+        [cutoff_ms],
+    )?;
+    let cutoff_day = chrono::DateTime::from_timestamp_millis(cutoff_ms)
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+        .unwrap_or_default();
+    if !cutoff_day.is_empty() {
+        let _ = conn.execute(
+            "DELETE FROM usage_daily WHERE day_key < ?1",
+            [cutoff_day.as_str()],
+        );
+    }
+    Ok(())
 }
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -114,6 +149,8 @@ pub fn append_probe_snapshot(app_data_dir: &Path, output: &PluginOutput) -> rusq
 
     insert_row(&conn, output, &m, now_ms)?;
     trim_old_rows(&conn)?;
+    drop(conn);
+    let _ = prune_by_retention(app_data_dir);
     Ok(())
 }
 
@@ -210,6 +247,74 @@ pub fn list_recent(app_data_dir: &Path, limit: u32) -> rusqlite::Result<Vec<Usag
     Ok(out)
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryInsightTightest {
+    pub instance_id: String,
+    pub display_name: String,
+    /// Usage percent on primary line (0–100).
+    pub primary_percent: f64,
+    pub remaining_percent: f64,
+    pub captured_at_ms: i64,
+    pub reset_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryInsightsSummary {
+    pub generated_at_ms: i64,
+    pub retention_days: u32,
+    pub tightest: Vec<HistoryInsightTightest>,
+}
+
+pub fn insights_summary(app_data_dir: &Path, limit: u32) -> rusqlite::Result<HistoryInsightsSummary> {
+    let generated_at_ms = chrono::Utc::now().timestamp_millis();
+    let retention_days = usage_history_retention_days(app_data_dir);
+    if !persist_usage_history_enabled(app_data_dir) {
+        return Ok(HistoryInsightsSummary {
+            generated_at_ms,
+            retention_days,
+            tightest: vec![],
+        });
+    }
+    let rows = list_recent(app_data_dir, 500)?;
+    let mut latest_by_instance: std::collections::HashMap<String, UsageHistoryRow> =
+        std::collections::HashMap::new();
+    for row in rows {
+        latest_by_instance
+            .entry(row.instance_id.clone())
+            .and_modify(|prev| {
+                if row.captured_at_ms > prev.captured_at_ms {
+                    *prev = row.clone();
+                }
+            })
+            .or_insert(row);
+    }
+    let mut tightest: Vec<HistoryInsightTightest> = latest_by_instance
+        .into_values()
+        .map(|r| HistoryInsightTightest {
+            remaining_percent: (100.0 - r.primary_percent).clamp(0.0, 100.0),
+            instance_id: r.instance_id,
+            display_name: r.display_name,
+            primary_percent: r.primary_percent,
+            captured_at_ms: r.captured_at_ms,
+            reset_time: r.reset_time,
+        })
+        .collect();
+    tightest.sort_by(|a, b| {
+        a.primary_percent
+            .partial_cmp(&b.primary_percent)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .reverse()
+    });
+    tightest.truncate(limit.max(1).min(20) as usize);
+    Ok(HistoryInsightsSummary {
+        generated_at_ms,
+        retention_days,
+        tightest,
+    })
+}
+
 pub fn clear_all(app_data_dir: &Path) -> rusqlite::Result<()> {
     let path = usage_history_db_path(app_data_dir);
     if !path.exists() {
@@ -273,5 +378,33 @@ mod tests {
         append_probe_snapshot(dir.path(), &out).unwrap();
         let rows = list_recent(dir.path(), 10).unwrap();
         assert_eq!(rows.len(), 1, "second append within debounce window should skip");
+    }
+
+    fn write_settings_with_retention(dir: &Path, persist: bool, retention_days: u32) {
+        let json = format!(
+            r#"{{"persistUsageHistory":{persist},"usageHistoryRetentionDays":{retention_days}}}"#
+        );
+        std::fs::write(dir.join("settings.json"), json).unwrap();
+    }
+
+    #[test]
+    fn prune_by_retention_drops_old_rows() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write_settings_with_retention(dir.path(), true, 7);
+        let path = usage_history_db_path(dir.path());
+        let conn = Connection::open(&path).unwrap();
+        init_schema(&conn).unwrap();
+        let old_ms = chrono::Utc::now().timestamp_millis() - 10 * 86_400_000;
+        conn.execute(
+            "INSERT INTO usage_history (instance_id, captured_at_ms, display_name, primary_percent)
+             VALUES ('cursor', ?1, 'Cursor', 50.0)",
+            [old_ms],
+        )
+        .unwrap();
+        prune_by_retention(dir.path()).unwrap();
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM usage_history", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
     }
 }

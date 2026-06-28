@@ -52,6 +52,14 @@ Returns daily token rows from local SQLite (`usage_daily`).
 - **200 OK** — JSON array (empty `[]` when persist is off or no rows).
 - Query: `?limit=120` (default `120`, max `2000`).
 
+### `GET /v1/insights`
+
+Returns a lightweight history-derived summary when **Settings → Save usage snapshots** is enabled.
+
+- **200 OK** — JSON object with `generatedAtMs`, `retentionDays`, and `tightest` (instances sorted by highest usage %).
+- Query: `?limit=5` (default `5`, max `20`).
+- Empty `tightest: []` when persist is off or no rows.
+
 ### Unsupported methods
 
 Any method other than `GET` or `OPTIONS` on the above routes returns **405 Method Not Allowed**.

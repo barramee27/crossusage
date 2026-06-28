@@ -1,0 +1,24 @@
+# Index-only exclusions — same heavy paths as .cursorignore.
+# Files here can still be @-mentioned on demand; they just won't pollute search.
+
+node_modules/
+dist/
+dist-ssr/
+target/
+coverage/
+tmpcov-gem/
+
+releases/*.exe
+releases/*.AppImage
+releases/*.deb
+releases/*.rpm
+releases/*.dmg
+releases/*_x64-setup.exe
+/crossusage_*_onefile.exe
+/crossusage_*_windows_amd64_onefile*.exe
+/crossusage-cli_*_windows_amd64.zip
+/crossusage_*_windows_amd64.zip
+/crossusage_*_linux_*.tar.gz
+/crossusage_*_darwin_*.tar.gz
+
+docs/research/crawl-output/

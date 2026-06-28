@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+target/
 /target/
 release-artifacts
 /crossusage-cli_*_linux_*.tar.gz
@@ -18,6 +19,16 @@ release-artifacts
 /crossusage_*_linux_*.tar.gz
 /crossusage_*_darwin_*.tar.gz
 /crossusage_*_windows_*.zip
+# Portable GUI one-file executables at repo root (local builds — 80MB+ each)
+/crossusage_*_onefile.exe
+/crossusage_*_windows_amd64_onefile*.exe
+# Local release folder binaries (keep README + small tracked assets)
+releases/*.exe
+releases/*.AppImage
+releases/*.deb
+releases/*.rpm
+releases/*.dmg
+releases/*_x64-setup.exe
 # Legacy unversioned name at repo root (from local download tests)
 /crossusage-cli_windows_*.zip
 src-tauri/binaries/crossusage-cli-*

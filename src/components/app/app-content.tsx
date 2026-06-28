@@ -13,9 +13,11 @@ import type {
   DisplayMode,
   GlobalShortcut,
   MenubarIconStyle,
+  ModernDensity,
   ResetTimerDisplayMode,
   ThemeMode,
   TimeFormatMode,
+  UILayout,
   UIScale,
   UsageAlertSound,
   UsageAlertThreshold,
@@ -32,12 +34,16 @@ export type AppContentActionProps = {
   onReorder: (orderedIds: string[]) => void
   onToggle: (id: string) => void
   onTrayLineToggle: (id: string, lineLabel: string, checked: boolean) => void
+  onDashboardMetricToggle: (metricId: string, checked: boolean, allLabels: string[]) => void
+  onProviderDashboardMetrics: (pluginId: string, allLabels: string[], enabled: boolean) => void
   onAddProviderAccount: (baseProviderId: string, input: ProviderAccountCredentialInput) => void
   onUpdateProviderAccountCredentials: (id: string, input: ProviderAccountCredentialInput) => void
   onRenameProviderAccount: (id: string, label: string) => void
   onRemoveProviderAccount: (id: string) => void
   onAutoUpdateIntervalChange: (value: AutoUpdateIntervalMinutes) => void
   onThemeModeChange: (mode: ThemeMode) => void
+  onUILayoutChange: (layout: UILayout) => void
+  onModernDensityChange: (density: ModernDensity) => void
   onDisplayModeChange: (mode: DisplayMode) => void
   onResetTimerDisplayModeChange: (mode: ResetTimerDisplayMode) => void
   onResetTimerDisplayModeToggle: () => void
@@ -60,7 +66,10 @@ export type AppContentActionProps = {
   cursorRequestsLineAvailable: boolean | null
 }
 
-export type AppContentProps = AppContentDerivedProps & AppContentActionProps
+export type AppContentProps = AppContentDerivedProps &
+  AppContentActionProps & {
+    viewOverride?: "home" | "settings"
+  }
 
 export function AppContent({
   displayPlugins,
@@ -76,6 +85,8 @@ export function AppContent({
   onRemoveProviderAccount,
   onAutoUpdateIntervalChange,
   onThemeModeChange,
+  onUILayoutChange,
+  onModernDensityChange,
   onDisplayModeChange,
   onResetTimerDisplayModeChange,
   onResetTimerDisplayModeToggle,
@@ -96,12 +107,14 @@ export function AppContent({
   onShowAccountIdentityChange,
   onSetCursorTrayMetricForAllAccounts,
   cursorRequestsLineAvailable,
+  viewOverride,
 }: AppContentProps) {
   const { activeView } = useAppUiStore(
     useShallow((state) => ({
       activeView: state.activeView,
     }))
   )
+  const resolvedView = viewOverride ?? activeView
 
   const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
 
@@ -124,6 +137,8 @@ export function AppContent({
     usageSpikeAlertThresholdPct,
     uiScale,
     showAccountIdentity,
+    uiLayout,
+    modernDensity,
   } = useAppPreferencesStore(
     useShallow((state) => ({
       displayMode: state.displayMode,
@@ -144,10 +159,12 @@ export function AppContent({
       usageSpikeAlertThresholdPct: state.usageSpikeAlertThresholdPct,
       uiScale: state.uiScale,
       showAccountIdentity: state.showAccountIdentity,
+      uiLayout: state.uiLayout,
+      modernDensity: state.modernDensity,
     }))
   )
 
-  if (activeView === "home") {
+  if (resolvedView === "home") {
     return (
       <OverviewPage
         plugins={displayPlugins}
@@ -163,7 +180,7 @@ export function AppContent({
     )
   }
 
-  if (activeView === "settings") {
+  if (resolvedView === "settings") {
     return (
       <SettingsPage
         plugins={settingsPlugins}
@@ -178,6 +195,10 @@ export function AppContent({
         onAutoUpdateIntervalChange={onAutoUpdateIntervalChange}
         themeMode={themeMode}
         onThemeModeChange={onThemeModeChange}
+        uiLayout={uiLayout}
+        onUILayoutChange={onUILayoutChange}
+        modernDensity={modernDensity}
+        onModernDensityChange={onModernDensityChange}
         displayMode={displayMode}
         onDisplayModeChange={onDisplayModeChange}
         resetTimerDisplayMode={resetTimerDisplayMode}
@@ -213,6 +234,7 @@ export function AppContent({
         onShowAccountIdentityChange={onShowAccountIdentityChange}
         onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
         cursorRequestsLineAvailable={cursorRequestsLineAvailable}
+        presentation={uiLayout === "modern" ? "modern" : "classic"}
       />
     )
   }
