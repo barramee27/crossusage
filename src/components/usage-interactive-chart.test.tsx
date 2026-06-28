@@ -7,8 +7,8 @@ describe("UsageInteractiveChart bar mode", () => {
     const { container } = render(
       <UsageInteractiveChart
         mode="bar"
-        defaultRange="7"
-        rangeOptions={["7"]}
+        defaultRange="all"
+        rangeOptions={["all"]}
         series={[
           {
             id: "a",
