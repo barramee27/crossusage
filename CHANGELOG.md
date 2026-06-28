@@ -13,7 +13,6 @@
 - **Usage history charts** and rolling rollups on provider detail.
 - **Log level control** (Settings → Troubleshooting): Error through Off; default Info.
 - **Tray icon** shows provider logo + remaining % text.
-- **Command Code** and **Perplexity** providers.
 
 ### Security
 
