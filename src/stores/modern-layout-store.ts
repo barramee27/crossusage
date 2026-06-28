@@ -2,20 +2,26 @@ import { create } from "zustand"
 import { parseMetricId } from "@/lib/metric-id"
 import {
   DEFAULT_PINNED_METRIC_IDS,
-  DEFAULT_PLACED_METRIC_IDS,
   EMPTY_MODERN_LAYOUT,
   canPinMetric,
+  pinnedIdsFromTrayLines,
+  placedIdsFromPluginSettings,
+  providerOrderFromPluginSettings,
   type ModernLayoutState,
 } from "@/lib/modern-layout"
 import { loadModernLayout, saveModernLayout } from "@/lib/settings"
 import type { MetricDescriptor } from "@/lib/metric-registry"
-import { defaultOverviewMetricIds } from "@/lib/metric-registry"
+import type { PluginSettings } from "@/lib/settings"
 
 type ModernLayoutStore = ModernLayoutState & {
   hydrated: boolean
   pinLimitNotice: string | null
   setFromPersisted: (state: ModernLayoutState) => void
-  ensureInitialized: (descriptors: MetricDescriptor[], seedPinnedFromTray?: string[]) => void
+  ensureInitialized: (
+    descriptors: MetricDescriptor[],
+    pluginSettings: PluginSettings,
+    seedPinnedFromTray?: string[],
+  ) => void
   setProviderOrder: (order: string[]) => void
   setMetricOrder: (pluginId: string, order: string[]) => void
   setMetricEnabled: (metricIdValue: string, enabled: boolean) => void
@@ -24,6 +30,7 @@ type ModernLayoutStore = ModernLayoutState & {
   setTrayFocusProvider: (pluginId: string | null) => void
   setPinnedOrder: (order: string[]) => void
   syncDescriptors: (descriptors: MetricDescriptor[]) => void
+  syncPinsFromTrayLines: (trayLines: Record<string, string[]> | undefined, descriptors: MetricDescriptor[]) => void
   clearPinNotice: () => void
   persist: () => Promise<void>
 }
@@ -31,14 +38,6 @@ type ModernLayoutStore = ModernLayoutState & {
 function filterKnown(ids: string[], descriptors: MetricDescriptor[]): string[] {
   const known = new Set(descriptors.map((d) => d.id))
   return ids.filter((id) => known.has(id))
-}
-
-function defaultProviderOrder(descriptors: MetricDescriptor[]): string[] {
-  const seen: string[] = []
-  for (const d of descriptors) {
-    if (!seen.includes(d.pluginId)) seen.push(d.pluginId)
-  }
-  return seen
 }
 
 function defaultMetricOrderByProvider(descriptors: MetricDescriptor[]): Record<string, string[]> {
@@ -59,25 +58,25 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
     set({ ...state, hydrated: true })
   },
 
-  ensureInitialized: (descriptors, seedPinnedFromTray = []) => {
+  ensureInitialized: (descriptors, pluginSettings, seedPinnedFromTray = []) => {
     const current = get()
     if (current.initialized) return
 
-    const placed = filterKnown(
-      DEFAULT_PLACED_METRIC_IDS.length > 0 ? DEFAULT_PLACED_METRIC_IDS : defaultOverviewMetricIds(descriptors),
-      descriptors,
-    )
+    const placed = placedIdsFromPluginSettings(pluginSettings, descriptors)
     let pinned = filterKnown(
       seedPinnedFromTray.length > 0 ? seedPinnedFromTray : DEFAULT_PINNED_METRIC_IDS,
       descriptors,
     )
+    if (pinned.length === 0 && placed.length > 0) {
+      pinned = filterKnown(placed, descriptors).slice(0, 4)
+    }
     if (pinned.length === 0) {
       pinned = filterKnown(DEFAULT_PINNED_METRIC_IDS, descriptors)
     }
 
     const next: ModernLayoutState = {
-      placedMetricIds: placed.length > 0 ? placed : defaultOverviewMetricIds(descriptors),
-      providerOrder: defaultProviderOrder(descriptors),
+      placedMetricIds: placed,
+      providerOrder: providerOrderFromPluginSettings(pluginSettings, descriptors),
       metricOrderByProvider: defaultMetricOrderByProvider(descriptors),
       pinnedMetricIds: pinned,
       trayFocusProviderId: pinned.length > 0 ? (parseMetricId(pinned[0])?.pluginId ?? null) : null,
@@ -137,7 +136,6 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
     if (!current.initialized) return
 
     const known = new Set(descriptors.map((d) => d.id))
-    const placed = filterKnown(current.placedMetricIds, descriptors)
     const pinned = filterKnown(current.pinnedMetricIds, descriptors)
 
     const defaultOrder = defaultMetricOrderByProvider(descriptors)
@@ -150,13 +148,26 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
       metricOrderByProvider[pluginId] = merged
     }
 
-    const defaultProviders = defaultProviderOrder(descriptors)
-    const providerOrder = [
-      ...current.providerOrder.filter((id) => defaultProviders.includes(id)),
-      ...defaultProviders.filter((id) => !current.providerOrder.includes(id)),
-    ]
+    set({ pinnedMetricIds: pinned, metricOrderByProvider })
+    void get().persist()
+  },
 
-    set({ placedMetricIds: placed, pinnedMetricIds: pinned, providerOrder, metricOrderByProvider })
+  syncPinsFromTrayLines: (trayLines: Record<string, string[]> | undefined, descriptors: MetricDescriptor[]) => {
+    const current = get()
+    if (!current.initialized || !trayLines || Object.keys(trayLines).length === 0) return
+
+    const fromTray = filterKnown(pinnedIdsFromTrayLines(trayLines), descriptors)
+    if (fromTray.length === 0) return
+
+    const same =
+      fromTray.length === current.pinnedMetricIds.length &&
+      fromTray.every((id, i) => current.pinnedMetricIds[i] === id)
+    if (same) return
+
+    set({
+      pinnedMetricIds: fromTray,
+      trayFocusProviderId: parseMetricId(fromTray[0])?.pluginId ?? current.trayFocusProviderId,
+    })
     void get().persist()
   },
 

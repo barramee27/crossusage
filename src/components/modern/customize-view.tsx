@@ -274,7 +274,7 @@ export function CustomizeView({
   return (
     <div className="space-y-3 pb-2">
       <p className="text-xs text-muted-foreground px-0.5">
-        Drag to reorder dashboard cards and rows. Toggle which metrics appear on the dashboard.
+        Drag to reorder dashboard cards and rows. Metric toggles stay in sync with Classic provider lines.
       </p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProviderDragEnd}>
         <SortableContext items={providerIds} strategy={verticalListSortingStrategy}>

@@ -1566,7 +1566,7 @@ export function SettingsPage({
       <section>
         <h3 className="text-lg font-semibold mb-0">UI layout</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Switch anytime; providers and accounts are shared between Classic and Modern.
+          Switch anytime. Providers, accounts, and which metrics you show are shared between Classic and Modern.
         </p>
         <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-2"

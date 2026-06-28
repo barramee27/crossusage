@@ -1,6 +1,6 @@
 [package]
 name = "crossusage"
-version = "1.1.0"
+version = "1.2.0"
 description = "CrossUsage — cross-platform fork of OpenUsage, an open source AI subscription limit tracker"
 authors = ["barramee kottanawadee <barramee25038@gmail.com>"]
 homepage = "https://github.com/barramee27/crossusage"
@@ -59,6 +59,11 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSKeyValueCoding", "NSProcessInfo", "NSString"] }
 objc2-app-kit = { version = "0.3", features = ["NSClipView", "NSColor", "NSEvent", "NSGraphics", "NSScreen", "NSScrollView", "NSView", "NSWindow"] }
 objc2-web-kit = { version = "0.3", features = ["WKPreferences", "WKWebView", "WKWebViewConfiguration"] }
+
+[features]
+default = ["custom-protocol"]
+# Embed frontendDist in release builds; `tauri dev` passes --no-default-features.
+custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 serial_test = "3.5"

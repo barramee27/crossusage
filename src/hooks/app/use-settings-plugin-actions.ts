@@ -1,6 +1,11 @@
 import { useCallback } from "react"
 import type { PluginMeta } from "@/lib/plugin-types"
 import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
+import {
+  applyDashboardMetricToggle,
+  applyProviderDashboardMetrics,
+} from "@/lib/modern-layout"
+import { parseMetricId } from "@/lib/metric-id"
 import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
 
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
@@ -162,10 +167,54 @@ export function useSettingsPluginActions({
     [pluginSettings, pluginsMeta, scheduleTrayIconUpdate, setPluginSettings],
   )
 
+  const persistPluginSettings = useCallback(
+    (nextSettings: PluginSettings) => {
+      setPluginSettings(nextSettings)
+      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+      void savePluginSettings(nextSettings).catch((error) => {
+        console.error("Failed to save plugin settings:", error)
+      })
+    },
+    [scheduleTrayIconUpdate, setPluginSettings],
+  )
+
+  const handleDashboardMetricToggle = useCallback(
+    (metricIdValue: string, checked: boolean, allLabels: string[]) => {
+      if (!pluginSettings) return
+      const parsed = parseMetricId(metricIdValue)
+      if (!parsed) return
+      const nextSettings = applyDashboardMetricToggle(
+        pluginSettings,
+        parsed.pluginId,
+        parsed.lineLabel,
+        checked,
+        allLabels,
+      )
+      persistPluginSettings(nextSettings)
+    },
+    [persistPluginSettings, pluginSettings],
+  )
+
+  const handleProviderDashboardMetrics = useCallback(
+    (pluginId: string, allLabels: string[], enabled: boolean) => {
+      if (!pluginSettings) return
+      const nextSettings = applyProviderDashboardMetrics(
+        pluginSettings,
+        pluginId,
+        allLabels,
+        enabled,
+      )
+      persistPluginSettings(nextSettings)
+    },
+    [persistPluginSettings, pluginSettings],
+  )
+
   return {
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
     handleSetCursorTrayMetricForAllAccounts,
+    handleDashboardMetricToggle,
+    handleProviderDashboardMetrics,
   }
 }

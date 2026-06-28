@@ -275,6 +275,8 @@ function App() {
     handleToggle,
     handleTrayLineToggle,
     handleSetCursorTrayMetricForAllAccounts,
+    handleDashboardMetricToggle,
+    handleProviderDashboardMetrics,
   } = useSettingsPluginActions({
     pluginSettings,
     pluginsMeta,
@@ -603,6 +605,8 @@ function App() {
       onReorder: handleReorder,
       onToggle: handleToggle,
       onTrayLineToggle: handleTrayLineToggle,
+      onDashboardMetricToggle: handleDashboardMetricToggle,
+      onProviderDashboardMetrics: handleProviderDashboardMetrics,
       onAddProviderAccount: handleAddProviderAccount,
       onUpdateProviderAccountCredentials: handleUpdateProviderAccountCredentials,
       onRenameProviderAccount: handleRenameProviderAccount,

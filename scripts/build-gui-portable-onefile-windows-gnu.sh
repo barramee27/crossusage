@@ -45,6 +45,11 @@ need_file() {
 
 if [[ "${CROSSUSAGE_SKIP_TAURI_BUILD:-0}" != "1" ]]; then
   bun run tauri build --target "${TARGET}"
+else
+  echo "==> CROSSUSAGE_SKIP_TAURI_BUILD=1 — rebuilding GUI with embedded frontend (custom-protocol) …"
+  bun run bundle:plugins
+  bun run build
+  cargo build --release -p crossusage -p crossusage-cli --target "${TARGET}"
 fi
 
 need_file "${ROOT}/target/${TARGET}/release/crossusage.exe"

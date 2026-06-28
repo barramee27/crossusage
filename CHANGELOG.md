@@ -2,6 +2,27 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.2.0
+
+**Theme:** Modern UI + insights — OpenUsage 0.7 layout port with bundled usage insights.
+
+### New features
+
+- **Modern UI layout** (`classic` | `modern`): grouped dashboard, customizable metric cards (show/hide/reorder).
+- **Usage insights banner** v2 on home + tray toggle; `GET /v1/insights` local API.
+- **Usage history charts** and rolling rollups on provider detail.
+- **Log level control** (Settings → Troubleshooting): Error through Off; default Info.
+- **Tray icon** shows provider logo + remaining % text.
+- **Command Code** and **Perplexity** providers.
+
+### Security
+
+- Block cross-site browser access to local API (`Sec-Fetch-Site`, `Origin`); no CORS.
+- `provider_accounts.json` written with `0600` on Unix.
+- Plugin path traversal guard (`..`) in host API.
+
+---
+
 ## 1.1.0
 
 **Theme:** Know before you run out — local-only insights on probe + history data.

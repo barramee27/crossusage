@@ -21,7 +21,14 @@ import { usePersistUsageHistory } from "@/hooks/use-persist-usage-history"
 import { useNowTicker } from "@/hooks/use-now-ticker"
 import type { UpdateStatus } from "@/hooks/use-app-update"
 import { buildMetricDescriptors, findMetricLine } from "@/lib/metric-registry"
-import { pinnedIdsFromTrayLines } from "@/lib/modern-layout"
+import { parseMetricId } from "@/lib/metric-id"
+import {
+  pinnedIdsFromTrayLines,
+  placedIdsFromPluginSettings,
+  providerOrderFromPluginSettings,
+  migrateModernPlacedToTrayLines,
+} from "@/lib/modern-layout"
+import { savePluginSettings } from "@/lib/settings"
 import { resolveWidgetData } from "@/lib/widget-data"
 import { buildUsageInsights } from "@/lib/usage-insights"
 import { getProviderInstanceMeta } from "@/lib/settings"
@@ -92,17 +99,13 @@ export function ModernShell({
 
   const layout = useModernLayoutStore(
     useShallow((s) => ({
-      placedMetricIds: s.placedMetricIds,
-      providerOrder: s.providerOrder,
       metricOrderByProvider: s.metricOrderByProvider,
       pinnedMetricIds: s.pinnedMetricIds,
       hydrated: s.hydrated,
       ensureInitialized: s.ensureInitialized,
-      setMetricEnabled: s.setMetricEnabled,
-      setProviderMetricsEnabled: s.setProviderMetricsEnabled,
-      setProviderOrder: s.setProviderOrder,
       setMetricOrder: s.setMetricOrder,
       syncDescriptors: s.syncDescriptors,
+      syncPinsFromTrayLines: s.syncPinsFromTrayLines,
     })),
   )
 
@@ -128,11 +131,27 @@ export function ModernShell({
     )
     const descriptors = buildMetricDescriptors(pluginsMeta, pluginSettings, pluginStates)
     const state = useModernLayoutStore.getState()
+
+    let settings = pluginSettings
+    if (state.initialized && state.placedMetricIds.length > 0) {
+      const migrated = migrateModernPlacedToTrayLines(pluginSettings, state.placedMetricIds)
+      if (migrated !== pluginSettings) {
+        settings = migrated
+        useAppPluginStore.getState().setPluginSettings(migrated)
+        void savePluginSettings(migrated).catch((e) => console.error("migrateModernPlacedToTrayLines:", e))
+      }
+    }
+
     if (!state.initialized) {
-      state.ensureInitialized(descriptors, pinnedIdsFromTrayLines(pluginSettings.trayLines))
+      state.ensureInitialized(
+        descriptors,
+        settings,
+        pinnedIdsFromTrayLines(settings.trayLines),
+      )
       return
     }
     state.syncDescriptors(descriptors)
+    state.syncPinsFromTrayLines(settings.trayLines, descriptors)
   }, [pluginSettings, pluginsMeta, layout.hydrated, displayPlugins])
 
   const pluginStatesForDescriptors = useMemo(
@@ -144,6 +163,16 @@ export function ModernShell({
   const descriptors = useMemo(
     () => buildMetricDescriptors(pluginsMeta, pluginSettings, pluginStatesForDescriptors),
     [pluginsMeta, pluginSettings, pluginStatesForDescriptors],
+  )
+
+  const placedMetricIds = useMemo(
+    () => (pluginSettings ? placedIdsFromPluginSettings(pluginSettings, descriptors) : []),
+    [pluginSettings, descriptors],
+  )
+
+  const providerOrder = useMemo(
+    () => (pluginSettings ? providerOrderFromPluginSettings(pluginSettings, descriptors) : []),
+    [pluginSettings, descriptors],
   )
 
   const widgetDataById = useMemo(() => {
@@ -168,15 +197,15 @@ export function ModernShell({
   const groups = useMemo(
     () =>
       buildProviderWidgetGroups({
-        placedMetricIds: layout.placedMetricIds,
-        providerOrder: layout.providerOrder,
+        placedMetricIds,
+        providerOrder,
         metricOrderByProvider: layout.metricOrderByProvider,
         widgetDataById,
         getMeta: (id) => getProviderInstanceMeta(id, pluginSettings, pluginsMeta) ?? undefined,
       }),
     [
-      layout.placedMetricIds,
-      layout.providerOrder,
+      placedMetricIds,
+      providerOrder,
       layout.metricOrderByProvider,
       widgetDataById,
       pluginSettings,
@@ -263,12 +292,22 @@ export function ModernShell({
             {screen === "customize" ? (
               <CustomizeView
                 descriptors={descriptors}
-                providerOrder={layout.providerOrder}
+                providerOrder={providerOrder}
                 metricOrderByProvider={layout.metricOrderByProvider}
-                placedMetricIds={layout.placedMetricIds}
-                onTogglePlaced={layout.setMetricEnabled}
-                onSetProviderMetricsEnabled={layout.setProviderMetricsEnabled}
-                onProviderReorder={layout.setProviderOrder}
+                placedMetricIds={placedMetricIds}
+                onTogglePlaced={(metricId, enabled) => {
+                  const labels = descriptors
+                    .filter((d) => d.pluginId === parseMetricId(metricId)?.pluginId)
+                    .map((d) => d.lineLabel)
+                  appContentProps.onDashboardMetricToggle(metricId, enabled, labels)
+                }}
+                onSetProviderMetricsEnabled={(pluginId, metricIds, enabled) => {
+                  const labels = metricIds
+                    .map((id) => parseMetricId(id)?.lineLabel)
+                    .filter((l): l is string => Boolean(l))
+                  appContentProps.onProviderDashboardMetrics(pluginId, labels, enabled)
+                }}
+                onProviderReorder={appContentProps.onReorder}
                 onMetricReorder={layout.setMetricOrder}
                 compact={compact}
               />
