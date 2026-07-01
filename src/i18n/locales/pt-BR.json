@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Configurações",
+    "overview": "Visão geral",
+    "home": "Início",
+    "skip": "Pular",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "close": "Fechar",
+    "refresh": "Atualizar",
+    "retry": "Tentar novamente",
+    "loading": "Carregando…",
+    "enabled": "Ativado",
+    "disabled": "Desativado",
+    "on": "Ligado",
+    "off": "Desligado",
+    "auto": "Auto",
+    "custom": "Personalizado",
+    "left": "restante",
+    "used": "usado",
+    "today": "hoje",
+    "tomorrow": "amanhã",
+    "at": "às"
+  },
+  "nav": {
+    "settings": "Configurações",
+    "help": "Ajuda",
+    "reload": "Recarregar",
+    "remove": "Remover",
+    "dragToReorder": "Arraste para reordenar"
+  },
+  "onboarding": {
+    "welcomeTitle": "Bem-vindo ao {{appName}}",
+    "welcomeBody": "Todos os provedores incluídos funcionam no Linux e Windows. Em seguida, escolha um layout — você pode alternar a qualquer momento em Configurações. Provedores e contas são compartilhados entre layouts.",
+    "layoutTitle": "Escolha seu layout",
+    "layoutBody": "Classic mantém a navegação lateral e os cartões de provedores. Modern agrupa métricas como o OpenUsage 0.7.",
+    "getStarted": "Começar",
+    "layoutAria": "Layout da interface"
+  },
+  "modern": {
+    "dashboard": "Painel",
+    "customize": "Personalizar",
+    "settings": "Configurações",
+    "settingsTabGeneral": "Geral",
+    "settingsTabTray": "Bandeja",
+    "settingsTabLook": "Aparência",
+    "settingsTabProviders": "Provedores",
+    "settingsTabAdvanced": "Avançado"
+  },
+  "footer": {
+    "downloadingUpdate": "Baixando atualização {{progress}}%",
+    "downloadingUpdatePending": "Baixando atualização…",
+    "readyToUpdate": "Pronto para atualizar",
+    "restartToInstall": "Reiniciar para instalar v{{version}}",
+    "installing": "Instalando…",
+    "updatesSoon": "Atualizações em breve",
+    "updateFailed": "Falha na atualização",
+    "refreshAll": "Atualizar tudo",
+    "nextRefresh": "Próxima atualização {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Boa margem",
+    "rightOnTarget": "No alvo",
+    "willRunOut": "Vai acabar",
+    "runsOutIn": "Acaba em {{duration}}",
+    "limitIn": "Limite em {{duration}}",
+    "leftAtReset": "restante no reset",
+    "usedAtReset": "usado no reset",
+    "short": "apertado",
+    "inDeficit": "em déficit",
+    "underOneMinute": "<1 min",
+    "durationDaysHours": "{{days}}d {{hours}}h",
+    "durationHoursMinutes": "{{hours}}h {{minutes}}min",
+    "durationMinutes": "{{minutes}}min"
+  },
+  "reset": {
+    "resetsSoon": "Reset em breve",
+    "resetsIn": "Reset em {{duration}}",
+    "resetsTodayAt": "Reset hoje às {{time}}",
+    "resetsTomorrowAt": "Reset amanhã às {{time}}",
+    "resetsDateAt": "Reset em {{date}} às {{time}}",
+    "exampleRelative": "5h 12min",
+    "exampleAbsolute": "hoje às {{time}}"
+  },
+  "tray": {
+    "amountLeft": "{{amount}} restante",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Insights",
+    "paceBehind": "{{name}} · {{label}}: uso elevado — {{message}}",
+    "tight": "{{name}} · {{label}}: apenas {{percent}}% restante",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Seções de configurações",
+    "languageRegion": {
+      "title": "Idioma e região",
+      "description": "Idioma do app e como valores monetários são exibidos. Cotas dos provedores são reportadas em USD; outras moedas usam taxas de câmbio ao vivo quando disponíveis.",
+      "language": "Idioma",
+      "languageAria": "Idioma do app",
+      "currency": "Moeda de exibição",
+      "currencyAria": "Moeda de exibição",
+      "currencyAutoHint": "Corresponde ao seu idioma quando definido como Auto"
+    },
+    "autoRefresh": {
+      "title": "Atualização automática",
+      "description": "Com que frequência atualizar",
+      "aria": "Intervalo de atualização automática"
+    },
+    "usageMode": {
+      "title": "Modo de uso",
+      "description": "Copo meio cheio ou meio vazio",
+      "aria": "Modo de exibição de uso"
+    },
+    "resetTimers": {
+      "title": "Temporizadores de reset",
+      "description": "Contagem regressiva ou horário",
+      "aria": "Modo de exibição dos temporizadores de reset"
+    },
+    "timeFormat": {
+      "title": "Formato de hora",
+      "description": "Relógio de 12 ou 24 horas",
+      "aria": "Formato de hora"
+    },
+    "trayIcon": {
+      "title": "Ícone da bandeja / barra de menu",
+      "descriptionModern": "Escolha o estilo do ícone abaixo. Métricas da bandeja usam as linhas de uso principais de cada provedor (igual ao Classic). Configure linhas da bandeja por provedor em Provedores quando necessário.",
+      "descriptionClassic": "O que aparece ao lado do relógio (Linux/Windows) ou na barra de menu (macOS). Novas instalações usam Plugin por padrão (logo do provedor + uso). Quando o Cursor está ativado e você escolhe Plugin, Logo fill, Logo grid ou Pie, pode escolher qual métrica do Cursor controla a leitura (Credits aparecem em dólares na bandeja).",
+      "aria": "Estilo do ícone da barra de menu"
+    },
+    "uiLayout": {
+      "title": "Layout da interface",
+      "description": "Navegação lateral Classic ou widgets agrupados Modern"
+    },
+    "modernDensity": {
+      "title": "Densidade Modern",
+      "description": "Espaçamento no layout Modern"
+    },
+    "theme": {
+      "title": "Tema do app",
+      "description": "Claro, escuro ou Glass"
+    },
+    "uiScale": {
+      "title": "Escala da interface",
+      "description": "Reduzir a interface em telas densas"
+    },
+    "startOnLogin": {
+      "title": "Iniciar ao fazer login",
+      "description": "Iniciar ao entrar"
+    },
+    "troubleshooting": {
+      "title": "Solução de problemas"
+    },
+    "accountIdentity": {
+      "title": "Identidade da conta",
+      "description": "Mostrar e-mail ou nome de usuário da conta nos cartões de provedores"
+    },
+    "usageAlerts": {
+      "title": "Alertas de uso"
+    },
+    "plugins": {
+      "title": "Plugins"
+    },
+    "insights": {
+      "title": "Insights"
+    },
+    "localApi": {
+      "title": "API local (solução de problemas)"
+    },
+    "usageHistory": {
+      "title": "Histórico de uso"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 min",
+        "15": "15 min",
+        "30": "30 min",
+        "60": "60 min"
+      },
+      "displayMode": {
+        "used": "Usado",
+        "left": "Restante"
+      },
+      "resetTimer": {
+        "relative": "Relativo",
+        "absolute": "Absoluto"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12 horas",
+        "24h": "24 horas"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normal",
+        "compact": "Compacto"
+      },
+      "theme": {
+        "system": "Sistema",
+        "light": "Claro",
+        "dark": "Escuro",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normal",
+        "small": "Pequeno",
+        "compact": "Compacto"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Todos os logos",
+        "donut": "Gráfico de pizza",
+        "bars": "Barras de bateria"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Personalizado"
+      },
+      "usageHistoryRetention": {
+        "30": "30 dias",
+        "90": "90 dias",
+        "365": "1 ano",
+        "0": "Para sempre"
+      }
+    }
+  }
+}

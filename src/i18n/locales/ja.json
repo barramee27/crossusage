@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "設定",
+    "overview": "概要",
+    "home": "ホーム",
+    "skip": "スキップ",
+    "continue": "続行",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "close": "閉じる",
+    "refresh": "更新",
+    "retry": "再試行",
+    "loading": "読み込み中…",
+    "enabled": "有効",
+    "disabled": "無効",
+    "on": "オン",
+    "off": "オフ",
+    "auto": "自動",
+    "custom": "カスタム",
+    "left": "残り",
+    "used": "使用済み",
+    "today": "今日",
+    "tomorrow": "明日",
+    "at": ""
+  },
+  "nav": {
+    "settings": "設定",
+    "help": "ヘルプ",
+    "reload": "再読み込み",
+    "remove": "削除",
+    "dragToReorder": "ドラッグして並べ替え"
+  },
+  "onboarding": {
+    "welcomeTitle": "{{appName}}へようこそ",
+    "welcomeBody": "バンドルされたすべてのプロバイダーは Linux と Windows で動作します。次にレイアウトを選択してください — 設定でいつでも切り替えられます。プロバイダーとアカウントはレイアウト間で共有されます。",
+    "layoutTitle": "レイアウトを選択",
+    "layoutBody": "Classic はサイドナビとプロバイダーカードを維持します。Modern は OpenUsage 0.7 のようにメトリクスをグループ化します。",
+    "getStarted": "始める",
+    "layoutAria": "UI レイアウト"
+  },
+  "modern": {
+    "dashboard": "ダッシュボード",
+    "customize": "カスタマイズ",
+    "settings": "設定",
+    "settingsTabGeneral": "一般",
+    "settingsTabTray": "トレイ",
+    "settingsTabLook": "外観",
+    "settingsTabProviders": "プロバイダー",
+    "settingsTabAdvanced": "詳細"
+  },
+  "footer": {
+    "downloadingUpdate": "アップデートをダウンロード中 {{progress}}%",
+    "downloadingUpdatePending": "アップデートをダウンロード中…",
+    "readyToUpdate": "アップデートの準備完了",
+    "restartToInstall": "v{{version}} をインストールするには再起動",
+    "installing": "インストール中…",
+    "updatesSoon": "まもなくアップデート",
+    "updateFailed": "アップデート失敗",
+    "refreshAll": "すべて更新",
+    "nextRefresh": "次の更新 {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "余裕あり",
+    "rightOnTarget": "目標通り",
+    "willRunOut": "使い切る見込み",
+    "runsOutIn": "{{duration}}で使い切り",
+    "limitIn": "あと{{duration}}で上限",
+    "leftAtReset": "リセット時の残り",
+    "usedAtReset": "リセット時の使用量",
+    "short": "不足",
+    "inDeficit": "超過使用",
+    "underOneMinute": "<1分",
+    "durationDaysHours": "{{days}}日 {{hours}}時間",
+    "durationHoursMinutes": "{{hours}}時間 {{minutes}}分",
+    "durationMinutes": "{{minutes}}分"
+  },
+  "reset": {
+    "resetsSoon": "まもなくリセット",
+    "resetsIn": "{{duration}}後にリセット",
+    "resetsTodayAt": "今日 {{time}} にリセット",
+    "resetsTomorrowAt": "明日 {{time}} にリセット",
+    "resetsDateAt": "{{date}} {{time}} にリセット",
+    "exampleRelative": "5時間 12分",
+    "exampleAbsolute": "今日 {{time}}"
+  },
+  "tray": {
+    "amountLeft": "残り {{amount}}",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "インサイト",
+    "paceBehind": "{{name}} · {{label}}: 使用ペースが高い — {{message}}",
+    "tight": "{{name}} · {{label}}: 残り {{percent}}% のみ",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "設定セクション",
+    "languageRegion": {
+      "title": "言語と地域",
+      "description": "アプリの言語と金額の表示方法。プロバイダーのクォータは USD で報告されます。他の通貨は利用可能な場合、ライブ為替レートを使用します。",
+      "language": "言語",
+      "languageAria": "アプリの言語",
+      "currency": "表示通貨",
+      "currencyAria": "表示通貨",
+      "currencyAutoHint": "自動に設定すると言語に合わせます"
+    },
+    "autoRefresh": {
+      "title": "自動更新",
+      "description": "どれくらい頻繁に確認するか",
+      "aria": "自動更新間隔"
+    },
+    "usageMode": {
+      "title": "使用量モード",
+      "description": "半分満たされたか、半分空か",
+      "aria": "使用量表示モード"
+    },
+    "resetTimers": {
+      "title": "リセットタイマー",
+      "description": "カウントダウンまたは時刻",
+      "aria": "リセットタイマー表示モード"
+    },
+    "timeFormat": {
+      "title": "時刻形式",
+      "description": "12時間または24時間",
+      "aria": "時刻形式"
+    },
+    "trayIcon": {
+      "title": "トレイ / メニューバーアイコン",
+      "descriptionModern": "下からアイコンスタイルを選択してください。トレイメトリクスは各プロバイダーの主要使用量ラインを使用します（Classic と同じ）。必要に応じてプロバイダーでプロバイダーごとのトレイラインを設定してください。",
+      "descriptionClassic": "時計の横（Linux/Windows）またはメニューバー（macOS）に表示される内容。新規インストールはデフォルトで Plugin（プロバイダーロゴ + 使用量）です。Cursor が有効で Plugin、Logo fill、Logo grid、または Pie を選択した場合、トレイ表示を駆動する Cursor メトリクスを選択できます（Credits はトレイでドル表示）。",
+      "aria": "メニューバーアイコンスタイル"
+    },
+    "uiLayout": {
+      "title": "UI レイアウト",
+      "description": "Classic サイドナビまたは Modern グループウィジェット"
+    },
+    "modernDensity": {
+      "title": "Modern 密度",
+      "description": "Modern レイアウトの間隔"
+    },
+    "theme": {
+      "title": "アプリテーマ",
+      "description": "ライト、ダーク、または Glass"
+    },
+    "uiScale": {
+      "title": "インターフェーススケール",
+      "description": "高密度ディスプレイで UI を小さく"
+    },
+    "startOnLogin": {
+      "title": "ログイン時に起動",
+      "description": "サインイン時に起動"
+    },
+    "troubleshooting": {
+      "title": "トラブルシューティング"
+    },
+    "accountIdentity": {
+      "title": "アカウント識別",
+      "description": "プロバイダーカードにアカウントのメールまたはユーザー名を表示"
+    },
+    "usageAlerts": {
+      "title": "使用量アラート"
+    },
+    "plugins": {
+      "title": "Plugin"
+    },
+    "insights": {
+      "title": "インサイト"
+    },
+    "localApi": {
+      "title": "ローカル API（トラブルシューティング）"
+    },
+    "usageHistory": {
+      "title": "使用履歴"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5分",
+        "15": "15分",
+        "30": "30分",
+        "60": "60分"
+      },
+      "displayMode": {
+        "used": "使用済み",
+        "left": "残り"
+      },
+      "resetTimer": {
+        "relative": "相対",
+        "absolute": "絶対"
+      },
+      "timeFormat": {
+        "auto": "自動",
+        "12h": "12時間",
+        "24h": "24時間"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "標準",
+        "compact": "コンパクト"
+      },
+      "theme": {
+        "system": "システム",
+        "light": "ライト",
+        "dark": "ダーク",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "標準",
+        "small": "小",
+        "compact": "コンパクト"
+      },
+      "menubarIcon": {
+        "provider": "ロゴ + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "すべてのロゴ",
+        "donut": "円グラフ",
+        "bars": "バッテリーバー"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "カスタム"
+      },
+      "usageHistoryRetention": {
+        "30": "30日",
+        "90": "90日",
+        "365": "1年",
+        "0": "永久"
+      }
+    }
+  }
+}

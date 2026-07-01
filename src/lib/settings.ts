@@ -1,6 +1,16 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
 import { normalizeModernLayout, type ModernLayoutState } from "@/lib/modern-layout";
+import {
+  DEFAULT_APP_LOCALE,
+  DEFAULT_DISPLAY_CURRENCY,
+  SUPPORTED_DISPLAY_CURRENCIES,
+  SUPPORTED_UI_LOCALES,
+  type AppLocale,
+  type DisplayCurrency,
+  type DisplayCurrencyCode,
+  type SupportedUiLocale,
+} from "@/i18n/locale-meta";
 
 // Refresh cooldown duration in milliseconds (5 minutes)
 export const REFRESH_COOLDOWN_MS = 300_000;
@@ -27,6 +37,15 @@ export type DisplayMode = "used" | "left";
 export type ResetTimerDisplayMode = "relative" | "absolute";
 
 export type TimeFormatMode = "auto" | "12h" | "24h";
+
+export type { AppLocale, DisplayCurrency, DisplayCurrencyCode, SupportedUiLocale };
+export {
+  DEFAULT_APP_LOCALE,
+  DEFAULT_DISPLAY_CURRENCY,
+  SUPPORTED_DISPLAY_CURRENCIES,
+  SUPPORTED_UI_LOCALES,
+  UI_LOCALE_LABELS,
+} from "@/i18n/locale-meta";
 
 export type MenubarIconStyle = "provider" | "logoBar" | "logoGrid" | "bars" | "donut";
 
@@ -61,6 +80,8 @@ const THEME_MODE_KEY = "themeMode";
 const DISPLAY_MODE_KEY = "displayMode";
 const RESET_TIMER_DISPLAY_MODE_KEY = "resetTimerDisplayMode";
 const TIME_FORMAT_MODE_KEY = "timeFormatMode";
+const APP_LOCALE_KEY = "appLocale";
+const DISPLAY_CURRENCY_KEY = "displayCurrency";
 const MENUBAR_ICON_STYLE_KEY = "menubarIconStyle";
 const PREFER_MENUBAR_WEEKLY_LIMIT_KEY = "preferMenubarWeeklyLimit";
 const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
@@ -490,6 +511,39 @@ export async function loadTimeFormatMode(): Promise<TimeFormatMode> {
 
 export async function saveTimeFormatMode(mode: TimeFormatMode): Promise<void> {
   await store.set(TIME_FORMAT_MODE_KEY, mode);
+  await store.save();
+}
+
+function isAppLocale(value: unknown): value is AppLocale {
+  return value === "auto" || (typeof value === "string" && SUPPORTED_UI_LOCALES.includes(value as SupportedUiLocale));
+}
+
+export async function loadAppLocale(): Promise<AppLocale> {
+  const stored = await store.get<unknown>(APP_LOCALE_KEY);
+  if (isAppLocale(stored)) return stored;
+  return DEFAULT_APP_LOCALE;
+}
+
+export async function saveAppLocale(locale: AppLocale): Promise<void> {
+  await store.set(APP_LOCALE_KEY, locale);
+  await store.save();
+}
+
+function isDisplayCurrency(value: unknown): value is DisplayCurrency {
+  return (
+    value === "auto" ||
+    (typeof value === "string" && SUPPORTED_DISPLAY_CURRENCIES.includes(value as DisplayCurrencyCode))
+  );
+}
+
+export async function loadDisplayCurrency(): Promise<DisplayCurrency> {
+  const stored = await store.get<unknown>(DISPLAY_CURRENCY_KEY);
+  if (isDisplayCurrency(stored)) return stored;
+  return DEFAULT_DISPLAY_CURRENCY;
+}
+
+export async function saveDisplayCurrency(currency: DisplayCurrency): Promise<void> {
+  await store.set(DISPLAY_CURRENCY_KEY, currency);
   await store.save();
 }
 

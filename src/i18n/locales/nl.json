@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Instellingen",
+    "overview": "Overzicht",
+    "home": "Home",
+    "skip": "Overslaan",
+    "continue": "Doorgaan",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "close": "Sluiten",
+    "refresh": "Vernieuwen",
+    "retry": "Opnieuw proberen",
+    "loading": "Laden…",
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld",
+    "on": "Aan",
+    "off": "Uit",
+    "auto": "Auto",
+    "custom": "Aangepast",
+    "left": "over",
+    "used": "gebruikt",
+    "today": "vandaag",
+    "tomorrow": "morgen",
+    "at": "om"
+  },
+  "nav": {
+    "settings": "Instellingen",
+    "help": "Help",
+    "reload": "Herladen",
+    "remove": "Verwijderen",
+    "dragToReorder": "Sleep om te herschikken"
+  },
+  "onboarding": {
+    "welcomeTitle": "Welkom bij {{appName}}",
+    "welcomeBody": "Alle meegeleverde providers werken op Linux en Windows. Kies hierna een lay-out — u kunt op elk moment wisselen in Instellingen. Providers en accounts worden gedeeld tussen lay-outs.",
+    "layoutTitle": "Kies uw lay-out",
+    "layoutBody": "Classic behoudt de zijnavigatie en providerkaarten. Modern groepeert statistieken zoals OpenUsage 0.7.",
+    "getStarted": "Aan de slag",
+    "layoutAria": "UI-lay-out"
+  },
+  "modern": {
+    "dashboard": "Dashboard",
+    "customize": "Aanpassen",
+    "settings": "Instellingen",
+    "settingsTabGeneral": "Algemeen",
+    "settingsTabTray": "Systeemvak",
+    "settingsTabLook": "Uiterlijk",
+    "settingsTabProviders": "Providers",
+    "settingsTabAdvanced": "Geavanceerd"
+  },
+  "footer": {
+    "downloadingUpdate": "Update downloaden {{progress}}%",
+    "downloadingUpdatePending": "Update downloaden…",
+    "readyToUpdate": "Klaar om bij te werken",
+    "restartToInstall": "Herstarten om v{{version}} te installeren",
+    "installing": "Installeren…",
+    "updatesSoon": "Updates binnenkort",
+    "updateFailed": "Update mislukt",
+    "refreshAll": "Alles vernieuwen",
+    "nextRefresh": "Volgende vernieuwing {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Ruim voldoende",
+    "rightOnTarget": "Precies op doel",
+    "willRunOut": "Raakt op",
+    "runsOutIn": "Op in {{duration}}",
+    "limitIn": "Limiet over {{duration}}",
+    "leftAtReset": "over bij reset",
+    "usedAtReset": "gebruikt bij reset",
+    "short": "krap",
+    "inDeficit": "in tekort",
+    "underOneMinute": "<1 min",
+    "durationDaysHours": "{{days}}d {{hours}}u",
+    "durationHoursMinutes": "{{hours}}u {{minutes}}m",
+    "durationMinutes": "{{minutes}}m"
+  },
+  "reset": {
+    "resetsSoon": "Reset binnenkort",
+    "resetsIn": "Reset over {{duration}}",
+    "resetsTodayAt": "Reset vandaag om {{time}}",
+    "resetsTomorrowAt": "Reset morgen om {{time}}",
+    "resetsDateAt": "Reset op {{date}} om {{time}}",
+    "exampleRelative": "5u 12m",
+    "exampleAbsolute": "vandaag om {{time}}"
+  },
+  "tray": {
+    "amountLeft": "{{amount}} over",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Inzichten",
+    "paceBehind": "{{name}} · {{label}}: hoog verbruik — {{message}}",
+    "tight": "{{name}} · {{label}}: slechts {{percent}}% over",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Instellingen secties",
+    "languageRegion": {
+      "title": "Taal en regio",
+      "description": "App-taal en hoe geldbedragen worden weergegeven. Providerquota worden gerapporteerd in USD; andere valuta gebruiken live wisselkoersen indien beschikbaar.",
+      "language": "Taal",
+      "languageAria": "App-taal",
+      "currency": "Weergavevaluta",
+      "currencyAria": "Weergavevaluta",
+      "currencyAutoHint": "Komt overeen met uw taal wanneer ingesteld op Auto"
+    },
+    "autoRefresh": {
+      "title": "Automatisch vernieuwen",
+      "description": "Hoe vaak vernieuwen",
+      "aria": "Automatisch update-interval"
+    },
+    "usageMode": {
+      "title": "Gebruiksmodus",
+      "description": "Half vol of half leeg",
+      "aria": "Gebruiksweergavemodus"
+    },
+    "resetTimers": {
+      "title": "Reset-timers",
+      "description": "Aftellen of kloktijd",
+      "aria": "Reset-timer weergavemodus"
+    },
+    "timeFormat": {
+      "title": "Tijdformaat",
+      "description": "12- of 24-uurs klok",
+      "aria": "Tijdformaat"
+    },
+    "trayIcon": {
+      "title": "Systeemvak- / menubalkpictogram",
+      "descriptionModern": "Kies hieronder de pictogramstijl. Systeemvakstatistieken gebruiken de primaire gebruiksregels van elke provider (zelfde als Classic). Configureer per provider onder Providers indien nodig.",
+      "descriptionClassic": "Wat naast de klok (Linux/Windows) of in de menubalk (macOS) wordt weergegeven. Nieuwe installaties gebruiken standaard Plugin (providerlogo + gebruik). Wanneer Cursor is ingeschakeld en u Plugin, Logo fill, Logo grid of Pie kiest, kunt u kiezen welke Cursor-statistiek de weergave aanstuurt (Credits worden in dollars in het systeemvak getoond).",
+      "aria": "Menubalkpictogramstijl"
+    },
+    "uiLayout": {
+      "title": "UI-lay-out",
+      "description": "Classic zijnavigatie of Modern gegroepeerde widgets"
+    },
+    "modernDensity": {
+      "title": "Modern-dichtheid",
+      "description": "Ruimte in Modern-lay-out"
+    },
+    "theme": {
+      "title": "App-thema",
+      "description": "Licht, donker of Glass"
+    },
+    "uiScale": {
+      "title": "Interface-schaal",
+      "description": "UI kleiner maken op dichte schermen"
+    },
+    "startOnLogin": {
+      "title": "Starten bij aanmelden",
+      "description": "Starten bij inloggen"
+    },
+    "troubleshooting": {
+      "title": "Probleemoplossing"
+    },
+    "accountIdentity": {
+      "title": "Accountidentiteit",
+      "description": "Account-e-mail of gebruikersnaam op providerkaarten tonen"
+    },
+    "usageAlerts": {
+      "title": "Gebruikswaarschuwingen"
+    },
+    "plugins": {
+      "title": "Plugins"
+    },
+    "insights": {
+      "title": "Inzichten"
+    },
+    "localApi": {
+      "title": "Lokale API (probleemoplossing)"
+    },
+    "usageHistory": {
+      "title": "Gebruiksgeschiedenis"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 min",
+        "15": "15 min",
+        "30": "30 min",
+        "60": "60 min"
+      },
+      "displayMode": {
+        "used": "Gebruikt",
+        "left": "Over"
+      },
+      "resetTimer": {
+        "relative": "Relatief",
+        "absolute": "Absoluut"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12-uurs",
+        "24h": "24-uurs"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normaal",
+        "compact": "Compact"
+      },
+      "theme": {
+        "system": "Systeem",
+        "light": "Licht",
+        "dark": "Donker",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normaal",
+        "small": "Klein",
+        "compact": "Compact"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Alle logo's",
+        "donut": "Taartdiagram",
+        "bars": "Batterijbalken"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Aangepast"
+      },
+      "usageHistoryRetention": {
+        "30": "30 dagen",
+        "90": "90 dagen",
+        "365": "1 jaar",
+        "0": "Voor altijd"
+      }
+    }
+  }
+}

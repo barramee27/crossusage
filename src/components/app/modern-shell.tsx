@@ -74,12 +74,15 @@ export function ModernShell({
   const appVersion = useAppVersion()
   useTrayRestartBridge(updateStatus, onUpdateInstall)
 
-  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity } = useAppPreferencesStore(
+  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision } =
+    useAppPreferencesStore(
     useShallow((s) => ({
       themeMode: s.themeMode,
       displayMode: s.displayMode,
       resetTimerDisplayMode: s.resetTimerDisplayMode,
       modernDensity: s.modernDensity,
+      displayCurrency: s.displayCurrency,
+      exchangeRatesRevision: s.exchangeRatesRevision,
     })),
   )
 
@@ -192,7 +195,7 @@ export function ModernShell({
       if (data) map.set(d.id, data)
     }
     return map
-  }, [descriptors, displayPlugins, displayMode, resetTimerDisplayMode, nowMs, pluginSettings])
+  }, [descriptors, displayPlugins, displayMode, resetTimerDisplayMode, nowMs, pluginSettings, displayCurrency, exchangeRatesRevision])
 
   const groups = useMemo(
     () =>

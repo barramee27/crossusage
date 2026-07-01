@@ -15,6 +15,8 @@ import {
   DEFAULT_UI_LAYOUT,
   DEFAULT_MODERN_DENSITY,
   DEFAULT_TIME_FORMAT_MODE,
+  DEFAULT_APP_LOCALE,
+  DEFAULT_DISPLAY_CURRENCY,
   DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
   DEFAULT_USAGE_ALERT_ENABLED,
   DEFAULT_USAGE_ALERT_SOUND,
@@ -32,6 +34,8 @@ import {
   type UILayout,
   type ModernDensity,
   type TimeFormatMode,
+  type AppLocale,
+  type DisplayCurrency,
   type UsageAlertSound,
   type UsageAlertThreshold,
   type UsageSpikeAlertThresholdPct,
@@ -45,6 +49,8 @@ type AppPreferencesStore = {
   displayMode: DisplayMode
   resetTimerDisplayMode: ResetTimerDisplayMode
   timeFormatMode: TimeFormatMode
+  appLocale: AppLocale
+  displayCurrency: DisplayCurrency
   globalShortcut: GlobalShortcut
   startOnLogin: boolean
   showAccountIdentity: boolean
@@ -61,6 +67,7 @@ type AppPreferencesStore = {
   usageSpikeAlertEnabled: boolean
   usageSpikeAlertThresholdPct: UsageSpikeAlertThresholdPct
   onboardingComplete: boolean | null
+  exchangeRatesRevision: number
 
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setThemeMode: (value: ThemeMode) => void
@@ -69,6 +76,8 @@ type AppPreferencesStore = {
   setDisplayMode: (value: DisplayMode) => void
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setTimeFormatMode: (value: TimeFormatMode) => void
+  setAppLocale: (value: AppLocale) => void
+  setDisplayCurrency: (value: DisplayCurrency) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
@@ -85,6 +94,7 @@ type AppPreferencesStore = {
   setUsageSpikeAlertEnabled: (value: boolean) => void
   setUsageSpikeAlertThresholdPct: (value: UsageSpikeAlertThresholdPct) => void
   setOnboardingComplete: (value: boolean) => void
+  bumpExchangeRatesRevision: () => void
   resetState: () => void
 }
 
@@ -96,6 +106,8 @@ const initialState = {
   displayMode: DEFAULT_DISPLAY_MODE,
   resetTimerDisplayMode: DEFAULT_RESET_TIMER_DISPLAY_MODE,
   timeFormatMode: DEFAULT_TIME_FORMAT_MODE,
+  appLocale: DEFAULT_APP_LOCALE,
+  displayCurrency: DEFAULT_DISPLAY_CURRENCY,
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   startOnLogin: DEFAULT_START_ON_LOGIN,
   showAccountIdentity: DEFAULT_SHOW_ACCOUNT_IDENTITY,
@@ -112,6 +124,7 @@ const initialState = {
   usageSpikeAlertEnabled: DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
   usageSpikeAlertThresholdPct: DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
   onboardingComplete: null as boolean | null,
+  exchangeRatesRevision: 0,
 }
 
 export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
@@ -123,6 +136,8 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setDisplayMode: (value) => set({ displayMode: value }),
   setResetTimerDisplayMode: (value) => set({ resetTimerDisplayMode: value }),
   setTimeFormatMode: (value) => set({ timeFormatMode: value }),
+  setAppLocale: (value) => set({ appLocale: value }),
+  setDisplayCurrency: (value) => set({ displayCurrency: value }),
   setGlobalShortcut: (value) => set({ globalShortcut: value }),
   setStartOnLogin: (value) => set({ startOnLogin: value }),
   setShowAccountIdentity: (value) => set({ showAccountIdentity: value }),
@@ -139,5 +154,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setUsageSpikeAlertEnabled: (value) => set({ usageSpikeAlertEnabled: value }),
   setUsageSpikeAlertThresholdPct: (value) => set({ usageSpikeAlertThresholdPct: value }),
   setOnboardingComplete: (value) => set({ onboardingComplete: value }),
+  bumpExchangeRatesRevision: () =>
+    set((state) => ({ exchangeRatesRevision: state.exchangeRatesRevision + 1 })),
   resetState: () => set(initialState),
 }))

@@ -1,4 +1,5 @@
 import { Fragment, useMemo } from "react"
+import { useShallow } from "zustand/react/shallow"
 import { AlertCircle, ExternalLink, Hourglass, RefreshCw } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { Badge } from "@/components/ui/badge"
@@ -13,10 +14,12 @@ import { useNowTicker } from "@/hooks/use-now-ticker"
 import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode, type TimeFormatMode } from "@/lib/settings"
 import type { ManifestLine, MetricLine, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
-import { clamp01, cn, formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
+import { clamp01, cn, formatCountNumber } from "@/lib/utils"
 import { calculateDeficit, calculatePaceStatus, type PaceStatus } from "@/lib/pace-status"
 import { buildPaceDetailText, formatDeficitText, formatRunsOutText, getPaceStatusText } from "@/lib/pace-tooltip"
 import { formatResetAbsoluteLabel, formatResetRelativeLabel, formatResetTooltipText } from "@/lib/reset-tooltip"
+import { formatMoney } from "@/lib/locale-format"
+import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
 interface ProviderCardProps {
   name: string
@@ -448,6 +451,13 @@ function MetricLineRenderer({
   now: number
   refreshing?: boolean
 }) {
+  useAppPreferencesStore(
+    useShallow((s) => ({
+      displayCurrency: s.displayCurrency,
+      exchangeRatesRevision: s.exchangeRatesRevision,
+    })),
+  )
+
   if (line.type === "text") {
     return (
       <div>
@@ -517,7 +527,7 @@ function MetricLineRenderer({
       line.format.kind === "percent"
         ? `${Math.round(shownAmount)}%${leftSuffix}`
         : line.format.kind === "dollars"
-          ? `$${formatFixedPrecisionNumber(shownAmount)}${leftSuffix}`
+          ? `${formatMoney(shownAmount, { sourceCurrency: "USD" })}${leftSuffix}`
           : `${formatCountNumber(shownAmount)} ${line.format.suffix}${leftSuffix}`
 
     const resetLabel = line.resetsAt
@@ -539,7 +549,7 @@ function MetricLineRenderer({
       (line.format.kind === "percent"
         ? `${line.limit}% cap`
         : line.format.kind === "dollars"
-          ? `$${formatFixedPrecisionNumber(line.limit)} limit`
+          ? `${formatMoney(line.limit, { sourceCurrency: "USD" })} limit`
           : `${formatCountNumber(line.limit)} ${line.format.suffix}`)
 
     // Calculate pace status if we have reset time and period duration

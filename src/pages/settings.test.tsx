@@ -47,6 +47,15 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { SettingsPage } from "@/pages/settings"
+import { I18nProvider } from "@/components/i18n-provider"
+
+function renderSettings(props: React.ComponentProps<typeof SettingsPage>) {
+  return render(
+    <I18nProvider>
+      <SettingsPage {...props} />
+    </I18nProvider>,
+  )
+}
 
 const defaultProps = {
   plugins: [{ id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] }],
@@ -61,12 +70,20 @@ const defaultProps = {
   onAutoUpdateIntervalChange: vi.fn(),
   themeMode: "system" as const,
   onThemeModeChange: vi.fn(),
+  uiLayout: "classic" as const,
+  onUILayoutChange: vi.fn(),
+  modernDensity: "regular" as const,
+  onModernDensityChange: vi.fn(),
   displayMode: "used" as const,
   onDisplayModeChange: vi.fn(),
   resetTimerDisplayMode: "relative" as const,
   onResetTimerDisplayModeChange: vi.fn(),
   timeFormatMode: "auto" as const,
   onTimeFormatModeChange: vi.fn(),
+  appLocale: "auto" as const,
+  onAppLocaleChange: vi.fn(),
+  displayCurrency: "auto" as const,
+  onDisplayCurrencyChange: vi.fn(),
   menubarIconStyle: "provider" as const,
   onMenubarIconStyleChange: vi.fn(),
   preferMenubarWeeklyLimit: false,
@@ -111,15 +128,13 @@ afterEach(() => {
 describe("SettingsPage", () => {
   it("toggles plugins", async () => {
     const onToggle = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        plugins={[
+    renderSettings({
+      ...defaultProps,
+      plugins: [
           { id: "b", baseProviderId: "b", name: "Beta", enabled: false, primaryCandidates: [], trayLines: [] },
-        ]}
-        onToggle={onToggle}
-      />
-    )
+        ],
+      onToggle,
+    })
     const checkboxes = screen.getAllByRole("checkbox")
     await userEvent.click(checkboxes[checkboxes.length - 1])
     expect(onToggle).toHaveBeenCalledWith("b")
@@ -127,28 +142,24 @@ describe("SettingsPage", () => {
 
   it("reorders plugins on drag end", () => {
     const onReorder = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        plugins={[
+    renderSettings({
+      ...defaultProps,
+      plugins: [
           { id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] },
           { id: "b", baseProviderId: "b", name: "Beta", enabled: true, primaryCandidates: [], trayLines: [] },
-        ]}
-        onReorder={onReorder}
-      />
-    )
+        ],
+      onReorder,
+    })
     latestOnDragEnd?.({ active: { id: "a" }, over: { id: "b" } })
     expect(onReorder).toHaveBeenCalledWith(["b", "a"])
   })
 
   it("ignores invalid drag end", () => {
     const onReorder = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onReorder={onReorder}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onReorder,
+    })
     latestOnDragEnd?.({ active: { id: "a" }, over: null })
     latestOnDragEnd?.({ active: { id: "a" }, over: { id: "a" } })
     expect(onReorder).not.toHaveBeenCalled()
@@ -160,10 +171,9 @@ describe("SettingsPage", () => {
     const onUpdateProviderAccountCredentials = vi.fn()
     const onRenameProviderAccount = vi.fn()
     const onRemoveProviderAccount = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        plugins={[
+    renderSettings({
+      ...defaultProps,
+      plugins: [
           { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
           {
             id: "claude:work",
@@ -174,13 +184,12 @@ describe("SettingsPage", () => {
             primaryCandidates: [],
             trayLines: [],
           },
-        ]}
-        onAddProviderAccount={onAddProviderAccount}
-        onUpdateProviderAccountCredentials={onUpdateProviderAccountCredentials}
-        onRenameProviderAccount={onRenameProviderAccount}
-        onRemoveProviderAccount={onRemoveProviderAccount}
-      />
-    )
+        ],
+      onAddProviderAccount,
+      onUpdateProviderAccountCredentials,
+      onRenameProviderAccount,
+      onRemoveProviderAccount,
+    })
 
     await user.click(screen.getByRole("button", { name: "Add account" }))
     await user.type(screen.getByLabelText("Access token"), "claude-work-token")
@@ -218,14 +227,12 @@ describe("SettingsPage", () => {
   it("opens GitHub tutorial when adding a Claude account", async () => {
     const user = userEvent.setup()
     vi.mocked(openUrl).mockClear()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        plugins={[
+    renderSettings({
+      ...defaultProps,
+      plugins: [
           { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
-        ]}
-      />
-    )
+        ],
+    })
     await user.click(screen.getByRole("button", { name: "Add account" }))
     await user.click(screen.getByRole("button", { name: "Step-by-step: where to copy tokens (opens GitHub)" }))
     expect(openUrl).toHaveBeenCalledWith(
@@ -235,23 +242,21 @@ describe("SettingsPage", () => {
 
   it("updates auto-update interval", async () => {
     const onAutoUpdateIntervalChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onAutoUpdateIntervalChange={onAutoUpdateIntervalChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onAutoUpdateIntervalChange,
+    })
     await userEvent.click(screen.getByText("30 min"))
     expect(onAutoUpdateIntervalChange).toHaveBeenCalledWith(30)
   })
 
   it("shows auto-update helper text", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("How obsessive are you")).toBeInTheDocument()
   })
 
   it("renders app theme section with theme options", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("App Theme")).toBeInTheDocument()
     expect(screen.getByText("How it looks around here")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
@@ -262,94 +267,82 @@ describe("SettingsPage", () => {
 
   it("updates theme mode", async () => {
     const onThemeModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onThemeModeChange={onThemeModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onThemeModeChange,
+    })
     await userEvent.click(screen.getByText("Dark"))
     expect(onThemeModeChange).toHaveBeenCalledWith("dark")
   })
 
   it("updates glass theme mode", async () => {
     const onThemeModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onThemeModeChange={onThemeModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onThemeModeChange,
+    })
     await userEvent.click(screen.getByText("Glass"))
     expect(onThemeModeChange).toHaveBeenCalledWith("glass")
   })
 
   it("updates display mode", async () => {
     const onDisplayModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onDisplayModeChange={onDisplayModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onDisplayModeChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "Left" }))
     expect(onDisplayModeChange).toHaveBeenCalledWith("left")
   })
 
   it("updates reset timer display mode", async () => {
     const onResetTimerDisplayModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onResetTimerDisplayModeChange={onResetTimerDisplayModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onResetTimerDisplayModeChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: /Absolute/ }))
     expect(onResetTimerDisplayModeChange).toHaveBeenCalledWith("absolute")
   })
 
   it("renders renamed usage section heading", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("Usage Mode")).toBeInTheDocument()
   })
 
   it("renders reset timers section heading", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("Reset Timers")).toBeInTheDocument()
   })
 
   it("renders time format section heading", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("Time Format")).toBeInTheDocument()
     expect(screen.getByText("12-hour or 24-hour clock")).toBeInTheDocument()
   })
 
   it("updates time format mode to 12h", async () => {
     const onTimeFormatModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onTimeFormatModeChange={onTimeFormatModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onTimeFormatModeChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "12-hour" }))
     expect(onTimeFormatModeChange).toHaveBeenCalledWith("12h")
   })
 
   it("updates time format mode to 24h", async () => {
     const onTimeFormatModeChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onTimeFormatModeChange={onTimeFormatModeChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onTimeFormatModeChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "24-hour" }))
     expect(onTimeFormatModeChange).toHaveBeenCalledWith("24h")
   })
 
   it("renders menubar icon section", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.getByText("Tray / menu bar icon")).toBeInTheDocument()
     expect(
       screen.getByText(/What shows next to the clock/i),
@@ -358,24 +351,20 @@ describe("SettingsPage", () => {
 
   it("clicking Battery bars triggers onMenubarIconStyleChange(\"bars\")", async () => {
     const onMenubarIconStyleChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onMenubarIconStyleChange={onMenubarIconStyleChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onMenubarIconStyleChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "Battery bars" }))
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("bars")
   })
 
   it("clicking Pie chart triggers onMenubarIconStyleChange(\"donut\")", async () => {
     const onMenubarIconStyleChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onMenubarIconStyleChange={onMenubarIconStyleChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onMenubarIconStyleChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "Pie chart" }))
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("donut")
   })
@@ -384,11 +373,10 @@ describe("SettingsPage", () => {
     const onMenubarIconStyleChange = vi.fn()
     const onSetCursorTrayMetricForAllAccounts = vi.fn()
     const user = userEvent.setup()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        menubarIconStyle="bars"
-        plugins={[
+    renderSettings({
+      ...defaultProps,
+      menubarIconStyle: "bars",
+      plugins: [
           {
             id: "cursor",
             baseProviderId: "cursor",
@@ -397,11 +385,10 @@ describe("SettingsPage", () => {
             primaryCandidates: ["Total usage"],
             trayLines: ["Total usage"],
           },
-        ]}
-        onMenubarIconStyleChange={onMenubarIconStyleChange}
-        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
-      />
-    )
+        ],
+      onMenubarIconStyleChange,
+      onSetCursorTrayMetricForAllAccounts,
+    })
     await user.click(screen.getByRole("radio", { name: "Pie chart" }))
     expect(screen.getByRole("dialog", { name: "Cursor tray readout" })).toBeInTheDocument()
     await user.click(screen.getByRole("radio", { name: "Credits" }))
@@ -412,12 +399,10 @@ describe("SettingsPage", () => {
 
   it("clicking Logo fill and All logos triggers tray style changes", async () => {
     const onMenubarIconStyleChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onMenubarIconStyleChange={onMenubarIconStyleChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onMenubarIconStyleChange,
+    })
     await userEvent.click(screen.getByRole("radio", { name: "Logo fill" }))
     await userEvent.click(screen.getByRole("radio", { name: "All logos" }))
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("logoBar")
@@ -425,19 +410,17 @@ describe("SettingsPage", () => {
   })
 
   it("does not render removed bar icon controls", () => {
-    render(<SettingsPage {...defaultProps} />)
+    renderSettings({ ...defaultProps })
     expect(screen.queryByText("Bar Icon")).not.toBeInTheDocument()
     expect(screen.queryByText("Show percentage")).not.toBeInTheDocument()
   })
 
   it("toggles menubar weekly limit preference", async () => {
     const onPreferMenubarWeeklyLimitChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onPreferMenubarWeeklyLimitChange={onPreferMenubarWeeklyLimitChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onPreferMenubarWeeklyLimitChange,
+    })
 
     await userEvent.click(screen.getByText("Prefer weekly limits when available"))
     expect(onPreferMenubarWeeklyLimitChange).toHaveBeenCalledWith(true)
@@ -445,25 +428,21 @@ describe("SettingsPage", () => {
 
   it("toggles start on login checkbox", async () => {
     const onStartOnLoginChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        onStartOnLoginChange={onStartOnLoginChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      onStartOnLoginChange,
+    })
     await userEvent.click(screen.getByText("Start on login"))
     expect(onStartOnLoginChange).toHaveBeenCalledWith(true)
   })
 
   it("toggles account identity visibility", async () => {
     const onShowAccountIdentityChange = vi.fn()
-    render(
-      <SettingsPage
-        {...defaultProps}
-        showAccountIdentity={false}
-        onShowAccountIdentityChange={onShowAccountIdentityChange}
-      />
-    )
+    renderSettings({
+      ...defaultProps,
+      showAccountIdentity: false,
+      onShowAccountIdentityChange,
+    })
     await userEvent.click(screen.getByText("Show account identity"))
     expect(onShowAccountIdentityChange).toHaveBeenCalledWith(true)
   })

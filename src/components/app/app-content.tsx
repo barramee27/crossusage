@@ -17,6 +17,8 @@ import type {
   ResetTimerDisplayMode,
   ThemeMode,
   TimeFormatMode,
+  AppLocale,
+  DisplayCurrency,
   UILayout,
   UIScale,
   UsageAlertSound,
@@ -48,6 +50,8 @@ export type AppContentActionProps = {
   onResetTimerDisplayModeChange: (mode: ResetTimerDisplayMode) => void
   onResetTimerDisplayModeToggle: () => void
   onTimeFormatModeChange: (mode: TimeFormatMode) => void
+  onAppLocaleChange: (locale: AppLocale) => void
+  onDisplayCurrencyChange: (currency: DisplayCurrency) => void
   onMenubarIconStyleChange: (value: MenubarIconStyle) => void
   onPreferMenubarWeeklyLimitChange: (value: boolean) => void
   traySettingsPreview: TraySettingsPreview
@@ -91,6 +95,8 @@ export function AppContent({
   onResetTimerDisplayModeChange,
   onResetTimerDisplayModeToggle,
   onTimeFormatModeChange,
+  onAppLocaleChange,
+  onDisplayCurrencyChange,
   onMenubarIconStyleChange,
   onPreferMenubarWeeklyLimitChange,
   traySettingsPreview,
@@ -122,6 +128,8 @@ export function AppContent({
     displayMode,
     resetTimerDisplayMode,
     timeFormatMode,
+    appLocale,
+    displayCurrency,
     menubarIconStyle,
     preferMenubarWeeklyLimit,
     autoUpdateInterval,
@@ -144,6 +152,8 @@ export function AppContent({
       displayMode: state.displayMode,
       resetTimerDisplayMode: state.resetTimerDisplayMode,
       timeFormatMode: state.timeFormatMode,
+      appLocale: state.appLocale,
+      displayCurrency: state.displayCurrency,
       menubarIconStyle: state.menubarIconStyle,
       preferMenubarWeeklyLimit: state.preferMenubarWeeklyLimit,
       autoUpdateInterval: state.autoUpdateInterval,
@@ -205,6 +215,10 @@ export function AppContent({
         onResetTimerDisplayModeChange={onResetTimerDisplayModeChange}
         timeFormatMode={timeFormatMode}
         onTimeFormatModeChange={onTimeFormatModeChange}
+        appLocale={appLocale}
+        onAppLocaleChange={onAppLocaleChange}
+        displayCurrency={displayCurrency}
+        onDisplayCurrencyChange={onDisplayCurrencyChange}
         menubarIconStyle={menubarIconStyle}
         onMenubarIconStyleChange={onMenubarIconStyleChange}
         preferMenubarWeeklyLimit={preferMenubarWeeklyLimit}

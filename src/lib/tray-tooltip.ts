@@ -1,17 +1,14 @@
 import type { PluginMeta } from "@/lib/plugin-types"
 import type { DisplayMode } from "@/lib/settings"
 import { DEFAULT_DISPLAY_MODE } from "@/lib/settings"
+import i18n from "@/i18n"
+import { formatMoney } from "@/lib/locale-format"
 import type { TrayPrimaryBar, TrayPrimaryBarItem } from "@/lib/tray-primary-progress"
 
 const TRAY_APP_LABEL = "CrossUsage"
 
-function formatUsdTrayAmount(amount: number): string {
-  if (!Number.isFinite(amount)) return "—"
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(amount)
+function t(key: string, options?: Record<string, unknown>): string {
+  return i18n.t(key, options)
 }
 
 /**
@@ -35,11 +32,13 @@ export function formatTrayItemCaption(
     typeof item.limit === "number" &&
     Number.isFinite(item.limit)
   ) {
+    const used = formatMoney(item.used, { sourceCurrency: "USD" })
+    const limit = formatMoney(item.limit, { sourceCurrency: "USD" })
     if (displayMode === "used") {
-      return `${formatUsdTrayAmount(item.used)} / ${formatUsdTrayAmount(item.limit)}`
+      return t("tray.amountUsedOfLimit", { used, limit })
     }
     const left = Math.max(0, item.limit - item.used)
-    return `${formatUsdTrayAmount(left)} left`
+    return t("tray.amountLeft", { amount: formatMoney(left, { sourceCurrency: "USD" }) })
   }
   return formatTrayPercentText(item.fraction)
 }

@@ -25,6 +25,8 @@ const {
   loadModernDensityMock,
   loadUIScaleMock,
   loadTimeFormatModeMock,
+  loadAppLocaleMock,
+  loadDisplayCurrencyMock,
   migrateLegacyTraySettingsMock,
   migrateWindsurfToDevinMock,
   normalizePluginSettingsMock,
@@ -55,6 +57,8 @@ const {
   loadModernDensityMock: vi.fn(),
   loadUIScaleMock: vi.fn(),
   loadTimeFormatModeMock: vi.fn(),
+  loadAppLocaleMock: vi.fn(),
+  loadDisplayCurrencyMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
   migrateWindsurfToDevinMock: vi.fn(),
   normalizePluginSettingsMock: vi.fn(),
@@ -102,6 +106,8 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_MODERN_DENSITY: "regular",
   DEFAULT_UI_SCALE: "normal",
   DEFAULT_TIME_FORMAT_MODE: "auto",
+  DEFAULT_APP_LOCALE: "auto",
+  DEFAULT_DISPLAY_CURRENCY: "auto",
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: loadShowTrayIconMock,
   loadShowTrayInsight: loadShowTrayInsightMock,
@@ -126,6 +132,8 @@ vi.mock("@/lib/settings", () => ({
   loadModernDensity: loadModernDensityMock,
   loadUIScale: loadUIScaleMock,
   loadTimeFormatMode: loadTimeFormatModeMock,
+  loadAppLocale: loadAppLocaleMock,
+  loadDisplayCurrency: loadDisplayCurrencyMock,
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
   migrateWindsurfToDevin: migrateWindsurfToDevinMock,
   normalizePluginSettings: normalizePluginSettingsMock,
@@ -150,6 +158,8 @@ function createArgs() {
     setDisplayMode: vi.fn(),
     setResetTimerDisplayMode: vi.fn(),
     setTimeFormatMode: vi.fn(),
+    setAppLocale: vi.fn(),
+    setDisplayCurrency: vi.fn(),
     setGlobalShortcut: vi.fn(),
     setStartOnLogin: vi.fn(),
     setShowAccountIdentity: vi.fn(),
@@ -197,6 +207,8 @@ describe("useSettingsBootstrap", () => {
     loadModernDensityMock.mockReset()
     loadUIScaleMock.mockReset()
     loadTimeFormatModeMock.mockReset()
+    loadAppLocaleMock.mockReset()
+    loadDisplayCurrencyMock.mockReset()
     migrateLegacyTraySettingsMock.mockReset()
     migrateWindsurfToDevinMock.mockReset()
     normalizePluginSettingsMock.mockReset()
@@ -229,6 +241,8 @@ describe("useSettingsBootstrap", () => {
     loadDisplayModeMock.mockResolvedValue("used")
     loadResetTimerDisplayModeMock.mockResolvedValue("relative")
     loadTimeFormatModeMock.mockResolvedValue("auto")
+    loadAppLocaleMock.mockResolvedValue("auto")
+    loadDisplayCurrencyMock.mockResolvedValue("auto")
     loadGlobalShortcutMock.mockResolvedValue("CommandOrControl+Shift+O")
     loadMenubarIconStyleMock.mockResolvedValue("provider")
     loadPreferMenubarWeeklyLimitMock.mockResolvedValue(true)

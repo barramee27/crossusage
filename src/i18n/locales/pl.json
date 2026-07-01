@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Ustawienia",
+    "overview": "Przegląd",
+    "home": "Strona główna",
+    "skip": "Pomiń",
+    "continue": "Kontynuuj",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "close": "Zamknij",
+    "refresh": "Odśwież",
+    "retry": "Ponów",
+    "loading": "Ładowanie…",
+    "enabled": "Włączone",
+    "disabled": "Wyłączone",
+    "on": "Wł.",
+    "off": "Wył.",
+    "auto": "Auto",
+    "custom": "Niestandardowe",
+    "left": "pozostało",
+    "used": "użyto",
+    "today": "dziś",
+    "tomorrow": "jutro",
+    "at": "o"
+  },
+  "nav": {
+    "settings": "Ustawienia",
+    "help": "Pomoc",
+    "reload": "Przeładuj",
+    "remove": "Usuń",
+    "dragToReorder": "Przeciągnij, aby zmienić kolejność"
+  },
+  "onboarding": {
+    "welcomeTitle": "Witamy w {{appName}}",
+    "welcomeBody": "Wszyscy dołączeni dostawcy działają na Linux i Windows. Następnie wybierz układ — możesz go zmienić w dowolnym momencie w Ustawieniach. Dostawcy i konta są współdzielone między układami.",
+    "layoutTitle": "Wybierz układ",
+    "layoutBody": "Classic zachowuje nawigację boczną i karty dostawców. Modern grupuje metryki jak OpenUsage 0.7.",
+    "getStarted": "Rozpocznij",
+    "layoutAria": "Układ interfejsu"
+  },
+  "modern": {
+    "dashboard": "Panel",
+    "customize": "Dostosuj",
+    "settings": "Ustawienia",
+    "settingsTabGeneral": "Ogólne",
+    "settingsTabTray": "Zasobnik",
+    "settingsTabLook": "Wygląd",
+    "settingsTabProviders": "Dostawcy",
+    "settingsTabAdvanced": "Zaawansowane"
+  },
+  "footer": {
+    "downloadingUpdate": "Pobieranie aktualizacji {{progress}}%",
+    "downloadingUpdatePending": "Pobieranie aktualizacji…",
+    "readyToUpdate": "Gotowe do aktualizacji",
+    "restartToInstall": "Uruchom ponownie, aby zainstalować v{{version}}",
+    "installing": "Instalowanie…",
+    "updatesSoon": "Aktualizacje wkrótce",
+    "updateFailed": "Aktualizacja nie powiodła się",
+    "refreshAll": "Odśwież wszystko",
+    "nextRefresh": "Następne odświeżenie {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Dużo zapasu",
+    "rightOnTarget": "Dokładnie w normie",
+    "willRunOut": "Wyczerpie się",
+    "runsOutIn": "Wyczerpie się za {{duration}}",
+    "limitIn": "Limit za {{duration}}",
+    "leftAtReset": "pozostało przy resecie",
+    "usedAtReset": "użyto przy resecie",
+    "short": "mało",
+    "inDeficit": "w deficycie",
+    "underOneMinute": "<1 min",
+    "durationDaysHours": "{{days}}d {{hours}}g",
+    "durationHoursMinutes": "{{hours}}g {{minutes}}min",
+    "durationMinutes": "{{minutes}}min"
+  },
+  "reset": {
+    "resetsSoon": "Reset wkrótce",
+    "resetsIn": "Reset za {{duration}}",
+    "resetsTodayAt": "Reset dziś o {{time}}",
+    "resetsTomorrowAt": "Reset jutro o {{time}}",
+    "resetsDateAt": "Reset {{date}} o {{time}}",
+    "exampleRelative": "5g 12min",
+    "exampleAbsolute": "dziś o {{time}}"
+  },
+  "tray": {
+    "amountLeft": "pozostało {{amount}}",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Spostrzeżenia",
+    "paceBehind": "{{name}} · {{label}}: wysokie zużycie — {{message}}",
+    "tight": "{{name}} · {{label}}: pozostało tylko {{percent}}%",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Sekcje ustawień",
+    "languageRegion": {
+      "title": "Język i region",
+      "description": "Język aplikacji i sposób wyświetlania kwot. Limity dostawców są raportowane w USD; inne waluty używają kursów na żywo, gdy są dostępne.",
+      "language": "Język",
+      "languageAria": "Język aplikacji",
+      "currency": "Waluta wyświetlania",
+      "currencyAria": "Waluta wyświetlania",
+      "currencyAutoHint": "Dopasowuje się do języka, gdy ustawiono Auto"
+    },
+    "autoRefresh": {
+      "title": "Automatyczne odświeżanie",
+      "description": "Jak często odświeżać",
+      "aria": "Interwał automatycznej aktualizacji"
+    },
+    "usageMode": {
+      "title": "Tryb zużycia",
+      "description": "Szklanka w połowie pełna czy pusta",
+      "aria": "Tryb wyświetlania zużycia"
+    },
+    "resetTimers": {
+      "title": "Liczniki resetu",
+      "description": "Odliczanie lub czas zegara",
+      "aria": "Tryb wyświetlania liczników resetu"
+    },
+    "timeFormat": {
+      "title": "Format czasu",
+      "description": "Zegar 12- lub 24-godzinny",
+      "aria": "Format czasu"
+    },
+    "trayIcon": {
+      "title": "Ikona zasobnika / paska menu",
+      "descriptionModern": "Wybierz styl ikony poniżej. Metryki zasobnika używają głównych linii zużycia każdego dostawcy (tak jak Classic). Skonfiguruj linie zasobnika per dostawca w sekcji Dostawcy, gdy potrzeba.",
+      "descriptionClassic": "Co wyświetla się obok zegara (Linux/Windows) lub w pasku menu (macOS). Nowe instalacje domyślnie używają Plugin (logo dostawcy + zużycie). Gdy Cursor jest włączony i wybierzesz Plugin, Logo fill, Logo grid lub Pie, możesz wybrać, która metryka Cursor steruje odczytem (Credits wyświetlane są w dolarach w zasobniku).",
+      "aria": "Styl ikony paska menu"
+    },
+    "uiLayout": {
+      "title": "Układ interfejsu",
+      "description": "Nawigacja boczna Classic lub grupowane widżety Modern"
+    },
+    "modernDensity": {
+      "title": "Gęstość Modern",
+      "description": "Odstępy w układzie Modern"
+    },
+    "theme": {
+      "title": "Motyw aplikacji",
+      "description": "Jasny, ciemny lub Glass"
+    },
+    "uiScale": {
+      "title": "Skala interfejsu",
+      "description": "Pomniejsz interfejs na gęstych ekranach"
+    },
+    "startOnLogin": {
+      "title": "Uruchamiaj przy logowaniu",
+      "description": "Uruchamiaj po zalogowaniu"
+    },
+    "troubleshooting": {
+      "title": "Rozwiązywanie problemów"
+    },
+    "accountIdentity": {
+      "title": "Tożsamość konta",
+      "description": "Pokazuj e-mail lub nazwę użytkownika konta na kartach dostawców"
+    },
+    "usageAlerts": {
+      "title": "Alerty zużycia"
+    },
+    "plugins": {
+      "title": "Pluginy"
+    },
+    "insights": {
+      "title": "Spostrzeżenia"
+    },
+    "localApi": {
+      "title": "Lokalne API (rozwiązywanie problemów)"
+    },
+    "usageHistory": {
+      "title": "Historia zużycia"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 min",
+        "15": "15 min",
+        "30": "30 min",
+        "60": "60 min"
+      },
+      "displayMode": {
+        "used": "Użyto",
+        "left": "Pozostało"
+      },
+      "resetTimer": {
+        "relative": "Względny",
+        "absolute": "Bezwzględny"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12-godzinny",
+        "24h": "24-godzinny"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normalny",
+        "compact": "Kompaktowy"
+      },
+      "theme": {
+        "system": "System",
+        "light": "Jasny",
+        "dark": "Ciemny",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normalny",
+        "small": "Mały",
+        "compact": "Kompaktowy"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Wszystkie logo",
+        "donut": "Wykres kołowy",
+        "bars": "Paski baterii"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Niestandardowe"
+      },
+      "usageHistoryRetention": {
+        "30": "30 dni",
+        "90": "90 dni",
+        "365": "1 rok",
+        "0": "Na zawsze"
+      }
+    }
+  }
+}
