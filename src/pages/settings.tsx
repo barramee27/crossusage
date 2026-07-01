@@ -27,15 +27,6 @@ import { LanguageRegionSection } from "@/components/settings/language-region-sec
 import { getBarFillLayout } from "@/lib/tray-bars-icon";
 import { getTrayIconSizePx } from "@/lib/tray-icon-size";
 import {
-  AUTO_UPDATE_OPTIONS,
-  DISPLAY_MODE_OPTIONS,
-  MENUBAR_ICON_STYLE_OPTIONS,
-  RESET_TIMER_DISPLAY_OPTIONS,
-  THEME_OPTIONS,
-  TIME_FORMAT_OPTIONS,
-  UI_LAYOUT_OPTIONS,
-  MODERN_DENSITY_OPTIONS,
-  UI_SCALE_OPTIONS,
   USAGE_ALERT_SOUND_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
   USAGE_HISTORY_RETENTION_OPTIONS,

@@ -3,7 +3,7 @@ import type { ProgressFormat } from "@/lib/plugin-types"
 import type { DisplayMode } from "@/lib/settings"
 import i18n from "@/i18n"
 import { formatMoney } from "@/lib/locale-format"
-import { formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
+import { formatCountNumber } from "@/lib/utils"
 
 function t(key: string, options?: Record<string, unknown>): string {
   return i18n.t(key, options)

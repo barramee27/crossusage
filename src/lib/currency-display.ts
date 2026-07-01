@@ -14,7 +14,7 @@ export function formatCurrencyOptionLabel(
   locale?: string,
 ): string {
   const intlLocale = locale ?? getEffectiveIntlLocale()
-  let name = code
+  let name: string = code
   try {
     name = new Intl.DisplayNames([intlLocale], { type: "currency" }).of(code) ?? code
   } catch {

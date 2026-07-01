@@ -12,7 +12,6 @@ import {
   UI_SCALE_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
   USAGE_HISTORY_RETENTION_OPTIONS,
-  type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type MenubarIconStyle,
   type ModernDensity,
