@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "設定",
+    "overview": "概覽",
+    "home": "首頁",
+    "skip": "略過",
+    "continue": "繼續",
+    "cancel": "取消",
+    "save": "儲存",
+    "close": "關閉",
+    "refresh": "重新整理",
+    "retry": "重試",
+    "loading": "載入中…",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "on": "開",
+    "off": "關",
+    "auto": "自動",
+    "custom": "自訂",
+    "left": "剩餘",
+    "used": "已用",
+    "today": "今天",
+    "tomorrow": "明天",
+    "at": ""
+  },
+  "nav": {
+    "settings": "設定",
+    "help": "說明",
+    "reload": "重新載入",
+    "remove": "移除",
+    "dragToReorder": "拖曳以重新排序"
+  },
+  "onboarding": {
+    "welcomeTitle": "歡迎使用 {{appName}}",
+    "welcomeBody": "所有內建提供者均支援 Linux 和 Windows。接下來選擇版面配置 — 可隨時在設定中切換。提供者和帳戶在版面配置之間共用。",
+    "layoutTitle": "選擇版面配置",
+    "layoutBody": "Classic 保留側邊導覽和提供者卡片。Modern 像 OpenUsage 0.7 一樣分組顯示指標。",
+    "getStarted": "開始使用",
+    "layoutAria": "UI 版面配置"
+  },
+  "modern": {
+    "dashboard": "儀表板",
+    "customize": "自訂",
+    "settings": "設定",
+    "settingsTabGeneral": "一般",
+    "settingsTabTray": "系統匣",
+    "settingsTabLook": "外觀",
+    "settingsTabProviders": "提供者",
+    "settingsTabAdvanced": "進階"
+  },
+  "footer": {
+    "downloadingUpdate": "正在下載更新 {{progress}}%",
+    "downloadingUpdatePending": "正在下載更新…",
+    "readyToUpdate": "準備更新",
+    "restartToInstall": "重新啟動以安裝 v{{version}}",
+    "installing": "正在安裝…",
+    "updatesSoon": "即將更新",
+    "updateFailed": "更新失敗",
+    "refreshAll": "全部重新整理",
+    "nextRefresh": "下次重新整理 {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "餘量充足",
+    "rightOnTarget": "剛好達標",
+    "willRunOut": "即將用完",
+    "runsOutIn": "{{duration}} 後用完",
+    "limitIn": "{{duration}} 後達到限額",
+    "leftAtReset": "重設時剩餘",
+    "usedAtReset": "重設時已用",
+    "short": "不足",
+    "inDeficit": "已超支",
+    "underOneMinute": "<1 分鐘",
+    "durationDaysHours": "{{days}} 天 {{hours}} 小時",
+    "durationHoursMinutes": "{{hours}} 小時 {{minutes}} 分鐘",
+    "durationMinutes": "{{minutes}} 分鐘"
+  },
+  "reset": {
+    "resetsSoon": "即將重設",
+    "resetsIn": "{{duration}} 後重設",
+    "resetsTodayAt": "今天 {{time}} 重設",
+    "resetsTomorrowAt": "明天 {{time}} 重設",
+    "resetsDateAt": "{{date}} {{time}} 重設",
+    "exampleRelative": "5 小時 12 分鐘",
+    "exampleAbsolute": "今天 {{time}}"
+  },
+  "tray": {
+    "amountLeft": "剩餘 {{amount}}",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "洞察",
+    "paceBehind": "{{name}} · {{label}}：使用過快 — {{message}}",
+    "tight": "{{name}} · {{label}}：僅剩 {{percent}}%",
+    "resetSoon": "{{name}} · {{label}}：{{message}}"
+  },
+  "settings": {
+    "sectionsAria": "設定區段",
+    "languageRegion": {
+      "title": "語言與地區",
+      "description": "應用程式語言及金額顯示方式。提供者配額以 USD 報告；其他貨幣在可用時使用即時匯率。",
+      "language": "語言",
+      "languageAria": "應用程式語言",
+      "currency": "顯示貨幣",
+      "currencyAria": "顯示貨幣",
+      "currencyAutoHint": "設為自動時與語言相符"
+    },
+    "autoRefresh": {
+      "title": "自動重新整理",
+      "description": "重新整理頻率",
+      "aria": "自動更新間隔"
+    },
+    "usageMode": {
+      "title": "使用量模式",
+      "description": "半滿還是半空",
+      "aria": "使用量顯示模式"
+    },
+    "resetTimers": {
+      "title": "重設計時器",
+      "description": "倒數計時或時鐘時間",
+      "aria": "重設計時器顯示模式"
+    },
+    "timeFormat": {
+      "title": "時間格式",
+      "description": "12 小時或 24 小時",
+      "aria": "時間格式"
+    },
+    "trayIcon": {
+      "title": "系統匣 / 選單列圖示",
+      "descriptionModern": "在下方選擇圖示樣式。系統匣指標使用各提供者的主要使用量列（與 Classic 相同）。如需設定，請在提供者下設定各提供者的系統匣列。",
+      "descriptionClassic": "顯示在時鐘旁（Linux/Windows）或選單列中（macOS）。新安裝預設為 Plugin（提供者標誌 + 使用量）。啟用 Cursor 並選擇 Plugin、Logo fill、Logo grid 或 Pie 時，可選擇哪個 Cursor 指標驅動系統匣讀數（Credits 在系統匣中以美元顯示）。",
+      "aria": "選單列圖示樣式"
+    },
+    "uiLayout": {
+      "title": "UI 版面配置",
+      "description": "Classic 側邊導覽或 Modern 分組小工具"
+    },
+    "modernDensity": {
+      "title": "Modern 密度",
+      "description": "Modern 版面配置的間距"
+    },
+    "theme": {
+      "title": "應用程式主題",
+      "description": "淺色、深色或 Glass"
+    },
+    "uiScale": {
+      "title": "介面縮放",
+      "description": "在高密度顯示器上縮小 UI"
+    },
+    "startOnLogin": {
+      "title": "登入時啟動",
+      "description": "登入時自動啟動"
+    },
+    "troubleshooting": {
+      "title": "疑難排解"
+    },
+    "accountIdentity": {
+      "title": "帳戶識別",
+      "description": "在提供者卡片上顯示帳戶電子郵件或使用者名稱"
+    },
+    "usageAlerts": {
+      "title": "使用量提醒"
+    },
+    "plugins": {
+      "title": "Plugin"
+    },
+    "insights": {
+      "title": "洞察"
+    },
+    "localApi": {
+      "title": "本機 API（疑難排解）"
+    },
+    "usageHistory": {
+      "title": "使用紀錄"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 分鐘",
+        "15": "15 分鐘",
+        "30": "30 分鐘",
+        "60": "60 分鐘"
+      },
+      "displayMode": {
+        "used": "已用",
+        "left": "剩餘"
+      },
+      "resetTimer": {
+        "relative": "相對",
+        "absolute": "絕對"
+      },
+      "timeFormat": {
+        "auto": "自動",
+        "12h": "12 小時",
+        "24h": "24 小時"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "一般",
+        "compact": "緊湊"
+      },
+      "theme": {
+        "system": "系統",
+        "light": "淺色",
+        "dark": "深色",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "正常",
+        "small": "小",
+        "compact": "緊湊"
+      },
+      "menubarIcon": {
+        "provider": "標誌 + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "所有標誌",
+        "donut": "圓餅圖",
+        "bars": "電池條"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "自訂"
+      },
+      "usageHistoryRetention": {
+        "30": "30 天",
+        "90": "90 天",
+        "365": "1 年",
+        "0": "永久"
+      }
+    }
+  }
+}

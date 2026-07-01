@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "设置",
+    "overview": "概览",
+    "home": "首页",
+    "skip": "跳过",
+    "continue": "继续",
+    "cancel": "取消",
+    "save": "保存",
+    "close": "关闭",
+    "refresh": "刷新",
+    "retry": "重试",
+    "loading": "加载中…",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "on": "开",
+    "off": "关",
+    "auto": "自动",
+    "custom": "自定义",
+    "left": "剩余",
+    "used": "已用",
+    "today": "今天",
+    "tomorrow": "明天",
+    "at": ""
+  },
+  "nav": {
+    "settings": "设置",
+    "help": "帮助",
+    "reload": "重新加载",
+    "remove": "移除",
+    "dragToReorder": "拖动以重新排序"
+  },
+  "onboarding": {
+    "welcomeTitle": "欢迎使用 {{appName}}",
+    "welcomeBody": "所有内置提供商均支持 Linux 和 Windows。接下来选择布局 — 可随时在设置中切换。提供商和账户在布局之间共享。",
+    "layoutTitle": "选择布局",
+    "layoutBody": "Classic 保留侧边导航和提供商卡片。Modern 像 OpenUsage 0.7 一样分组显示指标。",
+    "getStarted": "开始使用",
+    "layoutAria": "UI 布局"
+  },
+  "modern": {
+    "dashboard": "仪表板",
+    "customize": "自定义",
+    "settings": "设置",
+    "settingsTabGeneral": "常规",
+    "settingsTabTray": "托盘",
+    "settingsTabLook": "外观",
+    "settingsTabProviders": "提供商",
+    "settingsTabAdvanced": "高级"
+  },
+  "footer": {
+    "downloadingUpdate": "正在下载更新 {{progress}}%",
+    "downloadingUpdatePending": "正在下载更新…",
+    "readyToUpdate": "准备更新",
+    "restartToInstall": "重启以安装 v{{version}}",
+    "installing": "正在安装…",
+    "updatesSoon": "即将更新",
+    "updateFailed": "更新失败",
+    "refreshAll": "全部刷新",
+    "nextRefresh": "下次刷新 {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "余量充足",
+    "rightOnTarget": "刚好达标",
+    "willRunOut": "即将用完",
+    "runsOutIn": "{{duration}} 后用完",
+    "limitIn": "{{duration}} 后达到限额",
+    "leftAtReset": "重置时剩余",
+    "usedAtReset": "重置时已用",
+    "short": "不足",
+    "inDeficit": "已超支",
+    "underOneMinute": "<1 分钟",
+    "durationDaysHours": "{{days}} 天 {{hours}} 小时",
+    "durationHoursMinutes": "{{hours}} 小时 {{minutes}} 分钟",
+    "durationMinutes": "{{minutes}} 分钟"
+  },
+  "reset": {
+    "resetsSoon": "即将重置",
+    "resetsIn": "{{duration}} 后重置",
+    "resetsTodayAt": "今天 {{time}} 重置",
+    "resetsTomorrowAt": "明天 {{time}} 重置",
+    "resetsDateAt": "{{date}} {{time}} 重置",
+    "exampleRelative": "5 小时 12 分钟",
+    "exampleAbsolute": "今天 {{time}}"
+  },
+  "tray": {
+    "amountLeft": "剩余 {{amount}}",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "洞察",
+    "paceBehind": "{{name}} · {{label}}：使用过快 — {{message}}",
+    "tight": "{{name}} · {{label}}：仅剩 {{percent}}%",
+    "resetSoon": "{{name}} · {{label}}：{{message}}"
+  },
+  "settings": {
+    "sectionsAria": "设置分区",
+    "languageRegion": {
+      "title": "语言和地区",
+      "description": "应用语言及金额显示方式。提供商配额以 USD 报告；其他货币在可用时使用实时汇率。",
+      "language": "语言",
+      "languageAria": "应用语言",
+      "currency": "显示货币",
+      "currencyAria": "显示货币",
+      "currencyAutoHint": "设为自动时与语言匹配"
+    },
+    "autoRefresh": {
+      "title": "自动刷新",
+      "description": "刷新频率",
+      "aria": "自动更新间隔"
+    },
+    "usageMode": {
+      "title": "使用量模式",
+      "description": "半满还是半空",
+      "aria": "使用量显示模式"
+    },
+    "resetTimers": {
+      "title": "重置计时器",
+      "description": "倒计时或时钟时间",
+      "aria": "重置计时器显示模式"
+    },
+    "timeFormat": {
+      "title": "时间格式",
+      "description": "12 小时或 24 小时",
+      "aria": "时间格式"
+    },
+    "trayIcon": {
+      "title": "托盘 / 菜单栏图标",
+      "descriptionModern": "在下方选择图标样式。托盘指标使用各提供商的主要使用量行（与 Classic 相同）。如需配置，请在提供商下设置各提供商的托盘行。",
+      "descriptionClassic": "显示在时钟旁（Linux/Windows）或菜单栏中（macOS）。新安装默认为 Plugin（提供商徽标 + 使用量）。启用 Cursor 并选择 Plugin、Logo fill、Logo grid 或 Pie 时，可选择哪个 Cursor 指标驱动托盘读数（Credits 在托盘中以美元显示）。",
+      "aria": "菜单栏图标样式"
+    },
+    "uiLayout": {
+      "title": "UI 布局",
+      "description": "Classic 侧边导航或 Modern 分组小部件"
+    },
+    "modernDensity": {
+      "title": "Modern 密度",
+      "description": "Modern 布局的间距"
+    },
+    "theme": {
+      "title": "应用主题",
+      "description": "浅色、深色或 Glass"
+    },
+    "uiScale": {
+      "title": "界面缩放",
+      "description": "在高密度显示器上缩小 UI"
+    },
+    "startOnLogin": {
+      "title": "登录时启动",
+      "description": "登录时自动启动"
+    },
+    "troubleshooting": {
+      "title": "故障排除"
+    },
+    "accountIdentity": {
+      "title": "账户标识",
+      "description": "在提供商卡片上显示账户邮箱或用户名"
+    },
+    "usageAlerts": {
+      "title": "使用量提醒"
+    },
+    "plugins": {
+      "title": "Plugin"
+    },
+    "insights": {
+      "title": "洞察"
+    },
+    "localApi": {
+      "title": "本地 API（故障排除）"
+    },
+    "usageHistory": {
+      "title": "使用历史"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 分钟",
+        "15": "15 分钟",
+        "30": "30 分钟",
+        "60": "60 分钟"
+      },
+      "displayMode": {
+        "used": "已用",
+        "left": "剩余"
+      },
+      "resetTimer": {
+        "relative": "相对",
+        "absolute": "绝对"
+      },
+      "timeFormat": {
+        "auto": "自动",
+        "12h": "12 小时",
+        "24h": "24 小时"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "常规",
+        "compact": "紧凑"
+      },
+      "theme": {
+        "system": "系统",
+        "light": "浅色",
+        "dark": "深色",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "正常",
+        "small": "小",
+        "compact": "紧凑"
+      },
+      "menubarIcon": {
+        "provider": "徽标 + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "所有徽标",
+        "donut": "饼图",
+        "bars": "电池条"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "自定义"
+      },
+      "usageHistoryRetention": {
+        "30": "30 天",
+        "90": "90 天",
+        "365": "1 年",
+        "0": "永久"
+      }
+    }
+  }
+}

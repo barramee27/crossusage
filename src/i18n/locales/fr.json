@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Paramètres",
+    "overview": "Aperçu",
+    "home": "Accueil",
+    "skip": "Ignorer",
+    "continue": "Continuer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "refresh": "Actualiser",
+    "retry": "Réessayer",
+    "loading": "Chargement…",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "on": "Activé",
+    "off": "Désactivé",
+    "auto": "Auto",
+    "custom": "Personnalisé",
+    "left": "restant",
+    "used": "utilisé",
+    "today": "aujourd'hui",
+    "tomorrow": "demain",
+    "at": "à"
+  },
+  "nav": {
+    "settings": "Paramètres",
+    "help": "Aide",
+    "reload": "Recharger",
+    "remove": "Supprimer",
+    "dragToReorder": "Glisser pour réorganiser"
+  },
+  "onboarding": {
+    "welcomeTitle": "Bienvenue sur {{appName}}",
+    "welcomeBody": "Tous les fournisseurs inclus fonctionnent sur Linux et Windows. Choisissez ensuite une disposition — vous pouvez la changer à tout moment dans les Paramètres. Les fournisseurs et comptes sont partagés entre les dispositions.",
+    "layoutTitle": "Choisir votre disposition",
+    "layoutBody": "Classic conserve la navigation latérale et les cartes fournisseurs. Modern regroupe les métriques comme OpenUsage 0.7.",
+    "getStarted": "Commencer",
+    "layoutAria": "Disposition de l'interface"
+  },
+  "modern": {
+    "dashboard": "Tableau de bord",
+    "customize": "Personnaliser",
+    "settings": "Paramètres",
+    "settingsTabGeneral": "Général",
+    "settingsTabTray": "Barre système",
+    "settingsTabLook": "Apparence",
+    "settingsTabProviders": "Fournisseurs",
+    "settingsTabAdvanced": "Avancé"
+  },
+  "footer": {
+    "downloadingUpdate": "Téléchargement de la mise à jour {{progress}}%",
+    "downloadingUpdatePending": "Téléchargement de la mise à jour…",
+    "readyToUpdate": "Prêt à mettre à jour",
+    "restartToInstall": "Redémarrer pour installer v{{version}}",
+    "installing": "Installation…",
+    "updatesSoon": "Mises à jour bientôt",
+    "updateFailed": "Échec de la mise à jour",
+    "refreshAll": "Tout actualiser",
+    "nextRefresh": "Prochaine actualisation {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Large marge",
+    "rightOnTarget": "Dans la cible",
+    "willRunOut": "S'épuisera",
+    "runsOutIn": "Épuisé dans {{duration}}",
+    "limitIn": "Limite dans {{duration}}",
+    "leftAtReset": "restant à la réinitialisation",
+    "usedAtReset": "utilisé à la réinitialisation",
+    "short": "juste",
+    "inDeficit": "en déficit",
+    "underOneMinute": "<1 min",
+    "durationDaysHours": "{{days}}j {{hours}}h",
+    "durationHoursMinutes": "{{hours}}h {{minutes}}min",
+    "durationMinutes": "{{minutes}}min"
+  },
+  "reset": {
+    "resetsSoon": "Réinitialisation bientôt",
+    "resetsIn": "Réinitialisation dans {{duration}}",
+    "resetsTodayAt": "Réinitialisation aujourd'hui à {{time}}",
+    "resetsTomorrowAt": "Réinitialisation demain à {{time}}",
+    "resetsDateAt": "Réinitialisation le {{date}} à {{time}}",
+    "exampleRelative": "5h 12min",
+    "exampleAbsolute": "aujourd'hui à {{time}}"
+  },
+  "tray": {
+    "amountLeft": "{{amount}} restant",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Aperçus",
+    "paceBehind": "{{name}} · {{label}} : utilisation élevée — {{message}}",
+    "tight": "{{name}} · {{label}} : seulement {{percent}}% restant",
+    "resetSoon": "{{name}} · {{label}} : {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Sections des paramètres",
+    "languageRegion": {
+      "title": "Langue et région",
+      "description": "Langue de l'application et affichage des montants. Les quotas des fournisseurs sont rapportés en USD ; les autres devises utilisent les taux de change en direct lorsque disponibles.",
+      "language": "Langue",
+      "languageAria": "Langue de l'application",
+      "currency": "Devise d'affichage",
+      "currencyAria": "Devise d'affichage",
+      "currencyAutoHint": "Correspond à votre langue lorsque réglé sur Auto"
+    },
+    "autoRefresh": {
+      "title": "Actualisation automatique",
+      "description": "À quelle fréquence actualiser",
+      "aria": "Intervalle de mise à jour automatique"
+    },
+    "usageMode": {
+      "title": "Mode d'utilisation",
+      "description": "Verre à moitié plein ou à moitié vide",
+      "aria": "Mode d'affichage de l'utilisation"
+    },
+    "resetTimers": {
+      "title": "Minuteries de réinitialisation",
+      "description": "Compte à rebours ou heure",
+      "aria": "Mode d'affichage des minuteries de réinitialisation"
+    },
+    "timeFormat": {
+      "title": "Format horaire",
+      "description": "Horloge 12 ou 24 heures",
+      "aria": "Format horaire"
+    },
+    "trayIcon": {
+      "title": "Icône barre système / barre de menu",
+      "descriptionModern": "Choisissez le style d'icône ci-dessous. Les métriques de la barre système utilisent les lignes d'utilisation principales de chaque fournisseur (comme Classic). Configurez les lignes par fournisseur sous Fournisseurs si nécessaire.",
+      "descriptionClassic": "Ce qui s'affiche à côté de l'horloge (Linux/Windows) ou dans la barre de menu (macOS). Les nouvelles installations utilisent Plugin par défaut (logo du fournisseur + utilisation). Lorsque Cursor est activé et que vous choisissez Plugin, Logo fill, Logo grid ou Pie, vous pouvez choisir quelle métrique Cursor pilote l'affichage (les Credits s'affichent en dollars dans la barre système).",
+      "aria": "Style d'icône de la barre de menu"
+    },
+    "uiLayout": {
+      "title": "Disposition de l'interface",
+      "description": "Navigation latérale Classic ou widgets groupés Modern"
+    },
+    "modernDensity": {
+      "title": "Densité Modern",
+      "description": "Espacement dans la disposition Modern"
+    },
+    "theme": {
+      "title": "Thème de l'application",
+      "description": "Clair, sombre ou Glass"
+    },
+    "uiScale": {
+      "title": "Échelle de l'interface",
+      "description": "Réduire l'interface sur les écrans denses"
+    },
+    "startOnLogin": {
+      "title": "Démarrer à la connexion",
+      "description": "Lancer à la connexion"
+    },
+    "troubleshooting": {
+      "title": "Dépannage"
+    },
+    "accountIdentity": {
+      "title": "Identité du compte",
+      "description": "Afficher l'e-mail ou le nom d'utilisateur du compte sur les cartes fournisseurs"
+    },
+    "usageAlerts": {
+      "title": "Alertes d'utilisation"
+    },
+    "plugins": {
+      "title": "Plugins"
+    },
+    "insights": {
+      "title": "Aperçus"
+    },
+    "localApi": {
+      "title": "API locale (dépannage)"
+    },
+    "usageHistory": {
+      "title": "Historique d'utilisation"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 min",
+        "15": "15 min",
+        "30": "30 min",
+        "60": "60 min"
+      },
+      "displayMode": {
+        "used": "Utilisé",
+        "left": "Restant"
+      },
+      "resetTimer": {
+        "relative": "Relatif",
+        "absolute": "Absolu"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12 heures",
+        "24h": "24 heures"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normal",
+        "compact": "Compact"
+      },
+      "theme": {
+        "system": "Système",
+        "light": "Clair",
+        "dark": "Sombre",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normal",
+        "small": "Petit",
+        "compact": "Compact"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Tous les logos",
+        "donut": "Graphique circulaire",
+        "bars": "Barres de batterie"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Personnalisé"
+      },
+      "usageHistoryRetention": {
+        "30": "30 jours",
+        "90": "90 jours",
+        "365": "1 an",
+        "0": "Pour toujours"
+      }
+    }
+  }
+}

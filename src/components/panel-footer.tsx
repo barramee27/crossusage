@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
 import type { UpdateStatus } from "@/hooks/use-app-update";
 import { useNowTicker } from "@/hooks/use-now-ticker";
@@ -28,13 +29,14 @@ function VersionDisplay({
   onUpdateCheck: () => void;
   onVersionClick: () => void;
 }) {
+  const { t } = useTranslation();
   switch (updateStatus.status) {
     case "downloading":
       return (
         <span className="text-xs text-muted-foreground">
           {updateStatus.progress >= 0
-            ? `Downloading update ${updateStatus.progress}%`
-            : "Downloading update..."}
+            ? t("footer.downloadingUpdate", { progress: updateStatus.progress })
+            : t("footer.downloadingUpdatePending")}
         </span>
       );
     case "ready":
@@ -42,15 +44,15 @@ function VersionDisplay({
         <button
           type="button"
           onClick={onUpdateInstall}
-          title={`Restart to install v${updateStatus.version}`}
+          title={t("footer.restartToInstall", { version: updateStatus.version })}
           className="text-xs font-medium text-primary hover:text-primary/90 hover:underline underline-offset-2 transition-colors cursor-pointer text-left"
         >
-          Ready to update
+          {t("footer.readyToUpdate")}
         </button>
       );
     case "installing":
       return (
-        <span className="text-xs text-muted-foreground">Installing...</span>
+        <span className="text-xs text-muted-foreground">{t("footer.installing")}</span>
       );
     case "error":
       if (updateStatus.message === "Update check failed") {
@@ -61,13 +63,13 @@ function VersionDisplay({
             className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title={updateStatus.message}
           >
-            Updates soon
+            {t("footer.updatesSoon")}
           </button>
         );
       }
       return (
         <span className="text-xs text-destructive" title={updateStatus.message}>
-          Update failed
+          {t("footer.updateFailed")}
         </span>
       );
     default:

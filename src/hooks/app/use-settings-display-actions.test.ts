@@ -48,6 +48,8 @@ function displayActionsArgs(
     resetTimerDisplayMode: "relative" as const,
     setResetTimerDisplayMode: vi.fn(),
     setTimeFormatMode: vi.fn(),
+    setAppLocale: vi.fn(),
+    setDisplayCurrency: vi.fn(),
     setShowAccountIdentity: vi.fn(),
     setMenubarIconStyle: vi.fn(),
     setPreferMenubarWeeklyLimit: vi.fn(),

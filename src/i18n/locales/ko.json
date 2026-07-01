@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "설정",
+    "overview": "개요",
+    "home": "홈",
+    "skip": "건너뛰기",
+    "continue": "계속",
+    "cancel": "취소",
+    "save": "저장",
+    "close": "닫기",
+    "refresh": "새로고침",
+    "retry": "다시 시도",
+    "loading": "로딩 중…",
+    "enabled": "사용",
+    "disabled": "사용 안 함",
+    "on": "켜짐",
+    "off": "꺼짐",
+    "auto": "자동",
+    "custom": "사용자 지정",
+    "left": "남음",
+    "used": "사용됨",
+    "today": "오늘",
+    "tomorrow": "내일",
+    "at": ""
+  },
+  "nav": {
+    "settings": "설정",
+    "help": "도움말",
+    "reload": "다시 불러오기",
+    "remove": "제거",
+    "dragToReorder": "드래그하여 순서 변경"
+  },
+  "onboarding": {
+    "welcomeTitle": "{{appName}}에 오신 것을 환영합니다",
+    "welcomeBody": "번들된 모든 제공업체는 Linux와 Windows에서 작동합니다. 다음으로 레이아웃을 선택하세요 — 설정에서 언제든지 변경할 수 있습니다. 제공업체와 계정은 레이아웃 간에 공유됩니다.",
+    "layoutTitle": "레이아웃 선택",
+    "layoutBody": "Classic은 사이드 내비게이션과 제공업체 카드를 유지합니다. Modern은 OpenUsage 0.7처럼 메트릭을 그룹화합니다.",
+    "getStarted": "시작하기",
+    "layoutAria": "UI 레이아웃"
+  },
+  "modern": {
+    "dashboard": "대시보드",
+    "customize": "사용자 지정",
+    "settings": "설정",
+    "settingsTabGeneral": "일반",
+    "settingsTabTray": "트레이",
+    "settingsTabLook": "모양",
+    "settingsTabProviders": "제공업체",
+    "settingsTabAdvanced": "고급"
+  },
+  "footer": {
+    "downloadingUpdate": "업데이트 다운로드 중 {{progress}}%",
+    "downloadingUpdatePending": "업데이트 다운로드 중…",
+    "readyToUpdate": "업데이트 준비 완료",
+    "restartToInstall": "v{{version}} 설치를 위해 다시 시작",
+    "installing": "설치 중…",
+    "updatesSoon": "곧 업데이트",
+    "updateFailed": "업데이트 실패",
+    "refreshAll": "모두 새로고침",
+    "nextRefresh": "다음 새로고침 {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "여유 있음",
+    "rightOnTarget": "목표에 맞음",
+    "willRunOut": "소진 예정",
+    "runsOutIn": "{{duration}} 후 소진",
+    "limitIn": "{{duration}} 후 한도",
+    "leftAtReset": "리셋 시 남음",
+    "usedAtReset": "리셋 시 사용됨",
+    "short": "부족",
+    "inDeficit": "초과 사용",
+    "underOneMinute": "<1분",
+    "durationDaysHours": "{{days}}일 {{hours}}시간",
+    "durationHoursMinutes": "{{hours}}시간 {{minutes}}분",
+    "durationMinutes": "{{minutes}}분"
+  },
+  "reset": {
+    "resetsSoon": "곧 리셋",
+    "resetsIn": "{{duration}} 후 리셋",
+    "resetsTodayAt": "오늘 {{time}}에 리셋",
+    "resetsTomorrowAt": "내일 {{time}}에 리셋",
+    "resetsDateAt": "{{date}} {{time}}에 리셋",
+    "exampleRelative": "5시간 12분",
+    "exampleAbsolute": "오늘 {{time}}"
+  },
+  "tray": {
+    "amountLeft": "{{amount}} 남음",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "인사이트",
+    "paceBehind": "{{name}} · {{label}}: 사용량 많음 — {{message}}",
+    "tight": "{{name}} · {{label}}: {{percent}}%만 남음",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "설정 섹션",
+    "languageRegion": {
+      "title": "언어 및 지역",
+      "description": "앱 언어 및 금액 표시 방식. 제공업체 할당량은 USD로 보고되며, 다른 통화는 가능한 경우 실시간 환율을 사용합니다.",
+      "language": "언어",
+      "languageAria": "앱 언어",
+      "currency": "표시 통화",
+      "currencyAria": "표시 통화",
+      "currencyAutoHint": "자동으로 설정하면 언어와 일치합니다"
+    },
+    "autoRefresh": {
+      "title": "자동 새로고침",
+      "description": "얼마나 자주 확인할지",
+      "aria": "자동 업데이트 간격"
+    },
+    "usageMode": {
+      "title": "사용량 모드",
+      "description": "반 잔 또는 반 빈",
+      "aria": "사용량 표시 모드"
+    },
+    "resetTimers": {
+      "title": "리셋 타이머",
+      "description": "카운트다운 또는 시계 시간",
+      "aria": "리셋 타이머 표시 모드"
+    },
+    "timeFormat": {
+      "title": "시간 형식",
+      "description": "12시간 또는 24시간",
+      "aria": "시간 형식"
+    },
+    "trayIcon": {
+      "title": "트레이 / 메뉴 바 아이콘",
+      "descriptionModern": "아래에서 아이콘 스타일을 선택하세요. 트레이 메트릭은 각 제공업체의 주요 사용량 라인을 사용합니다 (Classic과 동일). 필요한 경우 제공업체에서 제공업체별 트레이 라인을 구성하세요.",
+      "descriptionClassic": "시계 옆 (Linux/Windows) 또는 메뉴 바 (macOS)에 표시되는 내용. 새 설치는 기본값으로 Plugin (제공업체 로고 + 사용량)입니다. Cursor가 활성화되어 있고 Plugin, Logo fill, Logo grid 또는 Pie를 선택하면 트레이 표시를 구동할 Cursor 메트릭을 선택할 수 있습니다 (Credits는 트레이에서 달러로 표시됩니다).",
+      "aria": "메뉴 바 아이콘 스타일"
+    },
+    "uiLayout": {
+      "title": "UI 레이아웃",
+      "description": "Classic 사이드 내비게이션 또는 Modern 그룹 위젯"
+    },
+    "modernDensity": {
+      "title": "Modern 밀도",
+      "description": "Modern 레이아웃의 간격"
+    },
+    "theme": {
+      "title": "앱 테마",
+      "description": "라이트, 다크 또는 글래스"
+    },
+    "uiScale": {
+      "title": "인터페이스 크기",
+      "description": "고밀도 디스플레이에서 UI를 더 작게"
+    },
+    "startOnLogin": {
+      "title": "로그인 시 시작",
+      "description": "로그인할 때 실행"
+    },
+    "troubleshooting": {
+      "title": "문제 해결"
+    },
+    "accountIdentity": {
+      "title": "계정 식별",
+      "description": "제공업체 카드에 계정 이메일 또는 사용자 이름 표시"
+    },
+    "usageAlerts": {
+      "title": "사용량 알림"
+    },
+    "plugins": {
+      "title": "Plugin"
+    },
+    "insights": {
+      "title": "인사이트"
+    },
+    "localApi": {
+      "title": "로컬 API (문제 해결)"
+    },
+    "usageHistory": {
+      "title": "사용 기록"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5분",
+        "15": "15분",
+        "30": "30분",
+        "60": "60분"
+      },
+      "displayMode": {
+        "used": "사용됨",
+        "left": "남음"
+      },
+      "resetTimer": {
+        "relative": "상대적",
+        "absolute": "절대적"
+      },
+      "timeFormat": {
+        "auto": "자동",
+        "12h": "12시간",
+        "24h": "24시간"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "일반",
+        "compact": "컴팩트"
+      },
+      "theme": {
+        "system": "시스템",
+        "light": "라이트",
+        "dark": "다크",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "보통",
+        "small": "작게",
+        "compact": "컴팩트"
+      },
+      "menubarIcon": {
+        "provider": "로고 + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "모든 로고",
+        "donut": "파이 차트",
+        "bars": "배터리 바"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "사용자 지정"
+      },
+      "usageHistoryRetention": {
+        "30": "30일",
+        "90": "90일",
+        "365": "1년",
+        "0": "영구"
+      }
+    }
+  }
+}

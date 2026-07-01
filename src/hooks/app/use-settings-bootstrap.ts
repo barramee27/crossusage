@@ -9,7 +9,9 @@ import {
 import type { PluginMeta } from "@/lib/plugin-types"
 import {
   arePluginSettingsEqual,
+  DEFAULT_APP_LOCALE,
   DEFAULT_AUTO_UPDATE_INTERVAL,
+  DEFAULT_DISPLAY_CURRENCY,
   DEFAULT_UI_SCALE,
   DEFAULT_DISPLAY_MODE,
   DEFAULT_GLOBAL_SHORTCUT,
@@ -57,6 +59,8 @@ import {
   loadUILayout,
   loadModernDensity,
   loadTimeFormatMode,
+  loadAppLocale,
+  loadDisplayCurrency,
   normalizePluginSettings,
   resolveOnboardingComplete,
   savePluginSettings,
@@ -71,6 +75,8 @@ import {
   type UILayout,
   type ModernDensity,
   type TimeFormatMode,
+  type AppLocale,
+  type DisplayCurrency,
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
@@ -87,6 +93,8 @@ type UseSettingsBootstrapArgs = {
   setDisplayMode: (value: DisplayMode) => void
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setTimeFormatMode: (value: TimeFormatMode) => void
+  setAppLocale: (value: AppLocale) => void
+  setDisplayCurrency: (value: DisplayCurrency) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
@@ -118,6 +126,8 @@ export function useSettingsBootstrap({
   setDisplayMode,
   setResetTimerDisplayMode,
   setTimeFormatMode,
+  setAppLocale,
+  setDisplayCurrency,
   setGlobalShortcut,
   setStartOnLogin,
   setShowAccountIdentity,
@@ -234,6 +244,20 @@ export function useSettingsBootstrap({
           storedTimeFormatMode = await loadTimeFormatMode()
         } catch (error) {
           console.error("Failed to load time format mode:", error)
+        }
+
+        let storedAppLocale = DEFAULT_APP_LOCALE
+        try {
+          storedAppLocale = await loadAppLocale()
+        } catch (error) {
+          console.error("Failed to load app locale:", error)
+        }
+
+        let storedDisplayCurrency = DEFAULT_DISPLAY_CURRENCY
+        try {
+          storedDisplayCurrency = await loadDisplayCurrency()
+        } catch (error) {
+          console.error("Failed to load display currency:", error)
         }
 
         let storedGlobalShortcut = DEFAULT_GLOBAL_SHORTCUT
@@ -368,6 +392,8 @@ export function useSettingsBootstrap({
           setDisplayMode(storedDisplayMode)
           setResetTimerDisplayMode(storedResetTimerDisplayMode)
           setTimeFormatMode(storedTimeFormatMode)
+          setAppLocale(storedAppLocale)
+          setDisplayCurrency(storedDisplayCurrency)
           setGlobalShortcut(storedGlobalShortcut)
           setStartOnLogin(storedStartOnLogin)
           setShowAccountIdentity(storedShowAccountIdentity)
@@ -431,6 +457,8 @@ export function useSettingsBootstrap({
     setUILayout,
     setModernDensity,
     setTimeFormatMode,
+    setAppLocale,
+    setDisplayCurrency,
     setUIScale,
     setUsageAlertEnabled,
     setUsageAlertSound,

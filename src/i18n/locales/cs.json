@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Nastavení",
+    "overview": "Přehled",
+    "home": "Domů",
+    "skip": "Přeskočit",
+    "continue": "Pokračovat",
+    "cancel": "Zrušit",
+    "save": "Uložit",
+    "close": "Zavřít",
+    "refresh": "Obnovit",
+    "retry": "Zkusit znovu",
+    "loading": "Načítání…",
+    "enabled": "Zapnuto",
+    "disabled": "Vypnuto",
+    "on": "Zap.",
+    "off": "Vyp.",
+    "auto": "Auto",
+    "custom": "Vlastní",
+    "left": "zbývá",
+    "used": "použito",
+    "today": "dnes",
+    "tomorrow": "zítra",
+    "at": "v"
+  },
+  "nav": {
+    "settings": "Nastavení",
+    "help": "Nápověda",
+    "reload": "Načíst znovu",
+    "remove": "Odebrat",
+    "dragToReorder": "Přetáhněte pro změnu pořadí"
+  },
+  "onboarding": {
+    "welcomeTitle": "Vítejte v {{appName}}",
+    "welcomeBody": "Všichni vestavění poskytovatelé fungují na Linuxu a Windows. Dále vyberte rozvržení — můžete ho kdykoli změnit v Nastavení. Poskytovatelé a účty jsou sdíleny mezi rozvrženími.",
+    "layoutTitle": "Vyberte rozvržení",
+    "layoutBody": "Classic zachová boční navigaci a karty poskytovatelů. Modern seskupuje metriky jako OpenUsage 0.7.",
+    "getStarted": "Začít",
+    "layoutAria": "Rozvržení UI"
+  },
+  "modern": {
+    "dashboard": "Přehled",
+    "customize": "Přizpůsobit",
+    "settings": "Nastavení",
+    "settingsTabGeneral": "Obecné",
+    "settingsTabTray": "Systémová lišta",
+    "settingsTabLook": "Vzhled",
+    "settingsTabProviders": "Poskytovatelé",
+    "settingsTabAdvanced": "Pokročilé"
+  },
+  "footer": {
+    "downloadingUpdate": "Stahování aktualizace {{progress}}%",
+    "downloadingUpdatePending": "Stahování aktualizace…",
+    "readyToUpdate": "Připraveno k aktualizaci",
+    "restartToInstall": "Restartujte pro instalaci v{{version}}",
+    "installing": "Instalace…",
+    "updatesSoon": "Aktualizace brzy",
+    "updateFailed": "Aktualizace selhala",
+    "refreshAll": "Obnovit vše",
+    "nextRefresh": "Další obnovení {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Dostatek rezervy",
+    "rightOnTarget": "Přesně v cíli",
+    "willRunOut": "Dojde",
+    "runsOutIn": "Dojde za {{duration}}",
+    "limitIn": "Limit za {{duration}}",
+    "leftAtReset": "zbývá při resetu",
+    "usedAtReset": "použito při resetu",
+    "short": "málo",
+    "inDeficit": "v deficitu",
+    "underOneMinute": "<1 min",
+    "durationDaysHours": "{{days}}d {{hours}}h",
+    "durationHoursMinutes": "{{hours}}h {{minutes}}min",
+    "durationMinutes": "{{minutes}}min"
+  },
+  "reset": {
+    "resetsSoon": "Reset brzy",
+    "resetsIn": "Reset za {{duration}}",
+    "resetsTodayAt": "Reset dnes v {{time}}",
+    "resetsTomorrowAt": "Reset zítra v {{time}}",
+    "resetsDateAt": "Reset {{date}} v {{time}}",
+    "exampleRelative": "5h 12min",
+    "exampleAbsolute": "dnes v {{time}}"
+  },
+  "tray": {
+    "amountLeft": "zbývá {{amount}}",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Přehledy",
+    "paceBehind": "{{name}} · {{label}}: vysoké využití — {{message}}",
+    "tight": "{{name}} · {{label}}: zbývá pouze {{percent}}%",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Sekce nastavení",
+    "languageRegion": {
+      "title": "Jazyk a region",
+      "description": "Jazyk aplikace a zobrazení peněžních částek. Kvóty poskytovatelů jsou hlášeny v USD; jiné měny používají živé směnné kurzy, pokud jsou k dispozici.",
+      "language": "Jazyk",
+      "languageAria": "Jazyk aplikace",
+      "currency": "Zobrazovací měna",
+      "currencyAria": "Zobrazovací měna",
+      "currencyAutoHint": "Při nastavení Auto odpovídá vašemu jazyku"
+    },
+    "autoRefresh": {
+      "title": "Automatické obnovení",
+      "description": "Jak často obnovovat",
+      "aria": "Interval automatické aktualizace"
+    },
+    "usageMode": {
+      "title": "Režim využití",
+      "description": "Sklenice napůl plná nebo napůl prázdná",
+      "aria": "Režim zobrazení využití"
+    },
+    "resetTimers": {
+      "title": "Časovače resetu",
+      "description": "Odpočítávání nebo čas",
+      "aria": "Režim zobrazení časovačů resetu"
+    },
+    "timeFormat": {
+      "title": "Formát času",
+      "description": "12- nebo 24hodinové hodiny",
+      "aria": "Formát času"
+    },
+    "trayIcon": {
+      "title": "Ikona systémové lišty / menu",
+      "descriptionModern": "Vyberte styl ikony níže. Metriky systémové lišty používají primární řádky využití každého poskytovatele (stejně jako Classic). V případě potřeby nakonfigurujte řádky systémové lišty u poskytovatelů.",
+      "descriptionClassic": "Co se zobrazuje vedle hodin (Linux/Windows) nebo v menu (macOS). Nové instalace výchozí Plugin (logo poskytovatele + využití). Když je Cursor zapnutý a vyberete Plugin, Logo fill, Logo grid nebo Pie, můžete zvolit, která metrika Cursor řídí zobrazení (Credits se v systémové liště zobrazují v dolarech).",
+      "aria": "Styl ikony menu"
+    },
+    "uiLayout": {
+      "title": "Rozvržení UI",
+      "description": "Boční navigace Classic nebo seskupené widgety Modern"
+    },
+    "modernDensity": {
+      "title": "Hustota Modern",
+      "description": "Rozestupy v rozvržení Modern"
+    },
+    "theme": {
+      "title": "Motiv aplikace",
+      "description": "Světlý, tmavý nebo Glass"
+    },
+    "uiScale": {
+      "title": "Měřítko rozhraní",
+      "description": "Zmenšit UI na hustých displejích"
+    },
+    "startOnLogin": {
+      "title": "Spustit při přihlášení",
+      "description": "Spustit po přihlášení"
+    },
+    "troubleshooting": {
+      "title": "Řešení problémů"
+    },
+    "accountIdentity": {
+      "title": "Identita účtu",
+      "description": "Zobrazit e-mail nebo uživatelské jméno účtu na kartách poskytovatelů"
+    },
+    "usageAlerts": {
+      "title": "Upozornění na využití"
+    },
+    "plugins": {
+      "title": "Pluginy"
+    },
+    "insights": {
+      "title": "Přehledy"
+    },
+    "localApi": {
+      "title": "Lokální API (řešení problémů)"
+    },
+    "usageHistory": {
+      "title": "Historie využití"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 min",
+        "15": "15 min",
+        "30": "30 min",
+        "60": "60 min"
+      },
+      "displayMode": {
+        "used": "Použito",
+        "left": "Zbývá"
+      },
+      "resetTimer": {
+        "relative": "Relativní",
+        "absolute": "Absolutní"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12hodinový",
+        "24h": "24hodinový"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normální",
+        "compact": "Kompaktní"
+      },
+      "theme": {
+        "system": "Systém",
+        "light": "Světlý",
+        "dark": "Tmavý",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normální",
+        "small": "Malý",
+        "compact": "Kompaktní"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Všechna loga",
+        "donut": "Koláčový graf",
+        "bars": "Pruhy baterie"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Vlastní"
+      },
+      "usageHistoryRetention": {
+        "30": "30 dní",
+        "90": "90 dní",
+        "365": "1 rok",
+        "0": "Navždy"
+      }
+    }
+  }
+}

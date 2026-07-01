@@ -11,6 +11,8 @@ import {
   saveUILayout,
   saveModernDensity,
   saveTimeFormatMode,
+  saveAppLocale,
+  saveDisplayCurrency,
   saveUsageAlertCustomThreshold,
   saveUsageAlertEnabled,
   saveUsageAlertSound,
@@ -25,6 +27,8 @@ import {
   type UILayout,
   type ModernDensity,
   type TimeFormatMode,
+  type AppLocale,
+  type DisplayCurrency,
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
@@ -41,6 +45,8 @@ type UseSettingsDisplayActionsArgs = {
   resetTimerDisplayMode: ResetTimerDisplayMode
   setResetTimerDisplayMode: (value: ResetTimerDisplayMode) => void
   setTimeFormatMode: (value: TimeFormatMode) => void
+  setAppLocale: (value: AppLocale) => void
+  setDisplayCurrency: (value: DisplayCurrency) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
   setPreferMenubarWeeklyLimit: (value: boolean) => void
@@ -63,6 +69,8 @@ export function useSettingsDisplayActions({
   resetTimerDisplayMode,
   setResetTimerDisplayMode,
   setTimeFormatMode,
+  setAppLocale,
+  setDisplayCurrency,
   setShowAccountIdentity,
   setMenubarIconStyle,
   setPreferMenubarWeeklyLimit,
@@ -124,6 +132,21 @@ export function useSettingsDisplayActions({
       console.error("Failed to save time format mode:", error)
     })
   }, [setTimeFormatMode])
+
+  const handleAppLocaleChange = useCallback((locale: AppLocale) => {
+    setAppLocale(locale)
+    void saveAppLocale(locale).catch((error) => {
+      console.error("Failed to save app locale:", error)
+    })
+  }, [setAppLocale])
+
+  const handleDisplayCurrencyChange = useCallback((currency: DisplayCurrency) => {
+    setDisplayCurrency(currency)
+    scheduleTrayIconUpdate("settings", 0)
+    void saveDisplayCurrency(currency).catch((error) => {
+      console.error("Failed to save display currency:", error)
+    })
+  }, [scheduleTrayIconUpdate, setDisplayCurrency])
 
   const handleShowAccountIdentityChange = useCallback((value: boolean) => {
     setShowAccountIdentity(value)
@@ -218,6 +241,8 @@ export function useSettingsDisplayActions({
     handleResetTimerDisplayModeChange,
     handleResetTimerDisplayModeToggle,
     handleTimeFormatModeChange,
+    handleAppLocaleChange,
+    handleDisplayCurrencyChange,
     handleShowAccountIdentityChange,
     handleMenubarIconStyleChange,
     handlePreferMenubarWeeklyLimitChange,

@@ -4,7 +4,8 @@ import { calculatePaceStatus, type PaceStatus } from "@/lib/pace-status"
 import { formatRunsOutText } from "@/lib/pace-tooltip"
 import { formatResetRelativeLabel } from "@/lib/reset-tooltip"
 import { isProgressLine } from "@/lib/primary-progress-line"
-import { clamp01, formatCountNumber, formatFixedPrecisionNumber } from "@/lib/utils"
+import { clamp01, formatCountNumber } from "@/lib/utils"
+import { formatMoney } from "@/lib/locale-format"
 
 export type WidgetKind = "progress" | "text" | "badge" | "barChart"
 
@@ -64,7 +65,7 @@ function progressPrimaryText(
     return `${Math.round(shownAmount)}%${leftSuffix}`
   }
   if (line.format.kind === "dollars") {
-    return `$${formatFixedPrecisionNumber(shownAmount)}${leftSuffix}`
+    return `${formatMoney(shownAmount, { sourceCurrency: "USD" })}${leftSuffix}`
   }
   return `${formatCountNumber(shownAmount)} ${line.format.suffix}${leftSuffix}`
 }

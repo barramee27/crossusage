@@ -23,18 +23,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ProviderIcon } from "@/components/provider-icon";
 import { GlobalShortcutSection } from "@/components/global-shortcut-section";
+import { LanguageRegionSection } from "@/components/settings/language-region-section";
 import { getBarFillLayout } from "@/lib/tray-bars-icon";
 import { getTrayIconSizePx } from "@/lib/tray-icon-size";
 import {
-  AUTO_UPDATE_OPTIONS,
-  DISPLAY_MODE_OPTIONS,
-  MENUBAR_ICON_STYLE_OPTIONS,
-  RESET_TIMER_DISPLAY_OPTIONS,
-  THEME_OPTIONS,
-  TIME_FORMAT_OPTIONS,
-  UI_LAYOUT_OPTIONS,
-  MODERN_DENSITY_OPTIONS,
-  UI_SCALE_OPTIONS,
   USAGE_ALERT_SOUND_OPTIONS,
   USAGE_ALERT_THRESHOLD_OPTIONS,
   USAGE_HISTORY_RETENTION_OPTIONS,
@@ -53,6 +45,8 @@ import {
   type UILayout,
   type ModernDensity,
   type TimeFormatMode,
+  type AppLocale,
+  type DisplayCurrency,
   type UIScale,
   type UsageAlertSound,
   type UsageAlertThreshold,
@@ -80,6 +74,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
 import { FORK_REPO_URL } from "@/lib/fork-meta";
 import { sendNotificationAsync } from "@/lib/notification";
+import { useTranslation } from "react-i18next";
+import { useTranslatedSettingsOptions } from "@/hooks/use-translated-settings-options";
 
 const MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK = new Set<MenubarIconStyle>([
   "provider",
@@ -1064,6 +1060,10 @@ interface SettingsPageProps {
   onResetTimerDisplayModeChange: (value: ResetTimerDisplayMode) => void;
   timeFormatMode: TimeFormatMode;
   onTimeFormatModeChange: (value: TimeFormatMode) => void;
+  appLocale: AppLocale;
+  onAppLocaleChange: (value: AppLocale) => void;
+  displayCurrency: DisplayCurrency;
+  onDisplayCurrencyChange: (value: DisplayCurrency) => void;
   menubarIconStyle: MenubarIconStyle;
   onMenubarIconStyleChange: (value: MenubarIconStyle) => void;
   preferMenubarWeeklyLimit: boolean;
@@ -1119,6 +1119,10 @@ export function SettingsPage({
   onResetTimerDisplayModeChange,
   timeFormatMode,
   onTimeFormatModeChange,
+  appLocale,
+  onAppLocaleChange,
+  displayCurrency,
+  onDisplayCurrencyChange,
   menubarIconStyle,
   onMenubarIconStyleChange,
   preferMenubarWeeklyLimit,
@@ -1150,16 +1154,22 @@ export function SettingsPage({
   onSetCursorTrayMetricForAllAccounts,
   presentation = "classic",
 }: SettingsPageProps) {
+  const { t } = useTranslation();
+  const {
+    autoUpdateOptions,
+    displayModeOptions,
+    resetTimerOptions,
+    timeFormatOptions,
+    uiLayoutOptions,
+    modernDensityOptions,
+    themeOptions,
+    uiScaleOptions,
+    menubarIconOptions,
+    modernTabs,
+  } = useTranslatedSettingsOptions();
   const isModern = presentation === "modern";
   type ModernSettingsTab = "general" | "tray" | "appearance" | "providers" | "advanced";
   const [modernTab, setModernTab] = useState<ModernSettingsTab>("general");
-  const modernTabs: { id: ModernSettingsTab; label: string }[] = [
-    { id: "general", label: "General" },
-    { id: "tray", label: "Tray" },
-    { id: "appearance", label: "Look" },
-    { id: "providers", label: "Providers" },
-    { id: "advanced", label: "More" },
-  ];
   const showModernSection = (tab: ModernSettingsTab | ModernSettingsTab[]) => {
     if (!isModern) return true;
     const tabs = Array.isArray(tab) ? tab : [tab];
@@ -1367,14 +1377,20 @@ export function SettingsPage({
       ) : null}
       {showModernSection("general") ? (
       <>
+      <LanguageRegionSection
+        appLocale={appLocale}
+        displayCurrency={displayCurrency}
+        onAppLocaleChange={onAppLocaleChange}
+        onDisplayCurrencyChange={onDisplayCurrencyChange}
+      />
       <section>
-        <h3 className="text-lg font-semibold mb-0">Auto Refresh</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.autoRefresh.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          How obsessive are you
+          {t("settings.autoRefresh.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Auto-update interval">
-            {AUTO_UPDATE_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.autoRefresh.aria")}>
+            {autoUpdateOptions.map((option) => {
               const isActive = option.value === autoUpdateInterval;
               return (
                 <Button
@@ -1395,13 +1411,13 @@ export function SettingsPage({
         </div>
       </section>
       <section>
-        <h3 className="text-lg font-semibold mb-0">Usage Mode</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.usageMode.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Glass half full or half empty
+          {t("settings.usageMode.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Usage display mode">
-            {DISPLAY_MODE_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.usageMode.aria")}>
+            {displayModeOptions.map((option) => {
               const isActive = option.value === displayMode;
               return (
                 <Button
@@ -1422,16 +1438,18 @@ export function SettingsPage({
         </div>
       </section>
       <section>
-        <h3 className="text-lg font-semibold mb-0">Reset Timers</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.resetTimers.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Countdown or clock time
+          {t("settings.resetTimers.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Reset timer display mode">
-            {RESET_TIMER_DISPLAY_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.resetTimers.aria")}>
+            {resetTimerOptions.map((option) => {
               const isActive = option.value === resetTimerDisplayMode;
               const absoluteTimeExample = getTimeFormatter(timeFormatMode).format(new Date(2026, 1, 2, 11, 4));
-              const example = option.value === "relative" ? "5h 12m" : `today at ${absoluteTimeExample}`;
+              const example = option.value === "relative"
+                ? t("reset.exampleRelative")
+                : t("reset.exampleAbsolute", { time: absoluteTimeExample });
               return (
                 <Button
                   key={option.value}
@@ -1459,13 +1477,13 @@ export function SettingsPage({
         </div>
       </section>
       <section>
-        <h3 className="text-lg font-semibold mb-0">Time Format</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.timeFormat.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          12-hour or 24-hour clock
+          {t("settings.timeFormat.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Time format">
-            {TIME_FORMAT_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.timeFormat.aria")}>
+            {timeFormatOptions.map((option) => {
               const isActive = option.value === timeFormatMode;
               const example = getTimeFormatter(option.value).format(new Date(2026, 1, 2, 11, 4));
               return (
@@ -1499,22 +1517,19 @@ export function SettingsPage({
       ) : null}
       {showModernSection("tray") ? (
       <section>
-        <h3 className="text-lg font-semibold mb-0">Tray / menu bar icon</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.trayIcon.title")}</h3>
         {isModern ? (
           <p className="text-sm text-muted-foreground mb-2">
-            Pick the icon style below. Tray metrics use each provider&apos;s primary usage lines
-            (same as Classic). Configure per-provider tray lines under Providers when needed.
+            {t("settings.trayIcon.descriptionModern")}
           </p>
         ) : (
           <p className="text-sm text-muted-foreground mb-2">
-            What shows next to the clock (Linux/Windows) or in the menu bar (macOS). New installs default to Plugin
-            (provider logo + usage). When Cursor is enabled and you pick Plugin, Logo fill, Logo grid, or Pie, you can
-            choose which Cursor metric drives the readout (Credits show as dollars in the tray).
+            {t("settings.trayIcon.descriptionClassic")}
           </p>
         )}
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Menubar icon style">
-            {MENUBAR_ICON_STYLE_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.trayIcon.aria")}>
+            {menubarIconOptions.map((option) => {
               const isActive = option.value === menubarIconStyle;
               return (
                 <Button
@@ -1564,16 +1579,16 @@ export function SettingsPage({
       {showModernSection("appearance") ? (
       <>
       <section>
-        <h3 className="text-lg font-semibold mb-0">UI layout</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.uiLayout.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Switch anytime. Providers, accounts, and which metrics you show are shared between Classic and Modern.
+          {t("settings.uiLayout.description")}
         </p>
         <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-2"
           role="radiogroup"
-          aria-label="UI layout"
+          aria-label={t("settings.uiLayout.title")}
         >
-          {UI_LAYOUT_OPTIONS.map((option) => {
+          {uiLayoutOptions.map((option) => {
             const isActive = option.value === uiLayout;
             const Preview =
               option.value === "modern" ? LayoutPreviewModern : LayoutPreviewClassic;
@@ -1598,13 +1613,13 @@ export function SettingsPage({
       </section>
       {uiLayout === "modern" ? (
         <section>
-          <h3 className="text-lg font-semibold mb-0">Modern density</h3>
+          <h3 className="text-lg font-semibold mb-0">{t("settings.modernDensity.title")}</h3>
           <p className="text-sm text-muted-foreground mb-2">
-            Row spacing in the Modern dashboard and Customize screens
+            {t("settings.modernDensity.description")}
           </p>
           <div className="bg-muted/50 rounded-lg p-1">
-            <div className="flex gap-1" role="radiogroup" aria-label="Modern density">
-              {MODERN_DENSITY_OPTIONS.map((option) => {
+            <div className="flex gap-1" role="radiogroup" aria-label={t("settings.modernDensity.title")}>
+              {modernDensityOptions.map((option) => {
                 const isActive = option.value === modernDensity;
                 return (
                   <Button
@@ -1626,13 +1641,13 @@ export function SettingsPage({
         </section>
       ) : null}
       <section>
-        <h3 className="text-lg font-semibold mb-0">App Theme</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.theme.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          How it looks around here
+          {t("settings.theme.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Theme mode">
-            {THEME_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.theme.title")}>
+            {themeOptions.map((option) => {
               const isActive = option.value === themeMode;
               return (
                 <Button
@@ -1653,13 +1668,13 @@ export function SettingsPage({
         </div>
       </section>
       <section>
-        <h3 className="text-lg font-semibold mb-0">Interface scale</h3>
+        <h3 className="text-lg font-semibold mb-0">{t("settings.uiScale.title")}</h3>
         <p className="text-sm text-muted-foreground mb-2">
-          Text and spacing density in the main window
+          {t("settings.uiScale.description")}
         </p>
         <div className="bg-muted/50 rounded-lg p-1">
-          <div className="flex gap-1" role="radiogroup" aria-label="Interface scale">
-            {UI_SCALE_OPTIONS.map((option) => {
+          <div className="flex gap-1" role="radiogroup" aria-label={t("settings.uiScale.title")}>
+            {uiScaleOptions.map((option) => {
               const isActive = option.value === uiScale;
               return (
                 <Button

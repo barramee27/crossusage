@@ -1,0 +1,235 @@
+{
+  "common": {
+    "settings": "Einstellungen",
+    "overview": "Übersicht",
+    "home": "Startseite",
+    "skip": "Überspringen",
+    "continue": "Weiter",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "close": "Schließen",
+    "refresh": "Aktualisieren",
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen…",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "on": "Ein",
+    "off": "Aus",
+    "auto": "Auto",
+    "custom": "Benutzerdefiniert",
+    "left": "übrig",
+    "used": "verwendet",
+    "today": "heute",
+    "tomorrow": "morgen",
+    "at": "um"
+  },
+  "nav": {
+    "settings": "Einstellungen",
+    "help": "Hilfe",
+    "reload": "Neu laden",
+    "remove": "Entfernen",
+    "dragToReorder": "Ziehen zum Sortieren"
+  },
+  "onboarding": {
+    "welcomeTitle": "Willkommen bei {{appName}}",
+    "welcomeBody": "Alle gebündelten Anbieter funktionieren unter Linux und Windows. Wählen Sie als Nächstes ein Layout — Sie können jederzeit in den Einstellungen wechseln. Anbieter und Konten werden zwischen Layouts geteilt.",
+    "layoutTitle": "Layout wählen",
+    "layoutBody": "Classic behält die Seitennavigation und Anbieterkarten. Modern gruppiert Metriken wie OpenUsage 0.7.",
+    "getStarted": "Loslegen",
+    "layoutAria": "UI-Layout"
+  },
+  "modern": {
+    "dashboard": "Dashboard",
+    "customize": "Anpassen",
+    "settings": "Einstellungen",
+    "settingsTabGeneral": "Allgemein",
+    "settingsTabTray": "Tray",
+    "settingsTabLook": "Aussehen",
+    "settingsTabProviders": "Anbieter",
+    "settingsTabAdvanced": "Erweitert"
+  },
+  "footer": {
+    "downloadingUpdate": "Update wird heruntergeladen {{progress}}%",
+    "downloadingUpdatePending": "Update wird heruntergeladen…",
+    "readyToUpdate": "Bereit zum Aktualisieren",
+    "restartToInstall": "Neustart zum Installieren von v{{version}}",
+    "installing": "Wird installiert…",
+    "updatesSoon": "Updates demnächst",
+    "updateFailed": "Update fehlgeschlagen",
+    "refreshAll": "Alle aktualisieren",
+    "nextRefresh": "Nächste Aktualisierung {{time}}"
+  },
+  "pace": {
+    "plentyOfRoom": "Genug Spielraum",
+    "rightOnTarget": "Genau im Ziel",
+    "willRunOut": "Wird aufgebraucht",
+    "runsOutIn": "Aufgebraucht in {{duration}}",
+    "limitIn": "Limit in {{duration}}",
+    "leftAtReset": "übrig beim Reset",
+    "usedAtReset": "verwendet beim Reset",
+    "short": "knapp",
+    "inDeficit": "im Defizit",
+    "underOneMinute": "<1 Min.",
+    "durationDaysHours": "{{days}}T {{hours}}Std.",
+    "durationHoursMinutes": "{{hours}}Std. {{minutes}}Min.",
+    "durationMinutes": "{{minutes}}Min."
+  },
+  "reset": {
+    "resetsSoon": "Reset demnächst",
+    "resetsIn": "Reset in {{duration}}",
+    "resetsTodayAt": "Reset heute um {{time}}",
+    "resetsTomorrowAt": "Reset morgen um {{time}}",
+    "resetsDateAt": "Reset am {{date}} um {{time}}",
+    "exampleRelative": "5 Std. 12 Min.",
+    "exampleAbsolute": "heute um {{time}}"
+  },
+  "tray": {
+    "amountLeft": "{{amount}} übrig",
+    "amountUsedOfLimit": "{{used}} / {{limit}}"
+  },
+  "insights": {
+    "title": "Einblicke",
+    "paceBehind": "{{name}} · {{label}}: hohe Nutzung — {{message}}",
+    "tight": "{{name}} · {{label}}: nur noch {{percent}}% übrig",
+    "resetSoon": "{{name}} · {{label}}: {{message}}"
+  },
+  "settings": {
+    "sectionsAria": "Einstellungsbereiche",
+    "languageRegion": {
+      "title": "Sprache & Region",
+      "description": "App-Sprache und Darstellung von Geldbeträgen. Anbieterkontingente werden in USD gemeldet; andere Währungen nutzen bei Verfügbarkeit Live-Wechselkurse.",
+      "language": "Sprache",
+      "languageAria": "App-Sprache",
+      "currency": "Anzeigewährung",
+      "currencyAria": "Anzeigewährung",
+      "currencyAutoHint": "Entspricht bei Auto der gewählten Sprache"
+    },
+    "autoRefresh": {
+      "title": "Auto-Aktualisierung",
+      "description": "Wie oft soll aktualisiert werden",
+      "aria": "Auto-Aktualisierungsintervall"
+    },
+    "usageMode": {
+      "title": "Nutzungsmodus",
+      "description": "Halb voll oder halb leer",
+      "aria": "Nutzungsanzeigemodus"
+    },
+    "resetTimers": {
+      "title": "Reset-Timer",
+      "description": "Countdown oder Uhrzeit",
+      "aria": "Reset-Timer-Anzeigemodus"
+    },
+    "timeFormat": {
+      "title": "Zeitformat",
+      "description": "12- oder 24-Stunden-Uhr",
+      "aria": "Zeitformat"
+    },
+    "trayIcon": {
+      "title": "Tray- / Menüleistensymbol",
+      "descriptionModern": "Wählen Sie unten den Symbolstil. Tray-Metriken verwenden die primären Nutzungszeilen jedes Anbieters (wie Classic). Konfigurieren Sie bei Bedarf pro Anbieter unter Anbieter.",
+      "descriptionClassic": "Was neben der Uhr (Linux/Windows) oder in der Menüleiste (macOS) angezeigt wird. Neue Installationen verwenden standardmäßig Plugin (Anbieterlogo + Nutzung). Wenn Cursor aktiviert ist und Sie Plugin, Logo fill, Logo grid oder Pie wählen, können Sie festlegen, welche Cursor-Metrik die Anzeige steuert (Credits werden im Tray in Dollar angezeigt).",
+      "aria": "Menüleistensymbol-Stil"
+    },
+    "uiLayout": {
+      "title": "UI-Layout",
+      "description": "Classic-Seitennavigation oder Modern-Gruppenwidgets"
+    },
+    "modernDensity": {
+      "title": "Modern-Dichte",
+      "description": "Abstände im Modern-Layout"
+    },
+    "theme": {
+      "title": "App-Design",
+      "description": "Hell, dunkel oder Glass"
+    },
+    "uiScale": {
+      "title": "Oberflächenskalierung",
+      "description": "UI auf dichten Displays verkleinern"
+    },
+    "startOnLogin": {
+      "title": "Bei Anmeldung starten",
+      "description": "Beim Anmelden starten"
+    },
+    "troubleshooting": {
+      "title": "Fehlerbehebung"
+    },
+    "accountIdentity": {
+      "title": "Kontoidentität",
+      "description": "Konto-E-Mail oder Benutzername auf Anbieterkarten anzeigen"
+    },
+    "usageAlerts": {
+      "title": "Nutzungswarnungen"
+    },
+    "plugins": {
+      "title": "Plugins"
+    },
+    "insights": {
+      "title": "Einblicke"
+    },
+    "localApi": {
+      "title": "Lokale API (Fehlerbehebung)"
+    },
+    "usageHistory": {
+      "title": "Nutzungsverlauf"
+    },
+    "options": {
+      "autoUpdate": {
+        "5": "5 Min.",
+        "15": "15 Min.",
+        "30": "30 Min.",
+        "60": "60 Min."
+      },
+      "displayMode": {
+        "used": "Verwendet",
+        "left": "Übrig"
+      },
+      "resetTimer": {
+        "relative": "Relativ",
+        "absolute": "Absolut"
+      },
+      "timeFormat": {
+        "auto": "Auto",
+        "12h": "12-Stunden",
+        "24h": "24-Stunden"
+      },
+      "uiLayout": {
+        "classic": "Classic",
+        "modern": "Modern"
+      },
+      "modernDensity": {
+        "regular": "Normal",
+        "compact": "Kompakt"
+      },
+      "theme": {
+        "system": "System",
+        "light": "Hell",
+        "dark": "Dunkel",
+        "glass": "Glass"
+      },
+      "uiScale": {
+        "normal": "Normal",
+        "small": "Klein",
+        "compact": "Kompakt"
+      },
+      "menubarIcon": {
+        "provider": "Logo + %",
+        "logoBar": "Logo fill",
+        "logoGrid": "Alle Logos",
+        "donut": "Kreisdiagramm",
+        "bars": "Batteriebalken"
+      },
+      "usageAlertThreshold": {
+        "10": "10%",
+        "20": "20%",
+        "30": "30%",
+        "custom": "Benutzerdefiniert"
+      },
+      "usageHistoryRetention": {
+        "30": "30 Tage",
+        "90": "90 Tage",
+        "365": "1 Jahr",
+        "0": "Für immer"
+      }
+    }
+  }
+}
