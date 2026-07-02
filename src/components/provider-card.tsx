@@ -530,10 +530,16 @@ function MetricLineRenderer({
           ? `${formatMoney(shownAmount, { sourceCurrency: "USD" })}${leftSuffix}`
           : `${formatCountNumber(shownAmount)} ${line.format.suffix}${leftSuffix}`
 
+    const resetLineContext = {
+      used: line.used,
+      periodDurationMs,
+      label: line.label,
+    }
+
     const resetLabel = line.resetsAt
       ? resetTimerDisplayMode === "absolute"
         ? formatResetAbsoluteLabel(now, line.resetsAt, timeFormatMode)
-        : formatResetRelativeLabel(now, line.resetsAt)
+        : formatResetRelativeLabel(now, line.resetsAt, resetLineContext)
       : null
     const resetTooltipText = line.resetsAt
       ? formatResetTooltipText({
@@ -541,6 +547,7 @@ function MetricLineRenderer({
           resetsAtIso: line.resetsAt,
           visibleMode: resetTimerDisplayMode,
           timeFormatMode,
+          lineContext: resetLineContext,
         })
       : null
 

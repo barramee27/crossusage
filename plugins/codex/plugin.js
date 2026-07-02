@@ -727,10 +727,6 @@
       const rateLimit = data.rate_limit || null
       const primaryWindow = rateLimit && rateLimit.primary_window ? rateLimit.primary_window : null
       const secondaryWindow = rateLimit && rateLimit.secondary_window ? rateLimit.secondary_window : null
-      const reviewWindow =
-        data.code_review_rate_limit && data.code_review_rate_limit.primary_window
-          ? data.code_review_rate_limit.primary_window
-          : null
 
       const headerPrimary = readPercent(resp.headers["x-codex-primary-used-percent"])
       const headerSecondary = readPercent(resp.headers["x-codex-secondary-used-percent"])
@@ -810,20 +806,6 @@
                 : PERIOD_WEEKLY_MS
             }))
           }
-        }
-      }
-
-      if (reviewWindow) {
-        const used = reviewWindow.used_percent
-        if (typeof used === "number") {
-          lines.push(ctx.line.progress({
-            label: "Reviews",
-            used: used,
-            limit: 100,
-            format: { kind: "percent" },
-            resetsAt: getResetsAtIso(ctx, nowSec, reviewWindow),
-            periodDurationMs: PERIOD_WEEKLY_MS // code_review_rate_limit is a 7-day window
-          }))
         }
       }
 

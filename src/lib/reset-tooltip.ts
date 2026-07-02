@@ -25,6 +25,26 @@ const RESET_MONTH_DAY_FORMATTER = new Intl.DateTimeFormat(undefined, {
 })
 
 const RESET_SOON_THRESHOLD_MS = 5 * 60 * 1000
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000
+
+export type ResetLineContext = {
+  used?: number
+  periodDurationMs?: number
+  label?: string
+}
+
+export function isFreshSessionWindow(
+  nowMs: number,
+  resetsAtIso: string,
+  lineContext?: ResetLineContext,
+): boolean {
+  if (!lineContext || lineContext.used === undefined || lineContext.used > 0) return false
+  const resetsAtMs = parseResetTimestamp(resetsAtIso)
+  if (resetsAtMs === null || nowMs >= resetsAtMs) return false
+  if (lineContext.periodDurationMs === FIVE_HOURS_MS) return true
+  if (lineContext.label === "Session") return true
+  return false
+}
 
 function parseResetTimestamp(resetsAtIso: string): number | null {
   const resetsAtMs = Date.parse(resetsAtIso)
@@ -40,7 +60,14 @@ function formatMonthDay(timestampMs: number): string {
   return RESET_MONTH_DAY_FORMATTER.format(timestampMs)
 }
 
-export function formatResetRelativeLabel(nowMs: number, resetsAtIso: string): string | null {
+export function formatResetRelativeLabel(
+  nowMs: number,
+  resetsAtIso: string,
+  lineContext?: ResetLineContext,
+): string | null {
+  if (isFreshSessionWindow(nowMs, resetsAtIso, lineContext)) {
+    return t("reset.notStarted")
+  }
   const resetsAtMs = parseResetTimestamp(resetsAtIso)
   if (resetsAtMs === null) return null
   const deltaMs = resetsAtMs - nowMs
@@ -70,12 +97,17 @@ export function formatResetTooltipText({
   resetsAtIso,
   visibleMode,
   timeFormatMode = "auto",
+  lineContext,
 }: {
   nowMs: number
   resetsAtIso: string
   visibleMode: ResetTimerDisplayMode
   timeFormatMode?: TimeFormatMode
+  lineContext?: ResetLineContext
 }): string | null {
+  if (isFreshSessionWindow(nowMs, resetsAtIso, lineContext)) {
+    return t("reset.freshSessionTooltip")
+  }
   return visibleMode === "absolute"
     ? formatResetRelativeLabel(nowMs, resetsAtIso)
     : formatResetAbsoluteLabel(nowMs, resetsAtIso, timeFormatMode)

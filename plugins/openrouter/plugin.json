@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "version": "0.0.1",
+  "entry": "plugin.js",
+  "icon": "icon.svg",
+  "brandColor": "#6366F1",
+  "links": [
+    { "label": "Activity", "url": "https://openrouter.ai/activity" },
+    { "label": "Credits", "url": "https://openrouter.ai/settings/credits" }
+  ],
+  "lines": [
+    { "type": "progress", "label": "Credits", "scope": "overview", "primaryOrder": 1 },
+    { "type": "text", "label": "Balance", "scope": "overview" },
+    { "type": "text", "label": "Today", "scope": "overview" },
+    { "type": "text", "label": "This Week", "scope": "overview" },
+    { "type": "text", "label": "This Month", "scope": "overview" },
+    { "type": "progress", "label": "Key Limit", "scope": "detail" }
+  ]
+}

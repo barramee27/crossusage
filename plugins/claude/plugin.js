@@ -972,6 +972,28 @@
         }))
       }
 
+      if (Array.isArray(data.limits)) {
+        for (let li = 0; li < data.limits.length; li++) {
+          const entry = data.limits[li]
+          if (!entry || typeof entry !== "object") continue
+          if (entry.kind !== "weekly_scoped") continue
+          const scope = entry.scope
+          const model = scope && scope.model
+          const displayName = model && typeof model.display_name === "string" ? model.display_name.trim() : ""
+          if (displayName !== "Fable") continue
+          if (typeof entry.percent !== "number") continue
+          lines.push(ctx.line.progress({
+            label: "Fable",
+            used: entry.percent,
+            limit: 100,
+            format: { kind: "percent" },
+            resetsAt: ctx.util.toIso(entry.resets_at),
+            periodDurationMs: 7 * 24 * 60 * 60 * 1000 // 7 days
+          }))
+          break
+        }
+      }
+
       if (data.extra_usage && data.extra_usage.is_enabled) {
         const used = data.extra_usage.used_credits
         const limit = data.extra_usage.monthly_limit
