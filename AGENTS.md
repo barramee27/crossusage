@@ -90,6 +90,19 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - In `plugin.json`, set `brandColor` to the provider's real brand color.
 - Plugin SVG logos must use `currentColor` so icon theming works correctly.
 
+## Cursor Cloud specific instructions
+Env pre-provisioned by update script (`bun install` + `cargo fetch`). Toolchain: Bun (`~/.bun/bin`, add to PATH), Rust stable (default; edition 2024 crates need >=1.85), Tauri Linux libs (webkit2gtk-4.1, gtk3, ayatana-appindicator, libsoup-3, dbus). Virtual display at `DISPLAY=:1`.
+
+Services (single desktop product; no backend server): Vite dev UI (port 1420, auto-started by `beforeDevCommand`), Tauri app (embeds Rust core + local HTTP API on 127.0.0.1:6736). CLI `crossusage-cli` shares the same engine.
+
+- **Standard commands** live in `package.json`/README "Develop": `bun run tauri:dev` (GUI), `bun run test` (Vitest), `bun run build` (typecheck+vite), `cargo test -p crossusage-cli`, `cargo run -p crossusage-cli -- list`.
+- **GUI dev requires the CLI sidecar first** (non-obvious): `bun run tauri:dev` fails with `resource path binaries/crossusage-cli-<triple> doesn't exist` until you run `bash scripts/prepare-cli-sidecar.sh` once (builds `crossusage-cli --release` into `src-tauri/binaries/`). Only `tauri:build` builds it automatically.
+- On Linux the app auto-shows its main window on launch (`panel::show_panel` in `lib.rs` setup); no system tray needed to see the UI under Xvfb.
+- Run the GUI under `DISPLAY=:1`; keep it in a tmux session (`bun run tauri:dev`) — it is long-running.
+- No credentials → real providers probe as "not logged in" (expected). For a GUI usage demo without secrets, enable the built-in `mock` provider by removing `"mock"` from the `disabled` array in `~/.local/share/com.barramee27.crossusage/settings.json`, then restart (settings load only at startup — no hot-reload).
+- Keyring is unavailable (no `secret-tool`/Secret Service); keychain reads log warnings and fail gracefully — harmless.
+- Known env-limited test failures (NOT in CI, do not "fix" in product code): `crossusage-core` tests `ccusage_runner_retries_legacy_package_when_current_package_fails` and `ccusage_timeout_kills_descendant_and_closes_pipes` fail in this sandboxed microVM (subprocess `process_group(0)` timeout/kill behavior). CI only runs `bun run test` + `cargo test -p crossusage-cli`, both of which pass.
+
 ## User Notes
 Use below list to store and recall user notes when asked to do so.
 
