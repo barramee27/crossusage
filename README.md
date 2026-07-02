@@ -87,6 +87,7 @@ Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-acc
 | Neuralwatt | [neuralwatt](docs/providers/neuralwatt.md) |
 | Ollama | [ollama](docs/providers/ollama.md) |
 | OpenCode Go | [opencode-go](docs/providers/opencode-go.md) |
+| OpenRouter | `plugins/openrouter` (API key: `OPENROUTER_API_KEY`) |
 | Perplexity | [perplexity](docs/providers/perplexity.md) |
 | Synthetic | [synthetic](docs/providers/synthetic.md) |
 | Devin | [devin](docs/providers/devin.md) |
