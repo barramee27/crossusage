@@ -2,6 +2,30 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.3.0
+
+**Theme:** Language & region + OpenUsage **v0.7.1** provider port.
+
+### New features
+
+- **Language & region** (Settings → General): UI language (12 locales + Auto) and display currency (21 ISO codes + Auto) with live FX formatting ([#9](https://github.com/barramee27/crossusage/pull/9)).
+- **OpenRouter** provider (API key: `OPENROUTER_API_KEY`) ([#12](https://github.com/barramee27/crossusage/pull/12)).
+- **Copilot:** AI Credits + Extra Usage meters (usage-based billing shape) ([#12](https://github.com/barramee27/crossusage/pull/12)).
+- **Claude:** Fable model-scoped weekly limit from OAuth `limits` array ([#12](https://github.com/barramee27/crossusage/pull/12)).
+- **Fresh session UI:** “Not started” label on unused 5h/session quota rows (Codex, Claude, Antigravity-style pools) ([#12](https://github.com/barramee27/crossusage/pull/12)).
+- Provider quick links: Copilot, Devin ([#12](https://github.com/barramee27/crossusage/pull/12)).
+
+### Bug fixes
+
+- **Codex:** drop retired code-review rate limit line ([#12](https://github.com/barramee27/crossusage/pull/12)).
+- **i18n:** currency picker and display no longer hardcode `$` when FX rates load ([#9](https://github.com/barramee27/crossusage/pull/9)).
+
+### Ports from [OpenUsage v0.7.1](https://github.com/robinebers/openusage/releases/tag/v0.7.1)
+
+- Copilot credits/overage, Claude Fable weekly, OpenRouter, Codex Spark + JWT refresh (already present), antigravity “not started” UX. Deferred Swift-only items tracked in [docs/PORT-0.7.1.md](docs/PORT-0.7.1.md).
+
+---
+
 ## 1.2.0
 
 **Theme:** Modern UI + insights — OpenUsage 0.7 layout port with bundled usage insights.
