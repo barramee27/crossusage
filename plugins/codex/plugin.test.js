@@ -1391,7 +1391,7 @@ describe("codex plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
-    expect(result.lines.find((line) => line.label === "Reviews")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Reviews")).toBeFalsy()
     const credits = result.lines.find((line) => line.label === "Credits")
     expect(credits).toBeTruthy()
     expect(credits.value).toBe("$32.80 · 820 credits")

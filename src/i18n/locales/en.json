@@ -80,6 +80,8 @@
     "resetsTodayAt": "Resets today at {{time}}",
     "resetsTomorrowAt": "Resets tomorrow at {{time}}",
     "resetsDateAt": "Resets {{date}} at {{time}}",
+    "notStarted": "Not started",
+    "freshSessionTooltip": "Sessions start after you send your first message.",
     "exampleRelative": "5h 12m",
     "exampleAbsolute": "today at {{time}}"
   },

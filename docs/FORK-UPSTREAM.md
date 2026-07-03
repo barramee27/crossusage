@@ -4,7 +4,7 @@ CrossUsage is the **Tauri Linux/Windows** line. Upstream **OpenUsage 0.7+** is a
 
 **UI diff target:** compare Modern layout work against **`upstream/swift`**, not `upstream/main`. Port spec: [OPENUSAGE-0.7-UI-SPEC.md](./OPENUSAGE-0.7-UI-SPEC.md).
 
-**Release trigger:** CrossUsage **1.2.0** ships the OpenUsage **v0.7.0** Modern UI port plus fork insights polish (combined release).
+**Release trigger:** CrossUsage **1.2.0** shipped OpenUsage **v0.7.0** Modern UI. **1.3.0** targets **v0.7.1** + i18n — see [PORT-0.7.1.md](./PORT-0.7.1.md).
 
 ## What to port
 
