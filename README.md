@@ -63,7 +63,7 @@ Linux **CLI-only** without a desktop package: add `INSTALL_MODE=cli` to the firs
 
 ## Providers
 
-Multi-account OAuth rows: **[multi-account credentials](docs/providers/multi-account-credentials.md)**.
+- **Multi-account for all providers** — add Work/personal rows per provider in Settings (API keys + OAuth); credentials encrypted at rest. See **[multi-account credentials](docs/providers/multi-account-credentials.md)**.
 
 | Provider | Docs |
 |----------|------|
