@@ -641,8 +641,7 @@ function ProviderAccountForm({
               onChange={(event) => onChange({ ...form, refreshToken: event.target.value })}
             />
           </label>
-        {form.mode !== "rename" &&
-        (form.baseProviderId === "cursor" || form.baseProviderId === "cursor-nightly") ? (
+        {(form.baseProviderId === "cursor" || form.baseProviderId === "cursor-nightly") ? (
           <label className="block space-y-1 text-xs text-muted-foreground">
             <span>Session key (optional)</span>
             <input
