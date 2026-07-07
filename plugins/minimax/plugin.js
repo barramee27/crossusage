@@ -112,6 +112,11 @@
   }
 
   function loadApiKey(ctx, endpointSelection) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return { value: providerKey, source: "provider-account" }
+    }
     const envVars = endpointSelection === "CN" ? CN_API_KEY_ENV_VARS : GLOBAL_API_KEY_ENV_VARS
     for (let i = 0; i < envVars.length; i += 1) {
       const name = envVars[i]

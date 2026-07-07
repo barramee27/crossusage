@@ -160,6 +160,11 @@
   }
 
   function loadAuthKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return providerKey
+    }
     if (!ctx.host.fs.exists(AUTH_PATH)) return null;
 
     try {

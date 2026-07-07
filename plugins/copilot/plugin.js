@@ -92,6 +92,14 @@
   }
 
   function loadToken(ctx) {
+    const credential = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (credential && (credential.accessToken || credential.sessionKey)) {
+      ctx.host.log.info("token loaded from provider account")
+      return {
+        token: credential.accessToken || credential.sessionKey,
+        source: "provider-account",
+      }
+    }
     return (
       loadTokenFromKeychain(ctx) ||
       loadTokenFromGhCli(ctx) ||
@@ -196,7 +204,105 @@
     });
   }
 
-  function mapUsage(ctx, data) {
+  function fetchUserOrgs(ctx, token) {
+    return ctx.util.request({
+      method: "GET",
+      url: "https://api.github.com/user/orgs?per_page=100",
+      headers: {
+        Authorization: "token " + token,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "OpenUsage",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      timeoutMs: 15000,
+    })
+  }
+
+  function fetchOrgBillingSummary(ctx, token, org) {
+    const encoded = encodeURIComponent(org)
+    return ctx.util.request({
+      method: "GET",
+      url: "https://api.github.com/orgs/" + encoded + "/settings/billing/usage/summary",
+      headers: {
+        Authorization: "token " + token,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "OpenUsage",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      timeoutMs: 15000,
+    })
+  }
+
+  function orgLoginsFromResponse(ctx, resp) {
+    if (resp.status < 200 || resp.status >= 300) return []
+    const data = ctx.util.tryParseJson(resp.bodyText)
+    if (!Array.isArray(data)) return []
+    const out = []
+    for (let i = 0; i < data.length; i++) {
+      const login = data[i] && data[i].login
+      if (typeof login === "string" && login.trim()) out.push(login.trim())
+    }
+    return out
+  }
+
+  function orgBillingLines(ctx, summaryBody) {
+    if (!summaryBody || typeof summaryBody !== "object") return null
+    const items = summaryBody.usageItems
+    if (!Array.isArray(items)) return null
+    const creditItems = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (!item || typeof item !== "object") continue
+      const product = typeof item.product === "string" ? item.product.trim().toLowerCase() : ""
+      const unit = typeof item.unitType === "string" ? item.unitType.trim().toLowerCase() : ""
+      if (product !== "copilot") continue
+      if (unit !== "ai-units" && unit !== "ai-credits") continue
+      creditItems.push(item)
+    }
+    if (creditItems.length === 0) return null
+    let credits = 0
+    let spend = 0
+    for (let i = 0; i < creditItems.length; i++) {
+      const item = creditItems[i]
+      const qty = readNumber(item.grossQuantity)
+      const net = readNumber(item.netAmount)
+      if (qty !== null && qty > 0) credits += qty
+      if (net !== null && net > 0) spend += net
+    }
+    return [
+      ctx.line.text({ label: "Org Credits", value: String(Math.floor(credits)) + " credits" }),
+      ctx.line.text({ label: "Org Spend", value: "$" + spend.toFixed(2) }),
+    ]
+  }
+
+  function probeOrgBilling(ctx, token) {
+    let orgResp
+    try {
+      orgResp = fetchUserOrgs(ctx, token)
+    } catch (e) {
+      ctx.host.log.warn("copilot org list failed: " + String(e))
+      return []
+    }
+    const orgs = orgLoginsFromResponse(ctx, orgResp)
+    for (let i = 0; i < orgs.length; i++) {
+      const org = orgs[i]
+      let summaryResp
+      try {
+        summaryResp = fetchOrgBillingSummary(ctx, token, org)
+      } catch (e) {
+        ctx.host.log.warn("copilot org billing failed for " + org + ": " + String(e))
+        continue
+      }
+      if (summaryResp.status === 403 || summaryResp.status === 404) continue
+      if (summaryResp.status < 200 || summaryResp.status >= 300) continue
+      const body = ctx.util.tryParseJson(summaryResp.bodyText)
+      const lines = orgBillingLines(ctx, body)
+      if (lines && lines.length > 0) return lines
+    }
+    return []
+  }
+
+  function mapUsage(ctx, data, token) {
     const lines = [];
     const resetDate = data.quota_reset_date || data.limited_user_reset_date;
     const snapshots = data.quota_snapshots;
@@ -226,7 +332,11 @@
 
     if (lines.length === 0) {
       if (readBool(data.token_based_billing) === true) {
-        return { lines: [], tokenBasedBilling: true };
+        const orgLines = token ? probeOrgBilling(ctx, token) : []
+        if (orgLines.length > 0) {
+          return { lines: orgLines }
+        }
+        return { lines: [], tokenBasedBilling: true }
       }
       throw "Copilot usage data is unavailable for this account.";
     }
@@ -300,7 +410,7 @@
       plan = ctx.fmt.planLabel(data.copilot_plan);
     }
 
-    const mapped = mapUsage(ctx, data);
+    const mapped = mapUsage(ctx, data, token);
     return { plan: plan, lines: mapped.lines };
   }
 

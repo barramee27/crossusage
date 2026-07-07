@@ -149,6 +149,14 @@
       return true
     }
 
+    if (authState.source === "provider-account") {
+      const tokens = auth.tokens || {}
+      return ctx.util.writeProviderCredential({
+        accessToken: tokens.access_token || null,
+        refreshToken: tokens.refresh_token || null,
+      })
+    }
+
     return false
   }
 
@@ -363,15 +371,129 @@
     return null
   }
 
+  function resetAtMs(ctx, nowSec, window) {
+    const iso = getResetsAtIso(ctx, nowSec, window)
+    if (!iso) return NaN
+    const ms = Date.parse(iso)
+    return Number.isFinite(ms) ? ms : NaN
+  }
+
+  function readPeriodMs(window, fallbackMs) {
+    if (window && typeof window.limit_window_seconds === "number") {
+      return window.limit_window_seconds * 1000
+    }
+    return fallbackMs
+  }
+
+  function isFreshRateLimitWindow(nowMs, resetsAtMs, periodDurationMs) {
+    if (!Number.isFinite(resetsAtMs) || !Number.isFinite(periodDurationMs) || periodDurationMs <= 0) {
+      return false
+    }
+    if (!Number.isFinite(nowMs) || nowMs >= resetsAtMs) return false
+    const graceMs = Math.max(60_000, periodDurationMs * 0.01)
+    return resetsAtMs - nowMs >= periodDurationMs - graceMs
+  }
+
+  function normalizedUsedPercent(ctx, used, window, nowSec, periodDurationMs) {
+    if (typeof used !== "number" || !Number.isFinite(used)) return used
+    const nowMs = nowSec * 1000
+    const resetsAtMs = resetAtMs(ctx, nowSec, window)
+    if (isFreshRateLimitWindow(nowMs, resetsAtMs, periodDurationMs) && used <= 1) {
+      return 0
+    }
+    return used
+  }
+
+  function readResetCredits(data) {
+    const src = data && data.rate_limit_reset_credits
+    if (!src || typeof src !== "object") return null
+    if (src.available_count == null) return null
+    const count = readNumber(src.available_count)
+    if (count === null || count < 0) return null
+    const expiries = []
+    const credits = Array.isArray(src.credits) ? src.credits : []
+    for (let i = 0; i < credits.length; i++) {
+      const credit = credits[i]
+      if (!credit || typeof credit !== "object") continue
+      const status = credit.status
+      if (status && status !== "available") continue
+      const expiresAt = credit.expires_at
+      let ms = NaN
+      if (typeof expiresAt === "number") ms = expiresAt * 1000
+      else if (typeof expiresAt === "string") ms = Date.parse(expiresAt)
+      if (Number.isFinite(ms)) expiries.push(ms)
+    }
+    expiries.sort((a, b) => a - b)
+    return { count: Math.floor(count), expiries: expiries }
+  }
+
+  function expiryStatusDot(expiries, nowMs) {
+    if (!expiries.length) return "normal"
+    const remaining = expiries[0] - nowMs
+    const criticalMs = 48 * 60 * 60 * 1000
+    const warningMs = 7 * 24 * 60 * 60 * 1000
+    if (remaining <= criticalMs) return "critical"
+    if (remaining <= warningMs) return "warning"
+    return "normal"
+  }
+
+  function formatExpiryTooltip(expiries) {
+    if (!expiries.length) return undefined
+    const lines = ["Resets expire in:"]
+    for (let i = 0; i < expiries.length; i++) {
+      const ms = expiries[i] - Date.now()
+      const abs = Math.max(0, ms)
+      const hours = Math.floor(abs / (60 * 60 * 1000))
+      const days = Math.floor(hours / 24)
+      const remHours = hours % 24
+      const label = days > 0 ? days + "d " + remHours + "h" : hours + "h"
+      lines.push(String(i + 1) + ". " + label)
+    }
+    return lines.join("\n")
+  }
+
   // Period durations in milliseconds
   var PERIOD_SESSION_MS = 5 * 60 * 60 * 1000    // 5 hours
   var PERIOD_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-  function queryTokenUsage(ctx) {
+  function dailyHasUsage(daily) {
+    if (!Array.isArray(daily) || daily.length === 0) return false
+    for (let i = 0; i < daily.length; i++) {
+      const tokens = Number(daily[i] && daily[i].totalTokens)
+      if (Number.isFinite(tokens) && tokens > 0) return true
+    }
+    return false
+  }
+
+  function queryCcusageDaily(ctx, queryOpts, provider, logPrefix) {
     if (!ctx.host.ccusage || typeof ctx.host.ccusage.query !== "function") {
       return { status: "no_runner", data: null }
     }
+    const opts = Object.assign({}, queryOpts)
+    if (provider) opts.provider = provider
+    const result = ctx.host.ccusage.query(opts)
+    if (!result || typeof result !== "object" || typeof result.status !== "string") {
+      if (logPrefix) {
+        ctx.host.log.warn(logPrefix + " ccusage returned invalid shape")
+      }
+      return { status: "runner_failed", data: null }
+    }
+    if (result.status !== "ok") {
+      if (logPrefix) {
+        ctx.host.log.info(logPrefix + " ccusage status=" + result.status)
+      }
+      return { status: result.status, data: null }
+    }
+    if (!result.data || !Array.isArray(result.data.daily)) {
+      if (logPrefix) {
+        ctx.host.log.warn(logPrefix + " ccusage ok but daily missing")
+      }
+      return { status: "runner_failed", data: null }
+    }
+    return { status: "ok", data: result.data }
+  }
 
+  function queryTokenUsage(ctx) {
     const since = new Date()
     // Inclusive range: today + previous 30 days = 31 calendar days.
     since.setDate(since.getDate() - 30)
@@ -379,23 +501,35 @@
     const m = since.getMonth() + 1
     const d = since.getDate()
     const sinceStr = "" + y + (m < 10 ? "0" : "") + m + (d < 10 ? "0" : "") + d
-    const queryOpts = { provider: "codex", since: sinceStr }
+    const queryOpts = { since: sinceStr }
     const codexHome = readCodexHome(ctx)
     if (codexHome) {
       queryOpts.homePath = codexHome
     }
 
-    const result = ctx.host.ccusage.query(queryOpts)
-    if (!result || typeof result !== "object" || typeof result.status !== "string") {
-      return { status: "runner_failed", data: null }
+    if (ctx.host.codexLogs && typeof ctx.host.codexLogs.queryDaily === "function") {
+      try {
+        const native = ctx.host.codexLogs.queryDaily(queryOpts)
+        if (
+          native &&
+          native.status === "ok" &&
+          native.data &&
+          dailyHasUsage(native.data.daily)
+        ) {
+          return { status: "ok", data: native.data }
+        }
+        const reason = !native
+          ? "no response"
+          : native.status !== "ok"
+            ? "status=" + String(native.status)
+            : "empty daily"
+        ctx.host.log.info("codexLogs " + reason + ", falling back to ccusage")
+      } catch (e) {
+        ctx.host.log.warn("codexLogs native scan failed, falling back to ccusage: " + String(e))
+      }
     }
-    if (result.status !== "ok") {
-      return { status: result.status, data: null }
-    }
-    if (!result.data || !Array.isArray(result.data.daily)) {
-      return { status: "runner_failed", data: null }
-    }
-    return { status: "ok", data: result.data }
+
+    return queryCcusageDaily(ctx, queryOpts, "codex", "codex")
   }
 
   function fmtTokens(n) {
@@ -598,20 +732,92 @@
     }))
   }
 
+  function modelBreakdownForPeriod(daily) {
+    const totals = {}
+    for (let i = 0; i < daily.length; i++) {
+      const day = daily[i]
+      const models = day && day.models
+      if (!models || typeof models !== "object") continue
+      const names = Object.keys(models)
+      for (let j = 0; j < names.length; j++) {
+        const name = names[j]
+        const usage = models[name]
+        const tokens = modelTokenCount(usage)
+        if (tokens <= 0) continue
+        if (!totals[name]) totals[name] = { tokens: 0, costUsd: undefined }
+        totals[name].tokens += tokens
+        const cost = usage && usage.totalCost != null ? Number(usage.totalCost) : undefined
+        if (Number.isFinite(cost) && cost > 0) {
+          totals[name].costUsd = (totals[name].costUsd || 0) + cost
+        }
+      }
+    }
+    const keys = Object.keys(totals)
+    if (keys.length === 0) return undefined
+    let sumPct = 0
+    const rows = keys.map((name) => {
+      const row = totals[name]
+      return {
+        model: name,
+        tokens: row.tokens,
+        costUsd: row.costUsd,
+      }
+    }).sort((a, b) => b.tokens - a.tokens || a.model.localeCompare(b.model))
+    const total = rows.reduce((sum, row) => sum + row.tokens, 0)
+    if (total <= 0) return undefined
+    for (let i = 0; i < rows.length; i++) {
+      const pct = (rows[i].tokens / total) * 100
+      rows[i].percent = i === rows.length - 1 ? Math.max(0, 100 - sumPct) : Math.round(pct * 10) / 10
+      sumPct += rows[i].percent
+      if (rows[i].costUsd == null || rows[i].costUsd <= 0) {
+        delete rows[i].costUsd
+      }
+    }
+    return rows
+  }
+
+  function modelBreakdownForDay(dayEntry) {
+    if (!dayEntry || !dayEntry.models || typeof dayEntry.models !== "object") return undefined
+    const names = Object.keys(dayEntry.models)
+    if (names.length === 0) return undefined
+    let total = 0
+    const rows = []
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i]
+      const usage = dayEntry.models[name]
+      const tokens = modelTokenCount(usage)
+      if (tokens <= 0) continue
+      total += tokens
+      const cost = usage && usage.totalCost != null ? Number(usage.totalCost) : undefined
+      rows.push({ model: name, tokens: tokens, costUsd: Number.isFinite(cost) ? cost : undefined })
+    }
+    if (total <= 0 || rows.length === 0) return undefined
+    let sumPct = 0
+    for (let i = 0; i < rows.length; i++) {
+      const pct = (rows[i].tokens / total) * 100
+      rows[i].percent = i === rows.length - 1 ? Math.max(0, 100 - sumPct) : Math.round(pct * 10) / 10
+      sumPct += rows[i].percent
+    }
+    return rows.sort((a, b) => b.tokens - a.tokens || a.model.localeCompare(b.model))
+  }
+
   function pushDayUsageLine(lines, ctx, label, dayEntry) {
     const tokens = Number(dayEntry && dayEntry.totalTokens) || 0
     const cost = usageCostUsd(dayEntry)
+    const modelBreakdown = modelBreakdownForDay(dayEntry)
     if (tokens > 0) {
       lines.push(ctx.line.text({
         label: label,
-        value: costAndTokensLabel({ tokens: tokens, costUSD: cost })
+        value: costAndTokensLabel({ tokens: tokens, costUSD: cost }),
+        modelBreakdown: modelBreakdown,
       }))
       return
     }
 
     lines.push(ctx.line.text({
       label: label,
-      value: costAndTokensLabel({ tokens: 0, costUSD: 0 }, { includeZeroTokens: true })
+      value: costAndTokensLabel({ tokens: 0, costUSD: 0 }, { includeZeroTokens: true }),
+      modelBreakdown: modelBreakdown,
     }))
   }
 
@@ -734,7 +940,7 @@
       if (headerPrimary !== null) {
         lines.push(ctx.line.progress({
           label: "Session",
-          used: headerPrimary,
+          used: normalizedUsedPercent(ctx, headerPrimary, primaryWindow, nowSec, PERIOD_SESSION_MS),
           limit: 100,
           format: { kind: "percent" },
           resetsAt: getResetsAtIso(ctx, nowSec, primaryWindow),
@@ -744,7 +950,7 @@
       if (headerSecondary !== null) {
         lines.push(ctx.line.progress({
           label: "Weekly",
-          used: headerSecondary,
+          used: normalizedUsedPercent(ctx, headerSecondary, secondaryWindow, nowSec, PERIOD_WEEKLY_MS),
           limit: 100,
           format: { kind: "percent" },
           resetsAt: getResetsAtIso(ctx, nowSec, secondaryWindow),
@@ -756,7 +962,13 @@
         if (data.rate_limit.primary_window && typeof data.rate_limit.primary_window.used_percent === "number") {
           lines.push(ctx.line.progress({
             label: "Session",
-            used: data.rate_limit.primary_window.used_percent,
+            used: normalizedUsedPercent(
+              ctx,
+              data.rate_limit.primary_window.used_percent,
+              primaryWindow,
+              nowSec,
+              PERIOD_SESSION_MS,
+            ),
             limit: 100,
             format: { kind: "percent" },
             resetsAt: getResetsAtIso(ctx, nowSec, primaryWindow),
@@ -766,7 +978,13 @@
         if (data.rate_limit.secondary_window && typeof data.rate_limit.secondary_window.used_percent === "number") {
           lines.push(ctx.line.progress({
             label: "Weekly",
-            used: data.rate_limit.secondary_window.used_percent,
+            used: normalizedUsedPercent(
+              ctx,
+              data.rate_limit.secondary_window.used_percent,
+              secondaryWindow,
+              nowSec,
+              PERIOD_WEEKLY_MS,
+            ),
             limit: 100,
             format: { kind: "percent" },
             resetsAt: getResetsAtIso(ctx, nowSec, secondaryWindow),
@@ -783,42 +1001,38 @@
           if (!shortName) shortName = name || "Model"
           const rl = entry.rate_limit
           if (rl.primary_window && typeof rl.primary_window.used_percent === "number") {
+            const periodMs = readPeriodMs(rl.primary_window, PERIOD_SESSION_MS)
             lines.push(ctx.line.progress({
               label: shortName,
-              used: rl.primary_window.used_percent,
+              used: normalizedUsedPercent(ctx, rl.primary_window.used_percent, rl.primary_window, nowSec, periodMs),
               limit: 100,
               format: { kind: "percent" },
               resetsAt: getResetsAtIso(ctx, nowSec, rl.primary_window),
-              periodDurationMs: typeof rl.primary_window.limit_window_seconds === "number"
-                ? rl.primary_window.limit_window_seconds * 1000
-                : PERIOD_SESSION_MS
+              periodDurationMs: periodMs
             }))
           }
           if (rl.secondary_window && typeof rl.secondary_window.used_percent === "number") {
+            const periodMs = readPeriodMs(rl.secondary_window, PERIOD_WEEKLY_MS)
             lines.push(ctx.line.progress({
               label: shortName + " Weekly",
-              used: rl.secondary_window.used_percent,
+              used: normalizedUsedPercent(ctx, rl.secondary_window.used_percent, rl.secondary_window, nowSec, periodMs),
               limit: 100,
               format: { kind: "percent" },
               resetsAt: getResetsAtIso(ctx, nowSec, rl.secondary_window),
-              periodDurationMs: typeof rl.secondary_window.limit_window_seconds === "number"
-                ? rl.secondary_window.limit_window_seconds * 1000
-                : PERIOD_WEEKLY_MS
+              periodDurationMs: periodMs
             }))
           }
         }
       }
 
-      const resetCredits =
-        data.rate_limit_reset_credits &&
-        typeof data.rate_limit_reset_credits === "object" &&
-        data.rate_limit_reset_credits.available_count != null
-          ? readNumber(data.rate_limit_reset_credits.available_count)
-          : null
-      if (resetCredits !== null && resetCredits >= 0) {
+      const resetCredits = readResetCredits(data)
+      if (resetCredits !== null) {
+        const nowMs = Date.now()
         lines.push(ctx.line.text({
           label: "Rate Limit Resets",
-          value: Math.floor(resetCredits) + " available",
+          value: resetCredits.count + " available",
+          statusDot: expiryStatusDot(resetCredits.expiries, nowMs),
+          expiryTooltip: formatExpiryTooltip(resetCredits.expiries),
         }))
       }
 
@@ -885,7 +1099,8 @@
         if (totalTokens > 0) {
           lines.push(ctx.line.text({
             label: "Last 30 Days",
-            value: costAndTokensLabel({ tokens: totalTokens, costUSD: hasCost ? totalCostNanos / 1e9 : null })
+            value: costAndTokensLabel({ tokens: totalTokens, costUSD: hasCost ? totalCostNanos / 1e9 : null }),
+            modelBreakdown: modelBreakdownForPeriod(tokenUsage.daily),
           }))
         }
 
@@ -907,7 +1122,32 @@
     throw ERR_NOT_LOGGED_IN
   }
 
+  function loadAuthFromProviderAccount(ctx) {
+    const credential = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (!credential || !credential.accessToken) return null
+    return {
+      auth: {
+        tokens: {
+          access_token: credential.accessToken,
+          refresh_token: credential.refreshToken || undefined,
+        },
+      },
+      authPath: null,
+      source: "provider-account",
+    }
+  }
+
   function probe(ctx) {
+    const providerAuth = loadAuthFromProviderAccount(ctx)
+    if (providerAuth) {
+      try {
+        return probeWithAuthState(ctx, providerAuth)
+      } catch (e) {
+        if (!isAuthFallbackError(e)) throw e
+        ctx.host.log.warn("provider account auth failed: " + String(e))
+      }
+    }
+
     const fileAuth = loadFileAuthCandidates(ctx)
     let lastAuthFallbackError = null
     for (let i = 0; i < fileAuth.candidates.length; i++) {

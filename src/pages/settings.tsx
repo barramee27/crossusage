@@ -511,7 +511,7 @@ function SortablePluginItem({
             />
           </span>
         </div>
-        {(plugin.baseProviderId === "claude" || plugin.baseProviderId === "cursor") && (
+        {plugin.baseProviderId !== "mock" && (
           <div className="flex flex-wrap gap-1.5 pl-0.5" onClick={(e) => e.stopPropagation()}>
             <Button type="button" variant="outline" size="xs" onClick={() => onUpdateCredentials(plugin.id)}>
               Set credentials
@@ -576,7 +576,8 @@ function ProviderAccountForm({
       <div>
         <h4 className="text-sm font-medium">{title}</h4>
         <p className="text-xs text-muted-foreground">
-          Tokens are saved locally in CrossUsage app data.
+          Tokens are encrypted at rest (AES-256-GCM). The encryption key is stored in your OS keychain or credential
+          manager; account data on disk is not readable plaintext.
         </p>
         {devMockCredentialHint ? (
           <p className="text-xs text-amber-800 dark:text-amber-200">
@@ -591,17 +592,23 @@ function ProviderAccountForm({
             normal — paste only when you want to replace stored credentials.
           </p>
         ) : null}
-        {form.mode !== "rename" &&
-        (form.baseProviderId === "cursor" || form.baseProviderId === "claude") ? (
-          <p className="text-xs text-muted-foreground">
-            <button
-              type="button"
-              className="text-primary underline underline-offset-2 hover:no-underline"
-              onClick={() => openUrl(multiAccountCredentialsGuideUrl()).catch(console.error)}
-            >
-              Step-by-step: where to copy tokens (opens GitHub)
-            </button>
-          </p>
+        {form.mode !== "rename" ? (
+          form.baseProviderId === "cursor" || form.baseProviderId === "claude" ? (
+            <p className="text-xs text-muted-foreground">
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2 hover:no-underline"
+                onClick={() => openUrl(multiAccountCredentialsGuideUrl()).catch(console.error)}
+              >
+                Step-by-step: where to copy tokens (opens GitHub)
+              </button>
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Paste an API key or OAuth access token for this account. Use refresh token when the provider supports
+              token rotation.
+            </p>
+          )
         ) : null}
       </div>
       <label className="block space-y-1 text-xs text-muted-foreground">
@@ -634,6 +641,8 @@ function ProviderAccountForm({
               onChange={(event) => onChange({ ...form, refreshToken: event.target.value })}
             />
           </label>
+        {form.mode !== "rename" &&
+        (form.baseProviderId === "cursor" || form.baseProviderId === "cursor-nightly") ? (
           <label className="block space-y-1 text-xs text-muted-foreground">
             <span>Session key (optional)</span>
             <input
@@ -643,7 +652,8 @@ function ProviderAccountForm({
               onChange={(event) => onChange({ ...form, sessionKey: event.target.value })}
             />
           </label>
-        </>
+        ) : null}
+      </>
       )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>

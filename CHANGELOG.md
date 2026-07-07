@@ -2,6 +2,37 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.3.1
+
+**Theme:** OpenUsage **v0.7.2 + v0.7.3** upstream mega-patch (exceptional PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)).
+
+### New features
+
+- **Native Claude/Codex log scanners** — `host.claudeLogs` / `host.codexLogs` replace ccusage for spend tiles; ccusage fallback kept for one release; Amp/Kimi/Copilot/OpenCode still use ccusage.
+- **Dynamic model pricing** — bundled LiteLLM + supplement JSON with Opus 4.7/4.8 fast-mode overrides.
+- **Spend row hover** — per-model breakdown on Today/Yesterday/Last 30 Days (percentages sum to 100; unpriced models excluded from totals).
+- **Antigravity** — `RetrieveUserQuotaSummary` merge; Session/Weekly/Claude pool labels.
+- **Grok** — weekly shared pool from credits JSON; dropped monthly meter.
+- **Copilot** — org billing usage summary when on token-based billing.
+- **Codex** — fresh-window latency fix; reset-credit expiry status dot on Rate Limit Resets row.
+- **Claude** — rate-limit / scope warnings on card header; desktop-app-only login hint.
+- **Onboarding** — auto-enable starter trio + detected providers on first-run complete.
+- **Notifications** — clicking a usage alert focuses the app window.
+- **Pace alerts** — ignore sub-minute reset jitter; align minimum-elapsed with upstream.
+
+### Bug fixes
+
+- **Multi-account** — all API-key providers support Add account / Set credentials; encrypted `provider_accounts.json` with OS keychain master key; bootstrap sync + probe targets fix for instances like `cursor:work`.
+- **Modern UI** — multi-account widgets use `::` metric IDs; instances insert under parent provider in order.
+
+### Security
+
+- **Provider account encryption** — `provider_accounts.json` is AES-256-GCM encrypted; master key in OS keychain/credential manager; legacy plaintext auto-migrated on load.
+
+Tracked in [docs/PORT-0.7.2-0.7.3.md](docs/PORT-0.7.2-0.7.3.md). Skipped macOS-only: transparency toggle, Sparkle banner, popover Options chrome.
+
+---
+
 ## 1.3.0
 
 **Theme:** Language & region + OpenUsage **v0.7.1** provider port.

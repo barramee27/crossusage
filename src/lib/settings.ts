@@ -240,6 +240,8 @@ const store = new LazyStore(SETTINGS_STORE_PATH);
 
 const DEFAULT_ENABLED_PLUGINS = new Set(["claude", "codex", "cursor"]);
 
+export { DEFAULT_ENABLED_PLUGINS };
+
 export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   order: [],
   disabled: [],
@@ -402,6 +404,29 @@ export function normalizePluginSettings(
   );
 
   return { order: sortedOrder, disabled, trayLines, providerInstances };
+}
+
+/** On first-run onboarding, enable starter trio + any provider that already probed successfully. */
+export function enableDetectedProvidersOnOnboarding(
+  settings: PluginSettings,
+  pluginStates: Record<string, { data?: unknown; error?: string | null } | undefined>,
+): PluginSettings {
+  const toEnable = new Set<string>()
+  for (const id of settings.order) {
+    const baseId = getBaseProviderId(id, settings)
+    if (DEFAULT_ENABLED_PLUGINS.has(baseId)) {
+      toEnable.add(id)
+      continue
+    }
+    const state = pluginStates[id]
+    if (state?.data && !state?.error) {
+      toEnable.add(id)
+    }
+  }
+  return {
+    ...settings,
+    disabled: settings.disabled.filter((id) => !toEnable.has(id)),
+  }
 }
 
 export function arePluginSettingsEqual(
@@ -690,11 +715,11 @@ function defaultProviderInstanceLabel(baseProviderId: string, instanceId: string
   return suffix || "Account";
 }
 
-/** Provider list order: A–Z by display name (base + account label). */
+/** Provider list order: A–Z by base provider, account instances grouped under their base. */
 export function sortPluginOrderAlphabetically(
   order: string[],
   settings: Pick<PluginSettings, "providerInstances">,
-  plugins: PluginMeta[]
+  plugins: PluginMeta[],
 ): string[] {
   const partialSettings = {
     order,
@@ -703,13 +728,121 @@ export function sortPluginOrderAlphabetically(
     providerInstances: settings.providerInstances ?? {},
   } satisfies PluginSettings;
 
-  return [...order].sort((a, b) =>
-    getProviderDisplayName(a, partialSettings, plugins).localeCompare(
-      getProviderDisplayName(b, partialSettings, plugins),
-      undefined,
-      { sensitivity: "base" }
+  const bases = new Set<string>()
+  for (const id of order) {
+    bases.add(getBaseProviderId(id, partialSettings))
+  }
+  for (const plugin of plugins) {
+    bases.add(plugin.id)
+  }
+
+  const sortedBases = [...bases].sort((a, b) => {
+    const nameA = plugins.find((plugin) => plugin.id === a)?.name ?? a
+    const nameB = plugins.find((plugin) => plugin.id === b)?.name ?? b
+    return nameA.localeCompare(nameB, undefined, { sensitivity: "base" })
+  })
+
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const base of sortedBases) {
+    const members = order.filter(
+      (id) => getBaseProviderId(id, partialSettings) === base && !seen.has(id),
     )
-  );
+    const baseEntry = members.find((id) => id === base)
+    const instances = members
+      .filter((id) => id !== base)
+      .sort((a, b) =>
+        getProviderDisplayName(a, partialSettings, plugins).localeCompare(
+          getProviderDisplayName(b, partialSettings, plugins),
+          undefined,
+          { sensitivity: "base" },
+        ),
+      )
+    if (baseEntry) {
+      seen.add(baseEntry)
+      result.push(baseEntry)
+    }
+    for (const instance of instances) {
+      seen.add(instance)
+      result.push(instance)
+    }
+  }
+  for (const id of order) {
+    if (!seen.has(id)) result.push(id)
+  }
+  return result
+}
+
+export function insertProviderInstanceInOrder(
+  order: string[],
+  instanceId: string,
+  baseProviderId: string,
+  settings: PluginSettings | null,
+): string[] {
+  if (order.includes(instanceId)) return order
+  const baseIndex = order.indexOf(baseProviderId)
+  if (baseIndex === -1) return [...order, instanceId]
+
+  let insertAt = baseIndex + 1
+  while (insertAt < order.length) {
+    const candidate = order[insertAt]
+    if (getBaseProviderId(candidate, settings) === baseProviderId) {
+      insertAt += 1
+      continue
+    }
+    break
+  }
+
+  const next = [...order]
+  next.splice(insertAt, 0, instanceId)
+  return next
+}
+
+export type StoredProviderAccountSummary = {
+  instanceId: string
+  baseProviderId: string
+  label: string
+}
+
+/** Reconcile plugin settings with persisted provider_accounts.json on startup. */
+export function mergeStoredProviderAccounts(
+  settings: PluginSettings,
+  accounts: StoredProviderAccountSummary[],
+  plugins: PluginMeta[],
+): PluginSettings {
+  if (accounts.length === 0) return settings
+
+  let order = [...settings.order]
+  const providerInstances = { ...(settings.providerInstances ?? {}) }
+  let changed = false
+
+  for (const account of accounts) {
+    const instanceId = account.instanceId?.trim()
+    const baseProviderId = account.baseProviderId?.trim()
+    const label = account.label?.trim()
+    if (!instanceId || !baseProviderId || !label) continue
+
+    const existing = providerInstances[instanceId]
+    if (
+      !existing ||
+      existing.baseProviderId !== baseProviderId ||
+      existing.label !== label
+    ) {
+      providerInstances[instanceId] = { baseProviderId, label }
+      changed = true
+    }
+    if (!order.includes(instanceId)) {
+      order = insertProviderInstanceInOrder(order, instanceId, baseProviderId, {
+        ...settings,
+        order,
+        providerInstances,
+      })
+      changed = true
+    }
+  }
+
+  if (!changed) return settings
+  return normalizePluginSettings({ ...settings, order, providerInstances }, plugins)
 }
 
 function isGlobalShortcut(value: unknown): value is GlobalShortcut {

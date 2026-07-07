@@ -6,6 +6,7 @@ import {
   type AutoUpdateIntervalMinutes,
   type PluginSettings,
 } from "@/lib/settings"
+import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useProbeAutoUpdate } from "@/hooks/app/use-probe-auto-update"
 import { useProbeRefreshActions } from "@/hooks/app/use-probe-refresh-actions"
 import { useProbeState } from "@/hooks/app/use-probe-state"
@@ -40,10 +41,11 @@ export function useProbe({
     },
     [finalizeStaleProbeLoading]
   )
-  const resolveProbeTargets = useCallback(
-    (pluginIds?: string[]) => getProbeTargets(pluginIds, pluginSettingsRef.current),
-    []
-  )
+  const resolveProbeTargets = useCallback((pluginIds?: string[]) => {
+    const settings =
+      useAppPluginStore.getState().pluginSettings ?? pluginSettingsRef.current
+    return getProbeTargets(pluginIds, settings)
+  }, [])
 
   const { startBatch } = useProbeEvents({
     onResult: handleProbeResult,

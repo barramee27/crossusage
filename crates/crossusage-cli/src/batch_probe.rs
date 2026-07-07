@@ -28,11 +28,15 @@ fn probe_error_output(plugin: &LoadedPlugin, message: String) -> PluginOutput {
         provider_id: plugin.manifest.id.clone(),
         display_name: plugin.manifest.name.clone(),
         plan: None,
+        warning: None,
         lines: vec![MetricLine::Text {
             label: "Error".into(),
             value: message,
             color: None,
             subtitle: None,
+        model_breakdown: None,
+        status_dot: None,
+        expiry_tooltip: None,
         }],
         icon_url: plugin.icon_data_url.clone(),
     }

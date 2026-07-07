@@ -242,6 +242,7 @@ mod tests {
             provider_id: "mock".into(),
             display_name: "Mock".into(),
             plan: Some("pro".into()),
+            warning: None,
             icon_url: String::new(),
             lines: vec![
                 MetricLine::Text {
@@ -249,18 +250,27 @@ mod tests {
                     value: "12000".into(),
                     color: None,
                     subtitle: None,
+                model_breakdown: None,
+                status_dot: None,
+                expiry_tooltip: None,
                 },
                 MetricLine::Text {
                     label: "Output tokens".into(),
                     value: "3400".into(),
                     color: None,
                     subtitle: None,
+                model_breakdown: None,
+                status_dot: None,
+                expiry_tooltip: None,
                 },
                 MetricLine::Text {
                     label: "Cost".into(),
                     value: "$1.23".into(),
                     color: None,
                     subtitle: None,
+                model_breakdown: None,
+                status_dot: None,
+                expiry_tooltip: None,
                 },
                 MetricLine::Progress {
                     label: "Usage".into(),
@@ -291,6 +301,7 @@ mod tests {
             provider_id: "antigravity".into(),
             display_name: "Antigravity".into(),
             plan: None,
+            warning: None,
             icon_url: String::new(),
             lines: vec![
                 MetricLine::Progress {
@@ -327,6 +338,7 @@ mod tests {
             provider_id: "cursor".into(),
             display_name: "Cursor".into(),
             plan: Some("Pro".into()),
+            warning: None,
             icon_url: String::new(),
             lines: vec![MetricLine::Progress {
                 label: "Credits".into(),
@@ -348,6 +360,7 @@ mod tests {
             provider_id: "cursor".into(),
             display_name: "Cursor".into(),
             plan: None,
+            warning: None,
             icon_url: String::new(),
             lines: vec![MetricLine::Progress {
                 label: "On-demand".into(),
@@ -369,6 +382,7 @@ mod tests {
             provider_id: "factory".into(),
             display_name: "Factory".into(),
             plan: None,
+            warning: None,
             icon_url: String::new(),
             lines: vec![
                 MetricLine::Progress {
@@ -416,6 +430,7 @@ mod tests {
             provider_id: "mock".into(),
             display_name: "Mock".into(),
             plan: None,
+            warning: None,
             icon_url: String::new(),
             lines,
         };

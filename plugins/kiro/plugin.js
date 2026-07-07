@@ -91,6 +91,15 @@
     }
   }
   function loadAuthState(ctx) {
+    const credential = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (credential && (credential.accessToken || credential.refreshToken)) {
+      ctx.host.log.info("auth loaded from provider account")
+      const token = sanitizeAuth({
+        accessToken: credential.accessToken || null,
+        refreshToken: credential.refreshToken || null,
+      })
+      return token ? { path: null, token } : null
+    }
     const parsed = readJsonFile(ctx, TOKEN_PATH, "auth token")
     if (!parsed || typeof parsed !== "object") return null
     const token = sanitizeAuth(parsed)

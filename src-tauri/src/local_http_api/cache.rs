@@ -25,6 +25,8 @@ pub struct CachedPluginSnapshot {
     pub provider_id: String,
     pub display_name: String,
     pub plan: Option<String>,
+    #[serde(default)]
+    pub warning: Option<String>,
     pub lines: Vec<MetricLine>,
     pub fetched_at: String,
 }
@@ -235,6 +237,7 @@ pub fn cache_successful_output(output: &PluginOutput) {
         provider_id: output.provider_id.clone(),
         display_name: output.display_name.clone(),
         plan: output.plan.clone(),
+        warning: output.warning.clone(),
         lines: output.lines.clone(),
         fetched_at,
     };
@@ -334,6 +337,7 @@ mod tests {
             provider_id: id.to_string(),
             display_name: name.to_string(),
             plan: Some("Pro".to_string()),
+            warning: None,
             lines: vec![],
             fetched_at: "2026-03-26T08:15:30Z".to_string(),
         }
@@ -344,11 +348,15 @@ mod tests {
             provider_id: id.to_string(),
             display_name: name.to_string(),
             plan: Some("Pro".to_string()),
+            warning: None,
             lines: vec![MetricLine::Text {
                 label: "Usage".to_string(),
                 value: "42%".to_string(),
                 color: None,
                 subtitle: None,
+            model_breakdown: None,
+            status_dot: None,
+            expiry_tooltip: None,
             }],
             icon_url: String::new(),
         }
@@ -573,6 +581,7 @@ mod tests {
             provider_id: "claude".to_string(),
             display_name: "Claude".to_string(),
             plan: Some("Max 20x".to_string()),
+            warning: None,
             lines: vec![crate::plugin_engine::runtime::MetricLine::Progress {
                 label: "Session".to_string(),
                 used: 42.0,

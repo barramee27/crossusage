@@ -113,6 +113,11 @@
   }
 
   function loadApiKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return providerKey
+    }
     // 0. CrossUsage user config (created on first app launch)
     var cu = tryReadJson(ctx, CROSSUSAGE_CONFIG_PATH);
     var sk;

@@ -7,6 +7,11 @@
   const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 
   function loadApiKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return providerKey
+    }
     const zai = ctx.host.env.get("ZAI_API_KEY")
     if (typeof zai === "string" && zai.trim()) return zai.trim()
 

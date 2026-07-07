@@ -158,6 +158,15 @@
   }
 
   function loadCredentialsFile(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return {
+        apiKey: providerKey,
+        apiServerUrl: null,
+        source: "provider-account",
+      }
+    }
     var credentialsPath = resolveCredentialsPath(ctx)
     if (!credentialsPath) return null
     try {

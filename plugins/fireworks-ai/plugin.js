@@ -147,6 +147,11 @@
   }
 
   function loadApiKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return { value: providerKey, source: "provider-account" }
+    }
     const keychainValue = readKeychainApiKey(ctx)
     if (keychainValue) return keychainValue
     try {

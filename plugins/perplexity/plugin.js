@@ -354,6 +354,17 @@
   }
 
   function loadLocalSession(ctx) {
+    const credential = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (credential && credential.accessToken) {
+      ctx.host.log.info("session loaded from provider account")
+      return {
+        authToken: credential.accessToken,
+        userAgent: "OpenUsage",
+        appVersion: null,
+        deviceId: null,
+        sourcePath: "provider-account",
+      }
+    }
     for (let i = 0; i < LOCAL_CACHE_DB_PATHS.length; i += 1) {
       const dbPath = LOCAL_CACHE_DB_PATHS[i]
       try {

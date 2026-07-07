@@ -35,6 +35,11 @@
   }
 
   function loadApiKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return providerKey
+    }
     for (var i = 0; i < API_KEY_ENV_VARS.length; i += 1) {
       var name = API_KEY_ENV_VARS[i]
       var value = null

@@ -9,8 +9,26 @@ export type BarChartPoint = {
   valueLabel?: string
 }
 
+export type ModelSpendBreakdown = {
+  model: string
+  tokens: number
+  costUsd?: number
+  percent: number
+}
+
+export type ExpiryStatusDot = "normal" | "warning" | "critical"
+
 export type MetricLine =
-  | { type: "text"; label: string; value: string; color?: string; subtitle?: string }
+  | {
+      type: "text"
+      label: string
+      value: string
+      color?: string
+      subtitle?: string
+      modelBreakdown?: ModelSpendBreakdown[]
+      statusDot?: ExpiryStatusDot
+      expiryTooltip?: string
+    }
   | {
       type: "progress"
       label: string
@@ -39,6 +57,7 @@ export type PluginOutput = {
   providerId: string
   displayName: string
   plan?: string
+  warning?: string
   lines: MetricLine[]
   iconUrl: string
 }

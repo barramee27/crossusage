@@ -15,11 +15,15 @@ import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
 import { useUsageAlert } from "@/hooks/app/use-usage-alert"
+import { useNotificationFocus } from "@/hooks/app/use-notification-focus"
 import { useAppUpdate } from "@/hooks/use-app-update"
 import {
   buildProviderInstanceId,
+  enableDetectedProvidersOnOnboarding,
   getBaseProviderId,
   getProviderInstanceLabel,
+  insertProviderInstanceInOrder,
+  normalizePluginSettings,
   REFRESH_COOLDOWN_MS,
   DEFAULT_UI_LAYOUT,
   saveDualUiOnboardingComplete,
@@ -144,6 +148,7 @@ function App() {
 
   const scheduleProbeTrayUpdateRef = useRef<() => void>(() => {})
   const { checkUsageAlert } = useUsageAlert()
+  useNotificationFocus()
   const handleProbeResult = useCallback((output: PluginOutput) => {
     scheduleProbeTrayUpdateRef.current()
     checkUsageAlert(output)
@@ -351,12 +356,23 @@ function App() {
 
   const handleOnboardingComplete = useCallback(
     (layout: UILayout) => {
+      const nextPluginSettings =
+        pluginSettings != null
+          ? enableDetectedProvidersOnOnboarding(pluginSettings, pluginStates)
+          : null
       void getVersion()
-        .then((appVersion) =>
-          Promise.all([saveUILayout(layout), saveDualUiOnboardingComplete(appVersion)]),
-        )
+        .then((appVersion) => {
+          const saves: Promise<void>[] = [saveUILayout(layout), saveDualUiOnboardingComplete(appVersion)]
+          if (nextPluginSettings) {
+            saves.push(savePluginSettings(nextPluginSettings))
+          }
+          return Promise.all(saves)
+        })
         .then(() => {
           setUILayout(layout)
+          if (nextPluginSettings) {
+            setPluginSettings(nextPluginSettings)
+          }
           setOnboardingComplete(true)
           setActiveView("settings")
         })
@@ -364,7 +380,7 @@ function App() {
           console.error("Failed to save onboarding completion:", error)
         })
     },
-    [setActiveView, setOnboardingComplete, setUILayout],
+    [pluginSettings, pluginStates, setActiveView, setOnboardingComplete, setPluginSettings, setUILayout],
   )
 
   const handleOnboardingSkip = useCallback(() => {
@@ -463,15 +479,32 @@ function App() {
         instanceId = `${buildProviderInstanceId(baseProviderId, label)}-${counter}`
         counter += 1
       }
-      const nextSettings = {
-        ...pluginSettings,
-        order: [...pluginSettings.order, instanceId],
-        providerInstances: {
-          ...(pluginSettings.providerInstances ?? {}),
-          [instanceId]: { baseProviderId, label },
-        },
+      const nextTrayLines = { ...(pluginSettings.trayLines ?? {}) }
+      const baseTrayLines = pluginSettings.trayLines?.[baseProviderId]
+      if (baseTrayLines) {
+        nextTrayLines[instanceId] = [...baseTrayLines]
       }
+      const nextSettings = normalizePluginSettings(
+        {
+          ...pluginSettings,
+          order: insertProviderInstanceInOrder(
+            pluginSettings.order,
+            instanceId,
+            baseProviderId,
+            pluginSettings,
+          ),
+          trayLines: nextTrayLines,
+          providerInstances: {
+            ...(pluginSettings.providerInstances ?? {}),
+            [instanceId]: { baseProviderId, label },
+          },
+        },
+        pluginsMeta,
+      )
       setPluginSettings(nextSettings)
+      void savePluginSettings(nextSettings).catch((error) => {
+        console.error("Failed to save plugin settings for provider account:", error)
+      })
       void saveProviderAccountCredentials({
         instanceId,
         baseProviderId,
@@ -480,7 +513,6 @@ function App() {
         refreshToken: input.refreshToken,
         sessionKey: input.sessionKey,
       })
-        .then(() => savePluginSettings(nextSettings))
         .then(() => {
           setLoadingForPlugins([instanceId])
           return startBatch([instanceId])
@@ -552,6 +584,9 @@ function App() {
         },
       }
       setPluginSettings(nextSettings)
+      void savePluginSettings(nextSettings).catch((error) => {
+        console.error("Failed to save plugin settings for provider account rename:", error)
+      })
       void invoke("save_provider_account", {
         account: {
           instanceId: id,
@@ -562,11 +597,9 @@ function App() {
           sessionKey: null,
           expiresAt: null,
         },
+      }).catch((error) => {
+        console.error("Failed to rename provider account:", error)
       })
-        .then(() => savePluginSettings(nextSettings))
-        .catch((error) => {
-          console.error("Failed to rename provider account:", error)
-        })
       scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
     },
     [pluginSettings, scheduleTrayIconUpdate, setPluginSettings]
@@ -589,11 +622,12 @@ function App() {
       }
       setPluginSettings(nextSettings)
       if (activeView === id) setActiveView("home")
-      void invoke("delete_provider_account", { instanceId: id })
-        .then(() => savePluginSettings(nextSettings))
-        .catch((error) => {
-          console.error("Failed to remove provider account:", error)
-        })
+      void savePluginSettings(nextSettings).catch((error) => {
+        console.error("Failed to save plugin settings after removing provider account:", error)
+      })
+      void invoke("delete_provider_account", { instanceId: id }).catch((error) => {
+        console.error("Failed to remove provider account:", error)
+      })
       scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
     },
     [activeView, pluginSettings, scheduleTrayIconUpdate, setActiveView, setPluginSettings]

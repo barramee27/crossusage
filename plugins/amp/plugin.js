@@ -4,6 +4,11 @@
   var API_URL = "https://ampcode.com/api/internal"
 
   function loadApiKey(ctx) {
+    const providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
+      return providerKey
+    }
     if (!ctx.host.fs.exists(SECRETS_FILE)) return null
     try {
       var text = ctx.host.fs.readText(SECRETS_FILE)

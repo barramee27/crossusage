@@ -341,6 +341,7 @@ mod tests {
             provider_id: id.into(),
             display_name: "Test".into(),
             plan: Some("pro".into()),
+            warning: None,
             icon_url: String::new(),
             lines: vec![MetricLine::Progress {
                 label: "Usage".into(),

@@ -37,11 +37,12 @@ describe("pace-status", () => {
     expect(calculatePaceStatus(10, 100, resetsAtMs, periodDurationMs, resetsAtMs + 1)).toBeNull()
   })
 
-  it("returns null when less than 5% of the period has elapsed", () => {
+  it("returns null when less than minimum elapsed time in the period", () => {
     const resetsAtMs = Date.parse("2026-02-03T00:00:00.000Z")
     const periodDurationMs = ONE_DAY_MS
     const periodStartMs = resetsAtMs - periodDurationMs
-    const beforeThresholdNowMs = periodStartMs + Math.floor(periodDurationMs * 0.049)
+    const minElapsed = Math.max(60_000, periodDurationMs * 0.01)
+    const beforeThresholdNowMs = periodStartMs + Math.floor(minElapsed * 0.5)
     expect(calculatePaceStatus(10, 100, resetsAtMs, periodDurationMs, beforeThresholdNowMs)).toBeNull()
   })
 
@@ -115,19 +116,21 @@ describe("calculateDeficit", () => {
     expect(calculateDeficit(60, 100, resetsAtMs, ONE_DAY_MS, resetsAtMs)).toBeNull()
   })
 
-  it("returns null when less than 5% of the period has elapsed", () => {
+  it("returns null when less than minimum elapsed time in the period", () => {
     const resetsAtMs = Date.parse("2026-02-03T00:00:00.000Z")
     const periodStartMs = resetsAtMs - ONE_DAY_MS
-    const earlyMs = periodStartMs + Math.floor(ONE_DAY_MS * 0.04)
+    const minElapsed = Math.max(60_000, ONE_DAY_MS * 0.01)
+    const earlyMs = periodStartMs + Math.floor(minElapsed * 0.5)
     expect(calculateDeficit(60, 100, resetsAtMs, ONE_DAY_MS, earlyMs)).toBeNull()
   })
 
-  it("returns deficit for over-limit usage even before 5% elapsed", () => {
+  it("returns deficit for over-limit usage even before minimum elapsed time", () => {
     const resetsAtMs = Date.parse("2026-02-03T00:00:00.000Z")
     const periodStartMs = resetsAtMs - ONE_DAY_MS
-    const earlyMs = periodStartMs + Math.floor(ONE_DAY_MS * 0.04)
+    const minElapsed = Math.max(60_000, ONE_DAY_MS * 0.01)
+    const earlyMs = periodStartMs + Math.floor(minElapsed * 0.5)
     const deficit = calculateDeficit(120, 100, resetsAtMs, ONE_DAY_MS, earlyMs)
-    expect(deficit).toBeCloseTo(116, 6)
+    expect(deficit).toBeCloseTo(119.5, 6)
   })
 
   it("returns deficit when usage exceeds expected pace", () => {

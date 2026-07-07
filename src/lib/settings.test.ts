@@ -24,6 +24,8 @@ import {
   getEnabledPluginIds,
   getProviderDisplayName,
   getProviderInstanceMeta,
+  insertProviderInstanceInOrder,
+  mergeStoredProviderAccounts,
   isUsageAlertThreshold,
   loadAutoUpdateInterval,
   loadDisplayMode,
@@ -191,6 +193,45 @@ describe("settings", () => {
       plugins
     )
     expect(normalized.trayLines).toEqual({ cursor: ["Total usage"] })
+  })
+
+  it("inserts provider instances directly under their base provider", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
+      { id: "zai", name: "Z.ai", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const settings = {
+      order: ["openrouter", "cursor", "zai"],
+      disabled: [],
+      trayLines: {},
+      providerInstances: {
+        "cursor:work": { baseProviderId: "cursor", label: "Work" },
+      },
+    }
+    expect(
+      insertProviderInstanceInOrder(settings.order, "cursor:work", "cursor", settings),
+    ).toEqual(["openrouter", "cursor", "cursor:work", "zai"])
+  })
+
+  it("merges stored provider accounts into plugin settings on startup", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const settings = {
+      order: ["cursor"],
+      disabled: [],
+      trayLines: {},
+      providerInstances: {},
+    }
+    const merged = mergeStoredProviderAccounts(
+      settings,
+      [{ instanceId: "cursor:work", baseProviderId: "cursor", label: "Work" }],
+      plugins,
+    )
+    expect(merged.providerInstances).toEqual({
+      "cursor:work": { baseProviderId: "cursor", label: "Work" },
+    })
+    expect(merged.order).toEqual(["cursor", "cursor:work"])
   })
 
   it("sorts providers alphabetically by display name", () => {

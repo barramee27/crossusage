@@ -1,6 +1,10 @@
-# Multi-account credentials (Cursor & Claude)
+# Multi-account credentials
 
-CrossUsage can track **more than one** Cursor or Claude account by storing **OAuth tokens per account** in **Settings → Add account / Set credentials**. Those fields map to the same tokens the official apps already use on disk.
+CrossUsage can track **more than one account per provider** by storing credentials per account in **Settings → Add account / Set credentials**. Each account row gets its own probe instance (for example `openrouter:work`).
+
+**At rest:** credentials are encrypted with AES-256-GCM before being written to `provider_accounts.json`. The encryption key is stored in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service). On first launch after this change, existing plaintext files are migrated automatically.
+
+For **Cursor** and **Claude**, see the step-by-step token copy guide linked in Settings. For other providers, paste an **API key** or **OAuth access token** (and refresh token when available).
 
 > **Security:** access and refresh tokens are full account credentials. Only copy them on a machine you trust. Revoke or rotate them in the provider if they leak.
 

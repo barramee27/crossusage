@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import type { PluginOutput } from "@/lib/plugin-types"
-import { calculatePaceStatus } from "@/lib/pace-status"
+import { calculatePaceStatus, stableResetKeyMs } from "@/lib/pace-status"
 import { sendNotificationAsync } from "@/lib/notification"
 import { resolvePrimaryProgressLine } from "@/lib/primary-progress-line"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
@@ -87,7 +87,7 @@ export function useUsageAlert() {
         if (usagePaceAlertEnabled) {
           const resetsAtMs = primary.resetsAt ? Date.parse(primary.resetsAt) : NaN
           const periodDurationMs = primary.periodDurationMs
-          const paceKey = `${instanceId}:${resetsAtMs}:pace`
+          const paceKey = `${instanceId}:${stableResetKeyMs(resetsAtMs)}:pace`
 
           if (
             Number.isFinite(resetsAtMs) &&

@@ -1,4 +1,5 @@
 import type { PluginMeta } from "@/lib/plugin-types"
+import { metricIdPrefix, parseMetricId } from "@/lib/metric-id"
 import { WidgetRow } from "@/components/modern/widget-row"
 import type { WidgetData } from "@/lib/widget-data"
 import { placeholderWidgetData } from "@/lib/widget-data"
@@ -109,8 +110,8 @@ export function buildProviderWidgetGroups(args: {
   const placedSet = new Set(placedMetricIds)
   const providersWithMetrics = new Set<string>()
   for (const id of placedMetricIds) {
-    const colon = id.indexOf(":")
-    if (colon > 0) providersWithMetrics.add(id.slice(0, colon))
+    const pluginId = parseMetricId(id)?.pluginId
+    if (pluginId) providersWithMetrics.add(pluginId)
   }
 
   const order =
@@ -126,7 +127,9 @@ export function buildProviderWidgetGroups(args: {
     .map((pluginId): ProviderWidgetGroup | null => {
       const meta = getMeta(pluginId)
       if (!meta) return null
-      const orderIds = metricOrderByProvider[pluginId] ?? placedMetricIds.filter((id) => id.startsWith(`${pluginId}:`))
+      const orderIds =
+        metricOrderByProvider[pluginId] ??
+        placedMetricIds.filter((id) => id.startsWith(metricIdPrefix(pluginId)))
       const metrics: WidgetData[] = []
       for (const id of orderIds) {
         if (!placedSet.has(id)) continue

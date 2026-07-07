@@ -104,6 +104,25 @@ describe("classic ↔ modern dashboard sync", () => {
     ])
   })
 
+  it("places metrics for provider account instances", () => {
+    const workCredits = metricId("cursor:work", "Total usage")
+    const workDescriptors = [
+      desc("cursor", "Total usage"),
+      desc("cursor:work", "Total usage"),
+    ]
+    const settings = {
+      ...baseSettings,
+      order: ["cursor", "cursor:work"],
+      providerInstances: {
+        "cursor:work": { baseProviderId: "cursor", label: "Work" },
+      },
+    }
+    expect(placedIdsFromPluginSettings(settings, workDescriptors)).toEqual([
+      cursorTotal,
+      workCredits,
+    ])
+  })
+
   it("toggle off one metric when all were visible sets explicit trayLines", () => {
     const next = applyDashboardMetricToggle(
       baseSettings,

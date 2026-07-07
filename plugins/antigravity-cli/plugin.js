@@ -248,6 +248,19 @@
   }
 
   function resolveAccessToken(ctx) {
+    var injected = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (injected && injected.accessToken) {
+      if (!injected.expiresAt || !isAccessTokenExpired(injected.expiresAt)) {
+        ctx.host.log.info("access token loaded from provider account")
+        return injected.accessToken
+      }
+      if (injected.refreshToken) {
+        var refreshedFromAccount = refreshAccessToken(ctx, injected.refreshToken, null)
+        if (refreshedFromAccount) return refreshedFromAccount
+      }
+      throw SESSION_EXPIRED_MESSAGE
+    }
+
     var raw = readKeychainValue(ctx)
     var payload = parseKeychainPayload(ctx, raw)
     var parsed = payload.parsed

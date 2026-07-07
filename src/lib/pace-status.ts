@@ -6,15 +6,30 @@ export type PaceResult = {
   projectedUsage: number
 }
 
+/** Minimum elapsed time before burn-rate projection is meaningful. */
+export function minimumElapsedMs(periodDurationMs: number): number {
+  if (!Number.isFinite(periodDurationMs) || periodDurationMs <= 0) return 60_000
+  return Math.max(60_000, periodDurationMs * 0.01)
+}
+
+/**
+ * A rolling window whose reset is still (nearly) a full period away has not started yet.
+ */
+export function isFreshUsageWindow(
+  resetsAtMs: number,
+  periodDurationMs: number,
+  nowMs: number
+): boolean {
+  if (!Number.isFinite(resetsAtMs) || !Number.isFinite(periodDurationMs) || periodDurationMs <= 0) {
+    return false
+  }
+  if (!Number.isFinite(nowMs) || nowMs >= resetsAtMs) return false
+  const graceMs = minimumElapsedMs(periodDurationMs)
+  return resetsAtMs - nowMs >= periodDurationMs - graceMs
+}
+
 /**
  * Calculate pace status based on current usage rate vs. period duration.
- *
- * @param used - Current usage amount
- * @param limit - Maximum/limit amount
- * @param resetsAtMs - Timestamp (ms) when the period resets
- * @param periodDurationMs - Total duration of the period (ms)
- * @param nowMs - Current timestamp (ms)
- * @returns PaceResult or null if calculation not possible
  */
 export function calculatePaceStatus(
   used: number,
@@ -39,18 +54,17 @@ export function calculatePaceStatus(
   const elapsedMs = nowMs - periodStartMs
   if (elapsedMs <= 0 || nowMs >= resetsAtMs) return null
 
-  // No usage = definitionally ahead of pace (skip 5% threshold)
+  // No usage = definitionally ahead of pace (skip minimum-elapsed threshold)
   if (used === 0) return { status: "ahead", projectedUsage: 0 }
+
+  const minElapsed = minimumElapsedMs(periodDurationMs)
+  if (elapsedMs < minElapsed) return null
 
   const usageRate = used / elapsedMs
   const projectedUsage = usageRate * periodDurationMs
 
-  // Already at/over limit = definitionally behind (skip 5% threshold)
+  // Already at/over limit = definitionally behind (skip minimum-elapsed threshold)
   if (used >= limit) return { status: "behind", projectedUsage }
-
-  // Too early to predict accurately (< 5% of period elapsed)
-  const elapsedFraction = elapsedMs / periodDurationMs
-  if (elapsedFraction < 0.05) return null
 
   // Normal classification
   let status: PaceStatus
@@ -91,10 +105,17 @@ export function calculateDeficit(
   const elapsedMs = nowMs - periodStartMs
   if (elapsedMs <= 0 || nowMs >= resetsAtMs) return null
 
-  const elapsedFraction = elapsedMs / periodDurationMs
-  if (elapsedFraction < 0.05 && used < limit) return null
+  const minElapsed = minimumElapsedMs(periodDurationMs)
+  if (elapsedMs < minElapsed && used < limit) return null
 
+  const elapsedFraction = elapsedMs / periodDurationMs
   const expectedUsage = elapsedFraction * limit
   const deficit = used - expectedUsage
   return deficit > 0 ? deficit : null
+}
+
+/** Round reset timestamps to the nearest minute so sub-minute jitter does not re-fire alerts. */
+export function stableResetKeyMs(resetsAtMs: number): number {
+  if (!Number.isFinite(resetsAtMs)) return resetsAtMs
+  return Math.round(resetsAtMs / 60_000) * 60_000
 }

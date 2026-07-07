@@ -1,4 +1,4 @@
-import { metricId, parseMetricId } from "@/lib/metric-id"
+import { metricId, metricIdPrefix, migrateMetricId, parseMetricId } from "@/lib/metric-id"
 import type { PluginSettings } from "@/lib/settings"
 import type { MetricDescriptor } from "@/lib/metric-registry"
 
@@ -49,18 +49,19 @@ export const DEFAULT_PINNED_METRIC_IDS: string[] = [
 
 export function countPinsForProvider(pinnedIds: string[], pluginId: string): number {
   let count = 0
+  const prefix = metricIdPrefix(pluginId)
   for (const id of pinnedIds) {
-    if (id.startsWith(`${pluginId}:`)) count += 1
+    if (migrateMetricId(id).startsWith(prefix)) count += 1
   }
   return count
 }
 
 export function canPinMetric(pinnedIds: string[], metricIdValue: string): boolean {
-  const colon = metricIdValue.indexOf(":")
-  if (colon <= 0) return false
-  const pluginId = metricIdValue.slice(0, colon)
-  if (pinnedIds.includes(metricIdValue)) return true
-  return countPinsForProvider(pinnedIds, pluginId) < MAX_PINS_PER_PROVIDER
+  const parsed = parseMetricId(metricIdValue)
+  if (!parsed) return false
+  const normalized = migrateMetricId(metricIdValue)
+  if (pinnedIds.some((id) => migrateMetricId(id) === normalized)) return true
+  return countPinsForProvider(pinnedIds, parsed.pluginId) < MAX_PINS_PER_PROVIDER
 }
 
 export function normalizeModernLayout(raw: unknown): ModernLayoutState {
@@ -68,17 +69,18 @@ export function normalizeModernLayout(raw: unknown): ModernLayoutState {
   const o = raw as Record<string, unknown>
   const strArray = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []
+  const metricIdArray = (v: unknown): string[] => strArray(v).map(migrateMetricId)
   const metricOrder: Record<string, string[]> = {}
   if (o.metricOrderByProvider && typeof o.metricOrderByProvider === "object") {
     for (const [k, v] of Object.entries(o.metricOrderByProvider as Record<string, unknown>)) {
-      metricOrder[k] = strArray(v)
+      metricOrder[k] = metricIdArray(v)
     }
   }
   return {
-    placedMetricIds: strArray(o.placedMetricIds),
+    placedMetricIds: metricIdArray(o.placedMetricIds),
     providerOrder: strArray(o.providerOrder),
     metricOrderByProvider: metricOrder,
-    pinnedMetricIds: strArray(o.pinnedMetricIds),
+    pinnedMetricIds: metricIdArray(o.pinnedMetricIds),
     trayFocusProviderId:
       typeof o.trayFocusProviderId === "string" ? o.trayFocusProviderId : null,
     initialized: o.initialized === true,

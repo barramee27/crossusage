@@ -29,6 +29,7 @@ const {
   loadDisplayCurrencyMock,
   migrateLegacyTraySettingsMock,
   migrateWindsurfToDevinMock,
+  mergeStoredProviderAccountsMock,
   normalizePluginSettingsMock,
   savePluginSettingsMock,
   resolveOnboardingCompleteMock,
@@ -61,6 +62,7 @@ const {
   loadDisplayCurrencyMock: vi.fn(),
   migrateLegacyTraySettingsMock: vi.fn(),
   migrateWindsurfToDevinMock: vi.fn(),
+  mergeStoredProviderAccountsMock: vi.fn(),
   normalizePluginSettingsMock: vi.fn(),
   savePluginSettingsMock: vi.fn(),
   resolveOnboardingCompleteMock: vi.fn(),
@@ -136,6 +138,7 @@ vi.mock("@/lib/settings", () => ({
   loadDisplayCurrency: loadDisplayCurrencyMock,
   migrateLegacyTraySettings: migrateLegacyTraySettingsMock,
   migrateWindsurfToDevin: migrateWindsurfToDevinMock,
+  mergeStoredProviderAccounts: mergeStoredProviderAccountsMock,
   normalizePluginSettings: normalizePluginSettingsMock,
   savePluginSettings: savePluginSettingsMock,
   resolveOnboardingComplete: resolveOnboardingCompleteMock,
@@ -211,6 +214,7 @@ describe("useSettingsBootstrap", () => {
     loadDisplayCurrencyMock.mockReset()
     migrateLegacyTraySettingsMock.mockReset()
     migrateWindsurfToDevinMock.mockReset()
+    mergeStoredProviderAccountsMock.mockReset()
     normalizePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockReset()
     resolveOnboardingCompleteMock.mockReset()
@@ -232,6 +236,7 @@ describe("useSettingsBootstrap", () => {
     ])
     loadPluginSettingsMock.mockResolvedValue({ order: ["codex"], disabled: [] })
     migrateWindsurfToDevinMock.mockImplementation((settings) => settings)
+    mergeStoredProviderAccountsMock.mockImplementation((settings) => settings)
     normalizePluginSettingsMock.mockImplementation((stored) => stored)
     arePluginSettingsEqualMock.mockReturnValue(true)
     loadAutoUpdateIntervalMock.mockResolvedValue(15)
@@ -369,5 +374,49 @@ describe("useSettingsBootstrap", () => {
     })
 
     errorSpy.mockRestore()
+  })
+
+  it("probes merged provider accounts after bootstrap sync", async () => {
+    const normalized = { order: ["cursor"], disabled: [] as string[] }
+    const merged = {
+      order: ["cursor", "cursor:work"],
+      disabled: [] as string[],
+      providerInstances: {
+        "cursor:work": { baseProviderId: "cursor", label: "Work" },
+      },
+    }
+    const args = createArgs()
+
+    invokeMock
+      .mockResolvedValueOnce([
+        {
+          id: "cursor",
+          name: "Cursor",
+          iconUrl: "/cursor.svg",
+          iconFilePath: "/cursor.svg",
+          brandColor: "#000000",
+          lines: [],
+          primaryCandidates: [],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          instanceId: "cursor:work",
+          baseProviderId: "cursor",
+          label: "Work",
+        },
+      ])
+
+    loadPluginSettingsMock.mockResolvedValueOnce({ order: ["cursor"], disabled: [] })
+    normalizePluginSettingsMock.mockReturnValueOnce(normalized)
+    mergeStoredProviderAccountsMock.mockReturnValueOnce(merged)
+    getEnabledPluginIdsMock.mockReturnValueOnce(["cursor", "cursor:work"])
+
+    renderHook(() => useSettingsBootstrap(args))
+
+    await waitFor(() => {
+      expect(getEnabledPluginIdsMock).toHaveBeenCalledWith(merged)
+      expect(args.startBatch).toHaveBeenCalledWith(["cursor", "cursor:work"])
+    })
   })
 })

@@ -114,11 +114,15 @@ fn loading_placeholder(plugin: &LoadedPlugin) -> PluginOutput {
         provider_id: plugin.manifest.id.clone(),
         display_name: plugin.manifest.name.clone(),
         plan: None,
+        warning: None,
         lines: vec![MetricLine::Text {
             label: "Status".into(),
             value: "Waiting for probe…".into(),
             color: None,
             subtitle: None,
+        model_breakdown: None,
+        status_dot: None,
+        expiry_tooltip: None,
         }],
         icon_url: plugin.icon_data_url.clone(),
     }
@@ -130,6 +134,7 @@ fn fake_plugin_output(plugin: &LoadedPlugin, i: usize) -> PluginOutput {
         provider_id: plugin.manifest.id.clone(),
         display_name: format!("{} (demo)", plugin.manifest.name),
         plan: Some("demo".into()),
+        warning: None,
         lines: vec![MetricLine::Progress {
             label: "primary".into(),
             used,
@@ -148,11 +153,15 @@ fn probe_error_output(plugin: &LoadedPlugin, message: String) -> PluginOutput {
         provider_id: plugin.manifest.id.clone(),
         display_name: plugin.manifest.name.clone(),
         plan: None,
+        warning: None,
         lines: vec![MetricLine::Text {
             label: "Error".into(),
             value: message,
             color: None,
             subtitle: None,
+        model_breakdown: None,
+        status_dot: None,
+        expiry_tooltip: None,
         }],
         icon_url: plugin.icon_data_url.clone(),
     }

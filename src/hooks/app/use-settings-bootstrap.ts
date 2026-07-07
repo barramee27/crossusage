@@ -61,6 +61,7 @@ import {
   loadTimeFormatMode,
   loadAppLocale,
   loadDisplayCurrency,
+  mergeStoredProviderAccounts,
   normalizePluginSettings,
   resolveOnboardingComplete,
   savePluginSettings,
@@ -187,8 +188,19 @@ export function useSettingsBootstrap({
         }
 
         const normalized = normalizePluginSettings(migratedSettings, availablePlugins)
-        if (!arePluginSettingsEqual(storedSettings, normalized)) {
-          await savePluginSettings(normalized)
+        let settings = normalized
+        try {
+          const accounts = await invoke<Array<{
+            instanceId: string
+            baseProviderId: string
+            label: string
+          }>>("list_provider_accounts")
+          settings = mergeStoredProviderAccounts(normalized, accounts, availablePlugins)
+        } catch (error) {
+          console.error("Failed to sync provider accounts into plugin settings:", error)
+        }
+        if (!arePluginSettingsEqual(migratedSettings, settings)) {
+          await savePluginSettings(settings)
         }
 
         let storedInterval = DEFAULT_AUTO_UPDATE_INTERVAL
@@ -384,7 +396,7 @@ export function useSettingsBootstrap({
         }
 
         if (isMounted) {
-          setPluginSettings(normalized)
+          setPluginSettings(settings)
           setAutoUpdateInterval(storedInterval)
           setThemeMode(storedThemeMode)
           setUILayout(storedUILayout)
@@ -411,7 +423,7 @@ export function useSettingsBootstrap({
           setUsageSpikeAlertThresholdPct(storedUsageSpikeAlertThresholdPct)
           setOnboardingComplete(onboardingDone)
 
-          const enabledIds = getEnabledPluginIds(normalized)
+          const enabledIds = getEnabledPluginIds(settings)
           setLoadingForPlugins(enabledIds)
           try {
             await startBatch(enabledIds)

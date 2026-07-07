@@ -53,6 +53,7 @@ export function ProviderDetailPage({
         showSeparator={false}
         loading={plugin.loading}
         error={plugin.error}
+        warning={plugin.data?.warning}
         lines={plugin.data?.lines ?? []}
         skeletonLines={plugin.meta.lines}
         lastManualRefreshAt={plugin.lastManualRefreshAt}

@@ -35,6 +35,18 @@
   }
 
   function loadCredentials(ctx) {
+    const credential = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (credential && (credential.accessToken || credential.refreshToken)) {
+      ctx.host.log.info("credentials loaded from provider account")
+      return {
+        access_token: credential.accessToken || null,
+        refresh_token: credential.refreshToken || null,
+        expires_at:
+          typeof credential.expiresAt === "number"
+            ? Math.floor(credential.expiresAt / 1000)
+            : null,
+      }
+    }
     if (!ctx.host.fs.exists(CRED_PATH)) {
       ctx.host.log.warn("credentials file not found: " + CRED_PATH)
       return null
@@ -59,6 +71,14 @@
   }
 
   function saveCredentials(ctx, creds) {
+    if (ctx.util.readProviderCredential && ctx.util.readProviderCredential()) {
+      ctx.util.writeProviderCredential({
+        accessToken: creds.access_token || null,
+        refreshToken: creds.refresh_token || null,
+        expiresAt: typeof creds.expires_at === "number" ? creds.expires_at * 1000 : null,
+      })
+      return
+    }
     try {
       ctx.host.fs.writeText(CRED_PATH, JSON.stringify(creds))
     } catch (e) {

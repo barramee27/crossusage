@@ -706,6 +706,8 @@ pub(crate) fn inject_host_api_with_deadline<'js>(
     inject_ccusage(ctx, &host, base_plugin_id, deadline)?;
     inject_usage_daily(ctx, &host, instance_id, app_data_dir)?;
     inject_cursor_logs(ctx, &host, base_plugin_id, deadline)?;
+    inject_claude_logs(ctx, &host, deadline)?;
+    inject_codex_logs(ctx, &host, deadline)?;
     inject_cursor_usage_export(ctx, &host, deadline)?;
     inject_fireworks(ctx, &host, base_plugin_id)?;
 
@@ -1473,6 +1475,47 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
                 },
                 isAuthStatus: function(status) {
                     return status === 401 || status === 403;
+                },
+                readProviderCredential: function() {
+                    try {
+                        if (!ctx.host.credentials || typeof ctx.host.credentials.get !== "function") return null;
+                        var raw = ctx.host.credentials.get();
+                        if (!raw) return null;
+                        var credential = ctx.util.tryParseJson(String(raw));
+                        if (!credential) return null;
+                        var accessToken = String(credential.accessToken || credential.sessionKey || "").trim();
+                        var refreshToken = String(credential.refreshToken || "").trim();
+                        var sessionKey = credential.sessionKey ? String(credential.sessionKey).trim() : "";
+                        if (!accessToken && !refreshToken) return null;
+                        return {
+                            accessToken: accessToken || null,
+                            refreshToken: refreshToken || null,
+                            sessionKey: sessionKey || null,
+                            expiresAt: typeof credential.expiresAt === "number" ? credential.expiresAt : null
+                        };
+                    } catch (e) {
+                        return null;
+                    }
+                },
+                writeProviderCredential: function(partial) {
+                    try {
+                        if (!ctx.host.credentials || typeof ctx.host.credentials.update !== "function") return false;
+                        var current = ctx.util.readProviderCredential() || {};
+                        var update = Object.assign({}, current, partial || {});
+                        ctx.host.credentials.update(JSON.stringify({
+                            accessToken: update.accessToken || null,
+                            refreshToken: update.refreshToken || null,
+                            sessionKey: update.sessionKey || null,
+                            expiresAt: update.expiresAt || null
+                        }));
+                        return true;
+                    } catch (e) {
+                        return false;
+                    }
+                },
+                providerApiKey: function() {
+                    var credential = ctx.util.readProviderCredential();
+                    return credential && credential.accessToken ? credential.accessToken : null;
                 },
                 retryOnceOnAuth: function(opts) {
                     var resp = opts.request();
@@ -2998,6 +3041,40 @@ fn inject_cursor_logs<'js>(
     Ok(())
 }
 
+fn inject_claude_logs<'js>(ctx: &Ctx<'js>, host: &Object<'js>, deadline: ProbeDeadline) -> rquickjs::Result<()> {
+    let obj = Object::new(ctx.clone())?;
+    obj.set(
+        "_queryRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(
+                    serde_json::json!({ "status": "no_data", "data": { "daily": [] } }).to_string(),
+                );
+            }
+            Ok(crate::claude_usage_scanner::query_daily_host_json(&opts_json))
+        })?,
+    )?;
+    host.set("claudeLogs", obj)?;
+    Ok(())
+}
+
+fn inject_codex_logs<'js>(ctx: &Ctx<'js>, host: &Object<'js>, deadline: ProbeDeadline) -> rquickjs::Result<()> {
+    let obj = Object::new(ctx.clone())?;
+    obj.set(
+        "_queryRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(
+                    serde_json::json!({ "status": "no_data", "data": { "daily": [] } }).to_string(),
+                );
+            }
+            Ok(crate::codex_usage_scanner::query_daily_host_json(&opts_json))
+        })?,
+    )?;
+    host.set("codexLogs", obj)?;
+    Ok(())
+}
+
 fn inject_cursor_usage_export<'js>(
     ctx: &Ctx<'js>,
     host: &Object<'js>,
@@ -3103,6 +3180,48 @@ pub fn patch_cursor_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()
         (function() {
             var rawFn = __openusage_ctx.host.cursorLogs._queryRaw;
             __openusage_ctx.host.cursorLogs.queryDaily = function(opts) {
+                var result = rawFn(JSON.stringify(opts || {}));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "no_data", data: { daily: [] } };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
+pub fn patch_claude_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.claudeLogs._queryRaw;
+            __openusage_ctx.host.claudeLogs.queryDaily = function(opts) {
+                var result = rawFn(JSON.stringify(opts || {}));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "no_data", data: { daily: [] } };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
+pub fn patch_codex_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.codexLogs._queryRaw;
+            __openusage_ctx.host.codexLogs.queryDaily = function(opts) {
                 var result = rawFn(JSON.stringify(opts || {}));
                 try {
                     var parsed = JSON.parse(result);

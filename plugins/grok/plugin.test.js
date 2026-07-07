@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { makeCtx } from "../test-helpers.js"
 
 const AUTH_PATH = "~/.grok/auth.json"
-const BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing"
+const BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
 const SETTINGS_URL = "https://cli-chat-proxy.grok.com/v1/settings"
 const REFRESH_URL = "https://auth.x.ai/oauth2/token"
 
@@ -23,25 +23,13 @@ function writeAuth(ctx, entry) {
 
 function billingData(overrides) {
   const config = Object.assign({
-    monthlyLimit: { val: 60000 },
-    used: { val: 4277 },
+    creditUsagePercent: 7.1,
+    currentPeriod: {
+      type: "USAGE_PERIOD_TYPE_WEEKLY",
+      start: "2026-05-01T00:00:00+00:00",
+      end: "2026-06-01T00:00:00+00:00",
+    },
     onDemandCap: { val: 0 },
-    billingPeriodStart: "2026-05-01T00:00:00+00:00",
-    billingPeriodEnd: "2026-06-01T00:00:00+00:00",
-    history: [
-      {
-        billingCycle: { year: 2026, month: 4 },
-        includedUsed: { val: 1234 },
-        onDemandUsed: { val: 200 },
-        totalUsed: { val: 1434 },
-      },
-      {
-        billingCycle: { year: 2026, month: 3 },
-        includedUsed: { val: 0 },
-        onDemandUsed: { val: 0 },
-        totalUsed: { val: 0 },
-      },
-    ],
   }, overrides || {})
   return { config }
 }
@@ -279,10 +267,10 @@ describe("grok plugin", () => {
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
-    const line = result.lines.find((l) => l.label === "Credits used")
+    const line = result.lines.find((l) => l.label === "Weekly limit")
 
     expect(line.type).toBe("progress")
-    expect(line.used).toBeCloseTo(7.128, 3)
+    expect(line.used).toBeCloseTo(7.1, 3)
     expect(line.limit).toBe(100)
     expect(line.format).toEqual({ kind: "percent" })
     expect(line.resetsAt).toBe("2026-06-01T00:00:00.000Z")
@@ -332,15 +320,19 @@ describe("grok plugin", () => {
     const ctx = makeCtx()
     writeAuth(ctx)
     mockGrokApi(ctx, billingData({
-      monthlyLimit: { val: "10000" },
-      used: { val: "2500" },
+      creditUsagePercent: 25,
+      currentPeriod: {
+        type: "USAGE_PERIOD_TYPE_WEEKLY",
+        start: "2026-05-01T00:00:00+00:00",
+        end: "2026-06-01T00:00:00+00:00",
+      },
       onDemandCap: { val: "0" },
     }))
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.lines.find((l) => l.label === "Credits used").used).toBe(25)
+    expect(result.lines.find((l) => l.label === "Weekly limit").used).toBe(25)
     expect(result.lines.find((l) => l.label === "Current period")).toBeUndefined()
   })
 

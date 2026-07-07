@@ -561,11 +561,27 @@ async fn start_probe_batch(
             Some(ids) => ids
                 .into_iter()
                 .map(|id| {
-                    let id = id.trim().to_string();
+                    let instance_id = id.trim().to_string();
+                    let account = provider_accounts::get_account(&app_data_dir, &instance_id)
+                        .ok()
+                        .flatten();
+                    let base_provider_id = account
+                        .as_ref()
+                        .map(|entry| entry.base_provider_id.clone())
+                        .filter(|base| !base.is_empty())
+                        .unwrap_or_else(|| {
+                            instance_id
+                                .split_once(':')
+                                .map(|(base, _)| base.to_string())
+                                .unwrap_or_else(|| instance_id.clone())
+                        });
+                    let label = account
+                        .map(|entry| entry.label)
+                        .filter(|value| !value.trim().is_empty());
                     ProbeTarget {
-                        instance_id: id.clone(),
-                        base_provider_id: id,
-                        label: None,
+                        instance_id,
+                        base_provider_id,
+                        label,
                     }
                 })
                 .collect(),

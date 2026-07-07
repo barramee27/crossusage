@@ -2,9 +2,13 @@
   var API_URL = "https://crof.ai/usage_api/"
 
   function probe(ctx) {
-    var apiKey = ctx.host.env.get("CROFAI_API_KEY")
+    var providerKey = ctx.util.providerApiKey && ctx.util.providerApiKey()
+    var apiKey = providerKey || ctx.host.env.get("CROFAI_API_KEY")
     if (!apiKey || !String(apiKey).trim()) {
       throw "No CROFAI_API_KEY found. Set up environment variable first."
+    }
+    if (providerKey) {
+      ctx.host.log.info("api key loaded from provider account")
     }
 
     var resp

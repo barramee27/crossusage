@@ -730,7 +730,7 @@ describe("ProviderCard", () => {
 
   it("hides marker when pace is unavailable early in period", () => {
     vi.useFakeTimers()
-    const now = new Date("2026-02-02T00:45:00.000Z")
+    const now = new Date("2026-02-02T00:10:00.000Z")
     vi.setSystemTime(now)
     render(
       <ProviderCard

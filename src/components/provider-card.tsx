@@ -12,7 +12,7 @@ import { UsageSparkline } from "@/components/usage-sparkline"
 import { PluginError } from "@/components/plugin-error"
 import { useNowTicker } from "@/hooks/use-now-ticker"
 import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode, type TimeFormatMode } from "@/lib/settings"
-import type { ManifestLine, MetricLine, PluginLink } from "@/lib/plugin-types"
+import type { ExpiryStatusDot, ManifestLine, MetricLine, ModelSpendBreakdown, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
 import { clamp01, cn, formatCountNumber } from "@/lib/utils"
 import { calculateDeficit, calculatePaceStatus, type PaceStatus } from "@/lib/pace-status"
@@ -28,6 +28,7 @@ interface ProviderCardProps {
   showSeparator?: boolean
   loading?: boolean
   error?: string | null
+  warning?: string | null
   lines?: MetricLine[]
   skeletonLines?: ManifestLine[]
   lastManualRefreshAt?: number | null
@@ -106,6 +107,7 @@ export function ProviderCard({
   showSeparator = true,
   loading = false,
   error = null,
+  warning = null,
   lines = [],
   skeletonLines = [],
   lastManualRefreshAt,
@@ -357,6 +359,12 @@ export function ProviderCard({
             ))}
           </div>
         )}
+        {warning ? (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>{warning}</span>
+          </div>
+        ) : null}
         {error && !hasStaleData && <PluginError message={error} />}
 
         {error && hasStaleData && (
@@ -434,6 +442,114 @@ export function ProviderCard({
   )
 }
 
+const EXPIRY_DOT_CLASS: Record<ExpiryStatusDot, string> = {
+  normal: "bg-blue-500",
+  warning: "bg-amber-500",
+  critical: "bg-red-500",
+}
+
+function TextMetricValue({
+  line,
+  showBreakdown,
+}: {
+  line: Extract<MetricLine, { type: "text" }>
+  showBreakdown: boolean
+}) {
+  const valueNode = showBreakdown ? (
+    <SpendBreakdownValue line={line} />
+  ) : (
+    <span
+      className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[45%] text-right"
+      style={line.color ? { color: line.color } : undefined}
+      title={line.value}
+    >
+      {line.value}
+    </span>
+  )
+
+  if (!line.statusDot) return valueNode
+
+  const dot = (
+    <span
+      className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", EXPIRY_DOT_CLASS[line.statusDot])}
+      aria-hidden
+    />
+  )
+
+  if (line.expiryTooltip) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={(props) => (
+            <span {...props} className={cn("flex items-center gap-1", props.className)}>
+              {dot}
+              {valueNode}
+            </span>
+          )}
+        />
+        <TooltipContent side="left" className="max-w-xs whitespace-pre-line text-xs">
+          {line.expiryTooltip}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      {dot}
+      {valueNode}
+    </span>
+  )
+}
+
+function SpendBreakdownValue({ line }: { line: Extract<MetricLine, { type: "text" }> }) {
+  const breakdown = line.modelBreakdown ?? []
+  const priced = breakdown.filter((row) => row.costUsd != null && row.costUsd > 0)
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={(props) => (
+          <span
+            {...props}
+            className={cn(
+              "text-xs text-muted-foreground truncate flex-shrink-0 max-w-[45%] text-right cursor-default underline decoration-dotted underline-offset-2",
+              props.className,
+            )}
+            style={line.color ? { color: line.color } : undefined}
+            title={line.value}
+          >
+            {line.value}
+          </span>
+        )}
+      />
+      <TooltipContent side="left" className="max-w-xs p-2">
+        <p className="text-[10px] font-medium text-muted-foreground mb-1.5">By model</p>
+        <ul className="space-y-1">
+          {breakdown.map((row: ModelSpendBreakdown) => (
+            <li key={row.model} className="flex justify-between gap-3 text-xs">
+              <span className="truncate" title={row.model}>
+                {row.model}
+              </span>
+              <span className="shrink-0 tabular-nums">
+                {row.percent}%
+                {row.costUsd != null && row.costUsd > 0
+                  ? ` · ${formatMoney(row.costUsd, { sourceCurrency: "USD" })}`
+                  : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {priced.length < breakdown.length ? (
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            Totals exclude unpriced models.
+          </p>
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function MetricLineRenderer({
   line,
   displayMode,
@@ -459,19 +575,28 @@ function MetricLineRenderer({
   )
 
   if (line.type === "text") {
+    const spendLabels = new Set(["today", "yesterday", "last 30 days"])
+    const showBreakdown =
+      line.modelBreakdown &&
+      line.modelBreakdown.length > 0 &&
+      spendLabels.has(line.label.trim().toLowerCase())
     return (
       <div>
         <div className="flex justify-between items-center h-[18px] gap-2">
           <span className="text-xs text-muted-foreground min-w-0 truncate" title={line.label}>
             {line.label}
           </span>
-          <span
-            className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[45%] text-right"
-            style={line.color ? { color: line.color } : undefined}
-            title={line.value}
-          >
-            {line.value}
-          </span>
+          {showBreakdown || line.statusDot ? (
+            <TextMetricValue line={line} showBreakdown={Boolean(showBreakdown)} />
+          ) : (
+            <span
+              className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[45%] text-right"
+              style={line.color ? { color: line.color } : undefined}
+              title={line.value}
+            >
+              {line.value}
+            </span>
+          )}
         </div>
         {line.subtitle && (
           <div className="text-[10px] text-muted-foreground text-right -mt-0.5">{line.subtitle}</div>

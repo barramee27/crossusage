@@ -382,8 +382,17 @@
   }
 
   var QUOTA_PERIOD_MS = 5 * 60 * 60 * 1000 // 5 hours
+  var QUOTA_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000
 
-  function modelLine(ctx, label, remainingFraction, resetTime) {
+  var SUMMARY_BUCKETS = [
+    { bucketId: "gemini-5h", label: "Session", periodMs: QUOTA_PERIOD_MS },
+    { bucketId: "gemini-weekly", label: "Weekly", periodMs: QUOTA_WEEKLY_MS },
+    { bucketId: "3p-5h", label: "Claude", periodMs: QUOTA_PERIOD_MS },
+    { bucketId: "3p-weekly", label: "Claude Weekly", periodMs: QUOTA_WEEKLY_MS },
+  ]
+
+  function modelLine(ctx, label, remainingFraction, resetTime, periodMs) {
+    var duration = typeof periodMs === "number" ? periodMs : QUOTA_PERIOD_MS
     var clamped = Math.max(0, Math.min(1, remainingFraction))
     var used = Math.round((1 - clamped) * 100)
     return ctx.line.progress({
@@ -392,8 +401,61 @@
       limit: 100,
       format: { kind: "percent" },
       resetsAt: resetTime || undefined,
-      periodDurationMs: QUOTA_PERIOD_MS,
+      periodDurationMs: duration,
     })
+  }
+
+  function parseQuotaSummary(ctx, data) {
+    if (!data || typeof data !== "object") return null
+    var groups = (data.response && data.response.groups) || data.groups
+    if (!Array.isArray(groups)) return null
+
+    var pooled = {}
+    for (var gi = 0; gi < groups.length; gi++) {
+      var buckets = groups[gi] && groups[gi].buckets
+      if (!Array.isArray(buckets)) continue
+      for (var bi = 0; bi < buckets.length; bi++) {
+        var bucket = buckets[bi]
+        if (!bucket || typeof bucket !== "object") continue
+        var id = typeof bucket.bucketId === "string" ? bucket.bucketId : ""
+        if (!id || pooled[id]) continue
+        var spec = null
+        for (var si = 0; si < SUMMARY_BUCKETS.length; si++) {
+          if (SUMMARY_BUCKETS[si].bucketId === id) {
+            spec = SUMMARY_BUCKETS[si]
+            break
+          }
+        }
+        if (!spec) continue
+        var frac = bucket.remainingFraction
+        if (typeof frac !== "number" || !Number.isFinite(frac)) continue
+        pooled[id] = {
+          fraction: frac,
+          resetTime: bucket.resetTime || undefined,
+          periodMs: spec.periodMs,
+          label: spec.label,
+        }
+      }
+    }
+
+    var lines = []
+    for (var i = 0; i < SUMMARY_BUCKETS.length; i++) {
+      var entry = pooled[SUMMARY_BUCKETS[i].bucketId]
+      if (!entry) continue
+      lines.push(modelLine(ctx, entry.label, entry.fraction, entry.resetTime, entry.periodMs))
+    }
+    return lines
+  }
+
+  function readPlanFromUserStatus(data, hasUserStatus) {
+    if (!hasUserStatus || !data || !data.userStatus) return null
+    var ut = data.userStatus.userTier
+    var userTierName =
+      ut && typeof ut.name === "string" && ut.name.trim() ? ut.name.trim() : null
+    if (userTierName) return userTierName
+    var ps = data.userStatus.planStatus || {}
+    var pi = ps.planInfo || {}
+    return typeof pi.planName === "string" && pi.planName.trim() ? pi.planName.trim() : null
   }
 
   function buildModelLines(ctx, configs) {
@@ -571,6 +633,20 @@
       locale: "en",
     }
 
+    var summaryData = null
+    try {
+      summaryData = callLs(
+        ctx,
+        found.port,
+        found.scheme,
+        discovery.csrf,
+        "RetrieveUserQuotaSummary",
+        { metadata: metadata },
+      )
+    } catch (e) {
+      ctx.host.log.warn("RetrieveUserQuotaSummary threw: " + String(e))
+    }
+
     // Try GetUserStatus first, fall back to GetCommandModelConfigs
     var data = null
     try {
@@ -579,6 +655,16 @@
       ctx.host.log.warn("GetUserStatus threw: " + String(e))
     }
     var hasUserStatus = data && data.userStatus
+
+    if (summaryData) {
+      var summaryLines = parseQuotaSummary(ctx, summaryData)
+      if (summaryLines !== null) {
+        return {
+          plan: readPlanFromUserStatus(data, hasUserStatus),
+          lines: summaryLines,
+        }
+      }
+    }
 
     if (!hasUserStatus) {
       ctx.host.log.warn("GetUserStatus failed, trying GetCommandModelConfigs")
@@ -605,25 +691,7 @@
     var lines = buildModelLines(ctx, filtered)
     if (lines.length === 0) return null
 
-    var plan = null
-    if (hasUserStatus) {
-      // Prefer userTier.name (Google's own subscription system) over the legacy
-      // planInfo.planName field inherited from Windsurf/Codeium, which always
-      // returns "Pro" for all paid tiers including Google AI Ultra.
-      var ut = data.userStatus.userTier
-      var userTierName =
-        ut && typeof ut.name === "string" && ut.name.trim() ? ut.name.trim() : null
-      if (userTierName) {
-        plan = userTierName
-      } else {
-        var ps = data.userStatus.planStatus || {}
-        var pi = ps.planInfo || {}
-        plan =
-          typeof pi.planName === "string" && pi.planName.trim() ? pi.planName.trim() : null
-      }
-    }
-
-    return { plan: plan, lines: lines }
+    return { plan: readPlanFromUserStatus(data, hasUserStatus), lines: lines }
   }
 
   function probeLs(ctx) {
@@ -646,6 +714,10 @@
     var dbTokenCandidates = loadOAuthTokenCandidates(ctx)
 
     var tokens = []
+    var injected = ctx.util.readProviderCredential && ctx.util.readProviderCredential()
+    if (injected && injected.accessToken && tokens.indexOf(injected.accessToken) === -1) {
+      tokens.push(injected.accessToken)
+    }
     var nowSec = Math.floor(Date.now() / 1000)
     for (var i = 0; i < dbTokenCandidates.length; i++) {
       var dbTokens = dbTokenCandidates[i]
@@ -674,6 +746,9 @@
     // instead of ~once per token lifetime — risking refresh-token throttling or rotation.
     if (!ccData && (sawAuthFailure || tokens.length === 0)) {
       var refreshTokens = []
+      if (injected && injected.refreshToken && refreshTokens.indexOf(injected.refreshToken) === -1) {
+        refreshTokens.push(injected.refreshToken)
+      }
       for (var j = 0; j < dbTokenCandidates.length; j++) {
         var refreshToken = dbTokenCandidates[j].refreshToken
         if (refreshToken && refreshTokens.indexOf(refreshToken) === -1) refreshTokens.push(refreshToken)

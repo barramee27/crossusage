@@ -77,4 +77,35 @@ describe("codex plugin ccusage usage trend", () => {
       value: "50%",
     })
   })
+
+  it("falls back to ccusage when native codexLogs returns no_data", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: { "x-codex-primary-used-percent": "10" },
+      bodyText: JSON.stringify({}),
+    })
+    ctx.host.codexLogs = {
+      queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+    }
+    ctx.host.ccusage.query.mockReturnValue({
+      status: "ok",
+      data: {
+        daily: [{ date: dayKey(0), totalTokens: 77 }],
+      },
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.codexLogs.queryDaily).toHaveBeenCalled()
+    expect(ctx.host.ccusage.query).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "codex" }),
+    )
+    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/77/)
+  })
 })

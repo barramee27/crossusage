@@ -13,12 +13,17 @@ const USAGE_RESPONSE = JSON.stringify({
   seven_day: { utilization: 50, resets_at: "2099-01-01T00:00:00.000Z" },
 })
 
-function makeProbeCtx({ ccusageResult = { status: "runner_failed" } } = {}) {
+function makeProbeCtx({ ccusageResult = { status: "runner_failed" }, claudeLogsResult = null } = {}) {
   const ctx = makeCtx()
   ctx.host.fs.exists = () => true
   ctx.host.fs.readText = () => CRED_JSON
   ctx.host.http.request.mockReturnValue({ status: 200, bodyText: USAGE_RESPONSE })
   ctx.host.ccusage.query = vi.fn(() => ccusageResult)
+  if (claudeLogsResult != null) {
+    ctx.host.claudeLogs = {
+      queryDaily: vi.fn(() => claudeLogsResult),
+    }
+  }
   return ctx
 }
 
@@ -87,5 +92,42 @@ describe("claude plugin ccusage usage trend", () => {
       type: "text",
       value: "50%",
     })
+  })
+
+  it("falls back to ccusage when native claudeLogs returns empty daily", async () => {
+    const todayKey = localDayKey(new Date())
+    const ctx = makeProbeCtx({
+      claudeLogsResult: { status: "ok", data: { daily: [] } },
+      ccusageResult: okUsage([
+        { date: todayKey, totalTokens: 42, totalCost: 1 },
+      ]),
+    })
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalled()
+    expect(ctx.host.ccusage.query).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "claude", since: expect.any(String) }),
+    )
+    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/42/)
+  })
+
+  it("falls back to ccusage when native claudeLogs throws", async () => {
+    const todayKey = localDayKey(new Date())
+    const ctx = makeProbeCtx({
+      ccusageResult: okUsage([
+        { date: todayKey, totalTokens: 99, totalCost: 1 },
+      ]),
+    })
+    ctx.host.claudeLogs = {
+      queryDaily: vi.fn(() => {
+        throw new Error("scan failed")
+      }),
+    }
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(ctx.host.ccusage.query).toHaveBeenCalled()
+    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/99/)
   })
 })

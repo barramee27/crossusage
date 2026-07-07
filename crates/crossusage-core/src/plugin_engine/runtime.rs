@@ -26,6 +26,15 @@ pub struct BarChartPoint {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSpendBreakdown {
+    pub model: String,
+    pub tokens: u64,
+    pub cost_usd: Option<f64>,
+    pub percent: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MetricLine {
     Text {
@@ -33,6 +42,9 @@ pub enum MetricLine {
         value: String,
         color: Option<String>,
         subtitle: Option<String>,
+        model_breakdown: Option<Vec<ModelSpendBreakdown>>,
+        status_dot: Option<String>,
+        expiry_tooltip: Option<String>,
     },
     Progress {
         label: String,
@@ -66,6 +78,8 @@ pub struct PluginOutput {
     pub provider_id: String,
     pub display_name: String,
     pub plan: Option<String>,
+    #[serde(default)]
+    pub warning: Option<String>,
     pub lines: Vec<MetricLine>,
     pub icon_url: String,
 }
@@ -178,6 +192,18 @@ fn run_probe_with_account_timeout(
             }
             return error_output(plugin, "cursorLogs wrapper patch failed".to_string());
         }
+        if host_api::patch_claude_logs_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
+            return error_output(plugin, "claudeLogs wrapper patch failed".to_string());
+        }
+        if host_api::patch_codex_logs_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
+            return error_output(plugin, "codexLogs wrapper patch failed".to_string());
+        }
         if host_api::patch_cursor_usage_export_wrapper(&ctx).is_err() {
             if deadline.has_elapsed() {
                 return error_output(plugin, timeout_message.clone());
@@ -257,6 +283,11 @@ fn run_probe_with_account_timeout(
             .ok()
             .filter(|s| !s.is_empty());
 
+        let warning: Option<String> = result
+            .get::<_, String>("warning")
+            .ok()
+            .filter(|s| !s.is_empty());
+
         let lines = match parse_lines(&result) {
             Ok(lines) if !lines.is_empty() => lines,
             Ok(_) => vec![error_line("no lines returned".to_string())],
@@ -267,10 +298,50 @@ fn run_probe_with_account_timeout(
             provider_id: plugin_id,
             display_name,
             plan,
+            warning,
             lines,
             icon_url,
         }
     })
+}
+
+fn parse_model_breakdown(line: &Object) -> Option<Vec<ModelSpendBreakdown>> {
+    let arr: Array = line.get("modelBreakdown").ok()?;
+    let mut out = Vec::new();
+    let len = arr.len();
+    for idx in 0..len {
+        let row: Object = arr.get(idx).ok()?;
+        let model = row.get::<_, String>("model").unwrap_or_default();
+        let tokens = row
+            .get::<_, f64>("tokens")
+            .ok()
+            .filter(|v| v.is_finite())
+            .map(|v| v.max(0.0) as u64)
+            .unwrap_or(0);
+        let percent = row
+            .get::<_, f64>("percent")
+            .ok()
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0);
+        let cost_usd = row
+            .get::<_, f64>("costUsd")
+            .ok()
+            .filter(|v| v.is_finite());
+        if model.trim().is_empty() {
+            continue;
+        }
+        out.push(ModelSpendBreakdown {
+            model,
+            tokens,
+            cost_usd,
+            percent,
+        });
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
@@ -293,11 +364,17 @@ fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
         match line_type.as_str() {
             "text" => {
                 let value = line.get::<_, String>("value").unwrap_or_default();
+                let model_breakdown = parse_model_breakdown(&line);
+                let status_dot = line.get::<_, String>("statusDot").ok();
+                let expiry_tooltip = line.get::<_, String>("expiryTooltip").ok();
                 out.push(MetricLine::Text {
                     label,
                     value,
                     color,
                     subtitle,
+                    model_breakdown,
+                    status_dot,
+                    expiry_tooltip,
                 });
             }
             "progress" => {
@@ -718,6 +795,7 @@ fn error_output(plugin: &LoadedPlugin, message: String) -> PluginOutput {
         provider_id: plugin.manifest.id.clone(),
         display_name: plugin.manifest.name.clone(),
         plan: None,
+        warning: None,
         lines: vec![error_line(message)],
         icon_url: plugin.icon_data_url.clone(),
     }
@@ -734,6 +812,7 @@ pub fn probe_fault_output(
         provider_id: provider_id.to_string(),
         display_name: display_name.to_string(),
         plan: None,
+        warning: None,
         lines: vec![error_line(message)],
         icon_url: plugin.icon_data_url.clone(),
     }
