@@ -9,21 +9,29 @@
   "lines": [
     {
       "type": "progress",
-      "label": "Gemini Pro",
+      "label": "Session",
       "scope": "overview",
       "primaryOrder": 1
     },
     {
       "type": "progress",
-      "label": "Gemini Flash",
+      "label": "Weekly",
       "scope": "overview",
-      "primaryOrder": 2
+      "primaryOrder": 2,
+      "period": "weekly"
     },
     {
       "type": "progress",
-      "label": "Claude",
+      "label": "Session — Claude and GPT Models",
       "scope": "overview",
       "primaryOrder": 3
+    },
+    {
+      "type": "progress",
+      "label": "Weekly — Claude and GPT Models",
+      "scope": "overview",
+      "primaryOrder": 4,
+      "period": "weekly"
     }
   ]
 }

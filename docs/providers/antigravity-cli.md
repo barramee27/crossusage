@@ -19,19 +19,22 @@ Access tokens expire (~1 hour). CrossUsage refreshes them with the stored `refre
 - Non-secret CLI context: `~/.gemini/antigravity-cli/`
 - Auth: OS credential store — service `gemini`, username/account `antigravity` (macOS Keychain, Linux Secret Service via GNOME Keyring/KWallet, Windows Credential Manager target `gemini:antigravity` per go-keyring). JSON shape from `agy` includes `token.access_token`, `token.refresh_token`, and `token.expiry`.
 - Quota APIs (tries `daily-cloudcode-pa` then `cloudcode-pa`):
-  - `POST …/v1internal:loadCodeAssist` — body includes `metadata` (IDE/client context)
-  - `POST …/v1internal:fetchAvailableModels` — body `{}` only (`metadata` causes HTTP 400)
-  - `POST …/v1internal:retrieveUserQuota` — body `{}`; primary quota source for `agy` when fetch is denied or empty
+  - `POST …/v1internal:retrieveUserQuotaSummary` — body `{}`; authoritative quota source for `agy`; headers include `Authorization: Bearer <accessToken>`, `User-Agent: antigravity`, and JSON content headers
+  - `POST …/v1internal:loadCodeAssist` — legacy fallback; body includes `metadata` (IDE/client context)
+  - `POST …/v1internal:fetchAvailableModels` — legacy fallback; body `{}` only (`metadata` causes HTTP 400)
+  - `POST …/v1internal:retrieveUserQuota` — legacy fallback; body `{}`
 
 The provider does not read legacy Gemini OAuth files such as `~/.gemini/oauth_creds.json`.
 
 ## Quota Lines
 
-- Gemini model IDs or labels containing `gemini` and `pro` -> `Gemini Pro`
-- Gemini model IDs or labels containing `gemini` and `flash` -> `Gemini Flash`
-- Other non-Gemini model pools -> `Claude`
+- `gemini-5h` -> `Session`
+- `gemini-weekly` -> `Weekly`
+- `3p-5h` -> `Session — Claude and GPT Models`
+- `3p-weekly` -> `Weekly — Claude and GPT Models`
 
-When multiple buckets map to the same line, OpenUsage shows the lowest remaining fraction.
+The plugin converts `remainingFraction` to percentage used and preserves `resetTime`.
+Legacy fallback still maps model IDs/labels to `Gemini Pro`, `Gemini Flash`, and `Claude` only when no usable summary response is available.
 
 ## Notes
 

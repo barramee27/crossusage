@@ -126,5 +126,4 @@ run("bun", ["copy-bundled.cjs"]);
 
 exitIfDevListenPortBusy(DEV_PORT);
 
-const viteBin = path.join(root, "node_modules", ".bin", "vite");
-run(viteBin, ["--port", String(DEV_PORT), "--strictPort"]);
+run("bun", ["x", "vite", "--host", "127.0.0.1", "--port", String(DEV_PORT), "--strictPort"]);

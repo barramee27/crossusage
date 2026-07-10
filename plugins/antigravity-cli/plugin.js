@@ -17,10 +17,19 @@
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
   ]
+  const RETRIEVE_QUOTA_SUMMARY_PATH = "/v1internal:retrieveUserQuotaSummary"
   const LOAD_CODE_ASSIST_PATH = "/v1internal:loadCodeAssist"
   const FETCH_MODELS_PATH = "/v1internal:fetchAvailableModels"
   const RETRIEVE_QUOTA_PATH = "/v1internal:retrieveUserQuota"
   const QUOTA_PERIOD_MS = 5 * 60 * 60 * 1000
+  const QUOTA_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000
+
+  const SUMMARY_BUCKETS = [
+    { bucketId: "gemini-5h", label: "Session", periodMs: QUOTA_PERIOD_MS },
+    { bucketId: "gemini-weekly", label: "Weekly", periodMs: QUOTA_WEEKLY_MS },
+    { bucketId: "3p-5h", label: "Session \u2014 Claude and GPT Models", periodMs: QUOTA_PERIOD_MS },
+    { bucketId: "3p-weekly", label: "Weekly \u2014 Claude and GPT Models", periodMs: QUOTA_WEEKLY_MS },
+  ]
 
   const IDE_METADATA = {
     ideType: "IDE_UNSPECIFIED",
@@ -315,12 +324,16 @@
           Authorization: "Bearer " + token,
           Accept: "application/json",
           "Content-Type": "application/json",
-          "User-Agent": "agy",
+          "User-Agent": opts.userAgent || "agy",
         },
         bodyText: JSON.stringify(body || {}),
         timeoutMs: 15000,
       })
     } catch (e) {
+      if (opts.continueOnHttpError) {
+        ctx.host.log.warn("antigravity-cli request failed: " + String(e))
+        return null
+      }
       if (opts.optional) {
         ctx.host.log.warn("antigravity-cli request failed: " + String(e))
         return null
@@ -351,6 +364,12 @@
       throw opts.authFailureMessage || LOGIN_MESSAGE
     }
     if (resp.status < 200 || resp.status >= 300) {
+      if (opts.continueOnHttpError) {
+        ctx.host.log.warn(
+          "antigravity-cli request HTTP " + String(resp.status) + " for " + url
+        )
+        return null
+      }
       if (opts.optional) {
         ctx.host.log.warn(
           "antigravity-cli optional request HTTP " + String(resp.status) + " for " + url
@@ -401,6 +420,47 @@
       if (found) return found
     }
     return null
+  }
+
+  function parseQuotaSummary(ctx, data) {
+    if (!data || typeof data !== "object") return null
+    var groups = (data.response && data.response.groups) || data.groups
+    if (!Array.isArray(groups)) return null
+
+    var byBucketId = {}
+    for (var gi = 0; gi < groups.length; gi += 1) {
+      var buckets = groups[gi] && groups[gi].buckets
+      if (!Array.isArray(buckets)) continue
+      for (var bi = 0; bi < buckets.length; bi += 1) {
+        var bucket = buckets[bi]
+        if (!bucket || typeof bucket !== "object") continue
+        var id = typeof bucket.bucketId === "string" ? bucket.bucketId : ""
+        if (!id || byBucketId[id]) continue
+        var spec = null
+        for (var si = 0; si < SUMMARY_BUCKETS.length; si += 1) {
+          if (SUMMARY_BUCKETS[si].bucketId === id) {
+            spec = SUMMARY_BUCKETS[si]
+            break
+          }
+        }
+        if (!spec) continue
+        var remaining = bucket.remainingFraction
+        if (typeof remaining !== "number" || !Number.isFinite(remaining)) continue
+        byBucketId[id] = {
+          label: spec.label,
+          remainingFraction: remaining,
+          resetTime: bucket.resetTime || null,
+          periodMs: spec.periodMs,
+        }
+      }
+    }
+
+    var lines = []
+    for (var i = 0; i < SUMMARY_BUCKETS.length; i += 1) {
+      var entry = byBucketId[SUMMARY_BUCKETS[i].bucketId]
+      if (entry) lines.push(lineForBucket(ctx, entry.label, entry))
+    }
+    return lines
   }
 
   function readPlan(loadCodeAssistData) {
@@ -522,7 +582,7 @@
       used: Math.round((1 - clamped) * 100),
       limit: 100,
       format: { kind: "percent" },
-      periodDurationMs: QUOTA_PERIOD_MS,
+      periodDurationMs: typeof bucket.periodMs === "number" ? bucket.periodMs : QUOTA_PERIOD_MS,
     }
     if (bucket.resetTime) {
       var iso = ctx.util.toIso ? ctx.util.toIso(bucket.resetTime) : bucket.resetTime
@@ -555,6 +615,21 @@
     }
 
     var loadData = requestJsonAcrossBases(
+      ctx,
+      RETRIEVE_QUOTA_SUMMARY_PATH,
+      authState.token,
+      {},
+      Object.assign({}, authOpts, {
+        continueOnHttpError: true,
+        userAgent: "antigravity",
+      })
+    )
+    var summaryLines = parseQuotaSummary(ctx, loadData)
+    if (summaryLines && summaryLines.length > 0) {
+      return { plan: undefined, lines: summaryLines }
+    }
+
+    loadData = requestJsonAcrossBases(
       ctx,
       LOAD_CODE_ASSIST_PATH,
       authState.token,

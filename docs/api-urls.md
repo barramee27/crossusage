@@ -32,9 +32,19 @@ This document lists **remote** endpoints and related strings that appear in **pl
 | `CLOUD_CODE_URLS[]` | `plugins/antigravity/plugin.js` | `https://daily-cloudcode-pa.googleapis.com` | Cloud Code API base (try first) |
 | `CLOUD_CODE_URLS[]` | `plugins/antigravity/plugin.js` | `https://cloudcode-pa.googleapis.com` | Cloud Code API base |
 | `GOOGLE_OAUTH_URL` | `plugins/antigravity/plugin.js` | `https://oauth2.googleapis.com/token` | Refresh Google OAuth access token |
-| `FETCH_MODELS_PATH` | `plugins/antigravity/plugin.js` | *(base)* + `/v1internal:fetchAvailableModels` | Full URL: `https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels` (and daily host) |
-| `LOAD_CODE_ASSIST_PATH` | `plugins/antigravity/plugin.js` | *(base)* + `/v1internal:loadCodeAssist` | Plan / tier when LS path unavailable |
+| `RETRIEVE_QUOTA_SUMMARY_PATH` | `plugins/antigravity/plugin.js` | *(base)* + `/v1internal:retrieveUserQuotaSummary` | Authoritative quota summary. Daily host first, Cloud Code host second. |
+| `FETCH_MODELS_PATH`, `LOAD_CODE_ASSIST_PATH`, `RETRIEVE_QUOTA_PATH` | `plugins/antigravity/plugin.js` | *(base)* + legacy endpoints | Compatibility fallback only when quota summary is unavailable. |
 | Local LS | `plugins/antigravity/plugin.js` | `http(s)://127.0.0.1:<port>/.../GetUserStatus` etc. | Primary quota source via language server |
+
+### antigravity-cli
+
+| Symbol / role | File | URL | Purpose |
+|---------------|------|-----|---------|
+| `CLOUD_CODE_BASES[]` | `plugins/antigravity-cli/plugin.js` | `https://daily-cloudcode-pa.googleapis.com` | Cloud Code API base (try first) |
+| `CLOUD_CODE_BASES[]` | `plugins/antigravity-cli/plugin.js` | `https://cloudcode-pa.googleapis.com` | Cloud Code API base |
+| `GOOGLE_OAUTH_URL` | `plugins/antigravity-cli/plugin.js` | `https://oauth2.googleapis.com/token` | Refresh Google OAuth access token |
+| `RETRIEVE_QUOTA_SUMMARY_PATH` | `plugins/antigravity-cli/plugin.js` | *(base)* + `/v1internal:retrieveUserQuotaSummary` | Authoritative quota summary. Daily host first, Cloud Code host second. |
+| `FETCH_MODELS_PATH`, `LOAD_CODE_ASSIST_PATH`, `RETRIEVE_QUOTA_PATH` | `plugins/antigravity-cli/plugin.js` | *(base)* + legacy endpoints | Compatibility fallback only when quota summary is unavailable. |
 
 ### claude
 

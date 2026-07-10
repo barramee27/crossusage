@@ -6,7 +6,7 @@
   "identifier": "com.barramee27.crossusage",
   "build": {
     "beforeDevCommand": "node scripts/tauri-before-dev.cjs",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "bun run bundle:plugins && bun run build && bash scripts/prepare-cli-sidecar.sh",
     "frontendDist": "../dist"
   },

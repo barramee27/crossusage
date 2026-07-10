@@ -10,6 +10,7 @@ const OAUTH_TOKEN_KEY = "antigravityUnifiedStateSync.oauthToken"
 const OAUTH_TOKEN_SENTINEL = "oauthTokenInfoSentinelKey"
 const STATE_DB_V2 = "~/Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb"
 const STATE_DB_V1 = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
+const STATE_DB_WINDOWS_V2 = "~/AppData/Roaming/Antigravity IDE/User/globalStorage/state.vscdb"
 const LOGIN_MESSAGE = "Start Antigravity or run `agy` and try again."
 
 function cacheFingerprint(ctx, refreshToken) {
@@ -114,6 +115,30 @@ function makeCloudCodeResponse(overrides) {
   )
 }
 
+function makeQuotaSummaryResponse(overrides) {
+  return Object.assign(
+    {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { bucketId: "gemini-weekly", remainingFraction: 0.97993034, resetTime: "2026-07-16T23:55:18Z" },
+            { bucketId: "gemini-5h", remainingFraction: 0.879582, resetTime: "2026-07-10T04:55:18Z" },
+          ],
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [
+            { bucketId: "3p-weekly", remainingFraction: 1, resetTime: "2026-07-17T03:09:22Z" },
+            { bucketId: "3p-5h", remainingFraction: 1, resetTime: "2026-07-10T08:09:22Z" },
+          ],
+        },
+      ],
+    },
+    overrides
+  )
+}
+
 function makeAgyLoadResponse(overrides) {
   return Object.assign(
     {
@@ -148,6 +173,7 @@ function setupLsMock(ctx, discovery, responseBody) {
 }
 
 function setupSqliteMock(ctx, oauthEnvelopeB64) {
+  ctx.host.fs.writeText(STATE_DB_V2, "")
   ctx.host.sqlite.query.mockImplementation((db, sql) => {
     if (sql.includes(OAUTH_TOKEN_KEY) && oauthEnvelopeB64) {
       return JSON.stringify([{ value: oauthEnvelopeB64 }])
@@ -157,6 +183,7 @@ function setupSqliteMock(ctx, oauthEnvelopeB64) {
 }
 
 function setupSqliteByPath(ctx, valuesByPath) {
+  for (const path of Object.keys(valuesByPath)) ctx.host.fs.writeText(path, "")
   ctx.host.sqlite.query.mockImplementation((db, sql) => {
     if (!sql.includes(OAUTH_TOKEN_KEY)) return "[]"
     var value = valuesByPath[String(db)]
@@ -604,6 +631,73 @@ describe("antigravity plugin", () => {
     expect(labels).toContain("Claude")
   })
 
+  it("uses the authoritative quota summary endpoint and group/window lines", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.summary-token", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    const calls = []
+    ctx.host.http.request.mockImplementation((opts) => {
+      const url = String(opts.url)
+      if (url.includes("retrieveUserQuotaSummary")) {
+        calls.push(opts)
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
+    expect(calls[0].headers).toMatchObject({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: "Bearer ya29.summary-token",
+      "User-Agent": "antigravity",
+    })
+    expect(calls[0].bodyText).toBe("{}")
+    expect(result.plan).toBeNull()
+    expect(result.lines.map((line) => line.label)).toEqual([
+      "Session",
+      "Weekly",
+      "Session — Claude and GPT Models",
+      "Weekly — Claude and GPT Models",
+    ])
+    expect(result.lines.map((line) => line.used)).toEqual([12, 2, 0, 0])
+    expect(result.lines[0].resetsAt).toBe("2026-07-10T04:55:18Z")
+    expect(result.lines[1].periodDurationMs).toBe(7 * 24 * 60 * 60 * 1000)
+  })
+
+  it("falls back from the daily quota-summary host to the standard Cloud Code host", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.summary-token", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    const urls = []
+    ctx.host.http.request.mockImplementation((opts) => {
+      const url = String(opts.url)
+      if (url.includes("retrieveUserQuotaSummary")) {
+        urls.push(url)
+        if (url.includes("daily-cloudcode")) return { status: 503, bodyText: "" }
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(urls).toEqual([
+      "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+      "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    ])
+    expect(result.lines).toHaveLength(4)
+  })
+
   it("tries Antigravity IDE SQLite credentials before legacy Antigravity credentials", async () => {
     const ctx = makeCtx()
     const futureExpiry = Math.floor(Date.now() / 1000) + 3600
@@ -627,6 +721,35 @@ describe("antigravity plugin", () => {
 
     expect(ctx.host.sqlite.query.mock.calls.map((call) => call[0])).toEqual([STATE_DB_V2, STATE_DB_V1])
     expect(capturedAuths[0]).toBe("Bearer ya29.v2-token")
+  })
+
+  it("uses the Windows Antigravity IDE state database", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteByPath(ctx, {
+      [STATE_DB_WINDOWS_V2]: makeOAuthSentinelB64(ctx, { accessToken: "ya29.windows-token", expirySeconds: futureExpiry }),
+    })
+    ctx.host.ls.discover.mockReturnValue(null)
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("fetchAvailableModels")) {
+        return { status: 200, bodyText: JSON.stringify(makeCloudCodeResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    expect(ctx.host.sqlite.query.mock.calls.map((call) => call[0])).toEqual([STATE_DB_WINDOWS_V2])
+  })
+
+  it("skips unavailable state databases", async () => {
+    const ctx = makeCtx()
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow(LOGIN_MESSAGE)
+    expect(ctx.host.sqlite.query).not.toHaveBeenCalled()
   })
 
   it("falls back to legacy SQLite credentials when the new path has no usable token", async () => {
@@ -670,12 +793,7 @@ describe("antigravity plugin", () => {
     ctx.host.http.request.mockImplementation((opts) => {
       const url = String(opts.url)
       called.push({ url, auth: opts.headers.Authorization, userAgent: opts.headers["User-Agent"], body: opts.bodyText })
-      if (url.includes("loadCodeAssist")) {
-        return { status: 200, bodyText: JSON.stringify(makeAgyLoadResponse()) }
-      }
-      if (url.includes("retrieveUserQuota")) {
-        return { status: 200, bodyText: JSON.stringify(makeAgyQuotaResponse()) }
-      }
+      if (url.includes("retrieveUserQuotaSummary")) return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
       return { status: 500, bodyText: "" }
     })
 
@@ -684,13 +802,53 @@ describe("antigravity plugin", () => {
 
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("gemini", "antigravity")
     expect(called.every((call) => call.auth === "Bearer agy-keychain-token")).toBe(true)
-    expect(called.every((call) => call.userAgent === "agy")).toBe(true)
+    expect(called.every((call) => call.userAgent === "antigravity")).toBe(true)
     expect(called.map((call) => call.url)).toEqual([
-      "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-      "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
+      "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
     ])
-    expect(result.plan).toBe("Google AI Pro")
-    expect(result.lines.map((l) => l.label)).toEqual(["Gemini Pro", "Gemini Flash", "Claude"])
+    expect(result.plan).toBeNull()
+    expect(result.lines.map((line) => line.label)).toEqual([
+      "Session",
+      "Weekly",
+      "Session — Claude and GPT Models",
+      "Weekly — Claude and GPT Models",
+    ])
+  })
+
+  it("refreshes an expired agy keychain access token after an auth failure", async () => {
+    const ctx = makeCtx()
+    setupSqliteMock(ctx, null)
+    ctx.host.ls.discover.mockReturnValue(null)
+    ctx.host.keychain.readGenericPassword.mockReturnValue(
+      "go-keyring-base64:" + ctx.base64.encode(JSON.stringify({
+        token: { access_token: "agy-expired", refresh_token: "1//agy-refresh" },
+      }))
+    )
+
+    let refreshCalls = 0
+    const summaryAuths = []
+    ctx.host.http.request.mockImplementation((opts) => {
+      const url = String(opts.url)
+      if (url.includes("oauth2.googleapis.com")) {
+        refreshCalls += 1
+        return { status: 200, bodyText: JSON.stringify({ access_token: "agy-refreshed", expires_in: 3600 }) }
+      }
+      if (url.includes("retrieveUserQuotaSummary")) {
+        summaryAuths.push(opts.headers.Authorization)
+        if (opts.headers.Authorization === "Bearer agy-expired") {
+          return { status: 401, bodyText: '{"error":"unauthorized"}' }
+        }
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(refreshCalls).toBe(1)
+    expect(summaryAuths).toEqual(["Bearer agy-expired", "Bearer agy-refreshed"])
+    expect(result.lines).toHaveLength(4)
   })
 
   it("tries agy Cloud Code even when the keychain token matches a SQLite token", async () => {
@@ -707,16 +865,19 @@ describe("antigravity plugin", () => {
       return null
     })
 
-    let agyCalls = 0
+    let summaryCalls = 0
     ctx.host.http.request.mockImplementation((opts) => {
       const url = String(opts.url)
       if (url.includes("fetchAvailableModels")) return { status: 500, bodyText: "" }
+      if (url.includes("retrieveUserQuotaSummary")) {
+        summaryCalls += 1
+        if (summaryCalls <= 2) return { status: 500, bodyText: "" }
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
       if (url.includes("loadCodeAssist")) {
-        agyCalls += 1
         return { status: 200, bodyText: JSON.stringify(makeAgyLoadResponse()) }
       }
       if (url.includes("retrieveUserQuota")) {
-        agyCalls += 1
         return { status: 200, bodyText: JSON.stringify(makeAgyQuotaResponse()) }
       }
       return { status: 500, bodyText: "" }
@@ -725,8 +886,8 @@ describe("antigravity plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.plan).toBe("Google AI Pro")
-    expect(agyCalls).toBe(2)
+    expect(result.plan).toBeNull()
+    expect(summaryCalls).toBe(3)
   })
 
   it("Cloud Code sends correct Authorization header with DB token", async () => {

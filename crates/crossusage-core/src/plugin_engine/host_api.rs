@@ -852,6 +852,22 @@ fn windows_go_keyring_target(service: &str, user: &str) -> String {
     format!("{service}:{user}")
 }
 
+/// `zalando/go-keyring` writes raw UTF-8 bytes to Windows Credential Manager.
+/// Rust `keyring::Entry::get_password` expects the crate's UTF-16LE password format,
+/// so Go-managed entries must be read with `get_secret` instead.
+#[cfg(target_os = "windows")]
+fn decode_windows_go_keyring_secret(secret: Vec<u8>) -> Result<String, String> {
+    let value = String::from_utf8(secret)
+        .map_err(|_| "go-keyring credential is not valid UTF-8".to_string())?;
+    if value.trim().is_empty() {
+        return Err("go-keyring credential is empty".to_string());
+    }
+    if value.contains('\0') {
+        return Err("go-keyring credential unexpectedly contains NUL bytes".to_string());
+    }
+    Ok(value)
+}
+
 #[cfg(target_os = "windows")]
 fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
     let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
@@ -860,8 +876,11 @@ fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result
     if !user.is_empty() {
         let go_target = windows_go_keyring_target(service, user);
         match keyring::Entry::new_with_target(&go_target, service, user) {
-            Ok(entry) => match entry.get_password() {
-                Ok(password) => return Ok(password),
+            Ok(entry) => match entry.get_secret() {
+                Ok(secret) => match decode_windows_go_keyring_secret(secret) {
+                    Ok(password) => return Ok(password),
+                    Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
+                },
                 Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
             },
             Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
@@ -4112,6 +4131,23 @@ mod tests {
         assert!(paths[0].starts_with("~/.config/Kiro/"));
         assert!(paths[1].contains("Library/Application Support/Kiro/"));
         assert!(paths[2].contains("AppData/Roaming/Kiro/"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_go_keyring_secret_decodes_raw_utf8() {
+        let raw = br#"{"token":{"access_token":"test-token"}}"#.to_vec();
+        assert_eq!(
+            decode_windows_go_keyring_secret(raw).expect("raw go-keyring secret"),
+            r#"{"token":{"access_token":"test-token"}}"#
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_go_keyring_secret_rejects_utf16_password_bytes() {
+        let utf16le = vec![b'{', 0, b'}', 0];
+        assert!(decode_windows_go_keyring_secret(utf16le).is_err());
     }
 
     #[test]
