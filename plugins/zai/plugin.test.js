@@ -393,7 +393,7 @@ describe("zai plugin", () => {
     expect(result.lines.find((l) => l.label === "Session")).toBeTruthy()
   })
 
-  it("supports quota payloads where limits are top-level and optional fields are non-numeric", async () => {
+  it("supports quota payloads where limits are top-level and numeric strings are accepted", async () => {
     const ctx = makeCtx()
     mockEnvWithKey(ctx, "test-key")
     ctx.host.http.request.mockImplementation((opts) => {
@@ -413,9 +413,59 @@ describe("zai plugin", () => {
     const result = plugin.probe(ctx)
     const session = result.lines.find((l) => l.label === "Session")
     const web = result.lines.find((l) => l.label === "Web Searches")
-    expect(session.used).toBe(0)
-    expect(web.used).toBe(0)
-    expect(web.limit).toBe(0)
+    expect(session.used).toBe(10)
+    expect(web.used).toBe(1095)
+    expect(web.limit).toBe(4000)
+  })
+
+  it("rejects malformed quota values instead of coercing to zero", async () => {
+    const cases = [
+      { data: { limits: [{ type: "TOKENS_LIMIT", unit: 3, number: 5 }] } },
+      { data: { limits: [{ type: "TOKENS_LIMIT", unit: 3, number: 5, percentage: true }] } },
+      { data: { limits: [{ type: "TIME_LIMIT", usage: 1000 }] } },
+      { data: { limits: [{ type: "TIME_LIMIT", currentValue: 10 }] } },
+      { data: { limits: [{ type: "TIME_LIMIT", currentValue: -1, usage: 1000 }] } },
+    ]
+
+    for (const body of cases) {
+      const ctx = makeCtx()
+      mockEnvWithKey(ctx, "test-key")
+      ctx.host.http.request.mockImplementation((opts) => {
+        if (opts.url.includes("subscription")) {
+          return { status: 200, bodyText: JSON.stringify(SUBSCRIPTION_RESPONSE) }
+        }
+        return { status: 200, bodyText: JSON.stringify(body) }
+      })
+      const plugin = await loadPlugin()
+      expect(() => plugin.probe(ctx)).toThrow("Usage response invalid")
+    }
+  })
+
+  it("rejects malformed quota envelopes but allows explicit empty limits", async () => {
+    for (const body of [{ data: [] }, { data: {} }, { data: { limits: {} } }]) {
+      const ctx = makeCtx()
+      mockEnvWithKey(ctx, "test-key")
+      ctx.host.http.request.mockImplementation((opts) => {
+        if (opts.url.includes("subscription")) {
+          return { status: 200, bodyText: JSON.stringify(SUBSCRIPTION_RESPONSE) }
+        }
+        return { status: 200, bodyText: JSON.stringify(body) }
+      })
+      const plugin = await loadPlugin()
+      expect(() => plugin.probe(ctx)).toThrow("Usage response invalid")
+    }
+
+    const ctx = makeCtx()
+    mockEnvWithKey(ctx, "test-key")
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.url.includes("subscription")) {
+        return { status: 200, bodyText: JSON.stringify(SUBSCRIPTION_RESPONSE) }
+      }
+      return { status: 200, bodyText: JSON.stringify({ data: { limits: [] } }) }
+    })
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines[0].text).toBe("No usage data")
   })
 
   it("shows no-usage badge when token limit entry is missing", async () => {
@@ -425,7 +475,12 @@ describe("zai plugin", () => {
       if (opts.url.includes("subscription")) {
         return { status: 200, bodyText: JSON.stringify(SUBSCRIPTION_RESPONSE) }
       }
-      return { status: 200, bodyText: JSON.stringify({ data: { limits: [{ type: "TIME_LIMIT", usage: 10 }] } }) }
+      return {
+        status: 200,
+        bodyText: JSON.stringify({
+          data: { limits: [{ type: "FUTURE_LIMIT" }, { type: "TOKENS_LIMIT", unit: 99, number: 1, percentage: 70 }] },
+        }),
+      }
     })
 
     const plugin = await loadPlugin()

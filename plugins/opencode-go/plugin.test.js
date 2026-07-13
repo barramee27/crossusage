@@ -224,7 +224,7 @@ describe("opencode-go plugin", () => {
     expect(result.lines[0].used).toBe(100);
   });
 
-  it("returns a soft empty state when sqlite is unreadable but auth exists", async () => {
+  it("returns a loud warning when sqlite is unreadable but auth exists", async () => {
     const ctx = makeCtx();
     setAuth(ctx);
     ctx.host.sqlite.query.mockImplementation(() => {
@@ -232,35 +232,28 @@ describe("opencode-go plugin", () => {
     });
 
     const plugin = await loadPlugin();
-    expect(plugin.probe(ctx)).toEqual({
-      plan: "Go",
-      lines: [
-        {
-          type: "badge",
-          label: "Status",
-          text: "No usage data",
-          color: "#a3a3a3",
-        },
-      ],
-    });
+    const result = plugin.probe(ctx);
+    expect(result.plan).toBe("Go");
+    expect(result.warning).toContain("usage database");
+    expect(result.lines).toEqual([
+      {
+        type: "badge",
+        label: "Status",
+        text: "Usage database unreadable",
+        color: "#f59e0b",
+      },
+    ]);
   });
 
-  it("returns a soft empty state when sqlite returns malformed JSON and auth exists", async () => {
+  it("returns a loud warning when sqlite returns malformed JSON and auth exists", async () => {
     const ctx = makeCtx();
     setAuth(ctx);
     ctx.host.sqlite.query.mockReturnValue("not-json");
 
     const plugin = await loadPlugin();
-    expect(plugin.probe(ctx)).toEqual({
-      plan: "Go",
-      lines: [
-        {
-          type: "badge",
-          label: "Status",
-          text: "No usage data",
-          color: "#a3a3a3",
-        },
-      ],
-    });
+    const result = plugin.probe(ctx);
+    expect(result.warning).toContain("usage database");
+    expect(result.lines[0].text).toBe("Usage database unreadable");
+    expect(result.lines[0].color).toBe("#f59e0b");
   });
 });

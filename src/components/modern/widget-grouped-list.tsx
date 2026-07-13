@@ -18,9 +18,10 @@ type WidgetGroupedListProps = {
   groups: ProviderWidgetGroup[]
   compact?: boolean
   className?: string
+  onRefreshPlugin?: (pluginId: string) => void
 }
 
-export function WidgetGroupedList({ groups, compact, className }: WidgetGroupedListProps) {
+export function WidgetGroupedList({ groups, compact, className, onRefreshPlugin }: WidgetGroupedListProps) {
   if (groups.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8 text-sm">
@@ -32,13 +33,26 @@ export function WidgetGroupedList({ groups, compact, className }: WidgetGroupedL
   return (
     <div className={cn("space-y-2", className)}>
       {groups.map((group) => (
-        <ProviderCard key={group.pluginId} group={group} compact={compact} />
+        <ProviderCard
+          key={group.pluginId}
+          group={group}
+          compact={compact}
+          onRefreshPlugin={onRefreshPlugin}
+        />
       ))}
     </div>
   )
 }
 
-function ProviderCard({ group, compact }: { group: ProviderWidgetGroup; compact?: boolean }) {
+function ProviderCard({
+  group,
+  compact,
+  onRefreshPlugin,
+}: {
+  group: ProviderWidgetGroup
+  compact?: boolean
+  onRefreshPlugin?: (pluginId: string) => void
+}) {
   const bounded = group.metrics.filter((m) => m.bounded && m.kind === "progress")
   const charts = group.metrics.filter((m) => m.kind === "barChart")
   const unbounded = group.metrics.filter((m) => !m.bounded && m.kind !== "barChart")
@@ -68,10 +82,10 @@ function ProviderCard({ group, compact }: { group: ProviderWidgetGroup; compact?
       </header>
       <div className={cn("px-3", compact ? "py-1" : "py-2")}>
         {bounded.map((m) => (
-          <WidgetRow key={m.metricId} data={m} compact={compact} />
+          <WidgetRow key={m.metricId} data={m} compact={compact} onRefreshPlugin={onRefreshPlugin} />
         ))}
         {charts.map((m) => (
-          <WidgetRow key={m.metricId} data={m} compact={compact} />
+          <WidgetRow key={m.metricId} data={m} compact={compact} onRefreshPlugin={onRefreshPlugin} />
         ))}
         {unbounded.length > 0 ? (
           <div
@@ -83,7 +97,12 @@ function ProviderCard({ group, compact }: { group: ProviderWidgetGroup; compact?
             )}
           >
             {unbounded.map((m) => (
-              <WidgetRow key={m.metricId} data={m} compact={compact} />
+              <WidgetRow
+                key={m.metricId}
+                data={m}
+                compact={compact}
+                onRefreshPlugin={onRefreshPlugin}
+              />
             ))}
           </div>
         ) : null}

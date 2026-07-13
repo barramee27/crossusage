@@ -123,6 +123,7 @@ fn loading_placeholder(plugin: &LoadedPlugin) -> PluginOutput {
         model_breakdown: None,
         status_dot: None,
         expiry_tooltip: None,
+        reset_credit_expiries: None,
         }],
         icon_url: plugin.icon_data_url.clone(),
     }
@@ -162,6 +163,7 @@ fn probe_error_output(plugin: &LoadedPlugin, message: String) -> PluginOutput {
         model_breakdown: None,
         status_dot: None,
         expiry_tooltip: None,
+        reset_credit_expiries: None,
         }],
         icon_url: plugin.icon_data_url.clone(),
     }

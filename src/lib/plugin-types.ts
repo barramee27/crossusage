@@ -28,6 +28,8 @@ export type MetricLine =
       modelBreakdown?: ModelSpendBreakdown[]
       statusDot?: ExpiryStatusDot
       expiryTooltip?: string
+      /** ISO-8601 expiry instants for Codex rate-limit reset credits (soonest first). */
+      resetCreditExpiries?: string[]
     }
   | {
       type: "progress"

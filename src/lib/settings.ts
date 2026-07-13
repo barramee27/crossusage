@@ -99,6 +99,8 @@ export const USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY = "usageSpikeAlertThresholdPct"
 const UI_SCALE_KEY = "uiScale";
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
 const SHOW_TRAY_INSIGHT_KEY = "showTrayInsight";
+const SHOW_TOTAL_SPEND_KEY = "showTotalSpend";
+const TOTAL_SPEND_METRIC_KEY = "totalSpendMetric";
 const SHOW_ACCOUNT_IDENTITY_KEY = "showAccountIdentity";
 const PERSIST_USAGE_HISTORY_KEY = "persistUsageHistory";
 const USAGE_HISTORY_RETENTION_DAYS_KEY = "usageHistoryRetentionDays";
@@ -149,6 +151,8 @@ export const MODERN_DENSITY_OPTIONS: { value: ModernDensity; label: string }[] =
 
 export const DEFAULT_SHOW_TRAY_ICON = true;
 export const DEFAULT_SHOW_TRAY_INSIGHT = true;
+export const DEFAULT_SHOW_TOTAL_SPEND = true;
+export const DEFAULT_TOTAL_SPEND_METRIC = "apiSpend";
 export const DEFAULT_UI_LAYOUT: UILayout = "classic";
 export const DEFAULT_MODERN_DENSITY: ModernDensity = "regular";
 export const DEFAULT_SHOW_ACCOUNT_IDENTITY = true;
@@ -1008,6 +1012,30 @@ export async function loadShowTrayInsight(): Promise<boolean> {
 
 export async function saveShowTrayInsight(value: boolean): Promise<void> {
   await store.set(SHOW_TRAY_INSIGHT_KEY, value);
+  await store.save();
+}
+
+export async function loadShowTotalSpend(): Promise<boolean> {
+  const stored = await store.get<unknown>(SHOW_TOTAL_SPEND_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_SHOW_TOTAL_SPEND;
+}
+
+export async function saveShowTotalSpend(value: boolean): Promise<void> {
+  await store.set(SHOW_TOTAL_SPEND_KEY, value);
+  await store.save();
+}
+
+export async function loadTotalSpendMetric(): Promise<string> {
+  const stored = await store.get<unknown>(TOTAL_SPEND_METRIC_KEY);
+  if (stored === "apiSpend" || stored === "costPerMtok" || stored === "tokens") {
+    return stored;
+  }
+  return DEFAULT_TOTAL_SPEND_METRIC;
+}
+
+export async function saveTotalSpendMetric(value: string): Promise<void> {
+  await store.set(TOTAL_SPEND_METRIC_KEY, value);
   await store.save();
 }
 

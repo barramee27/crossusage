@@ -2125,6 +2125,31 @@ describe("cursor plugin", () => {
     expect(mtd.value).toContain("800.0K tokens in")
     expect(mtd.value).toContain("400.0K tokens out")
     expect(mtd.value).toContain("$4.80")
-    expect(mtd.subtitle).toContain("dashboard export")
+    expect(mtd.subtitle).toContain("Estimated spend")
+  })
+
+  it("keeps Connect usage when usage export MTD throws", async () => {
+    const ctx = makeCtx()
+    const accessToken = makeJwt({ exp: 9999999999 })
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        enabled: true,
+        planUsage: { totalPercentUsed: 42 },
+      }),
+    })
+    ctx.host.cursorUsageExport.queryMtd = vi.fn(() => {
+      throw new Error("export boom")
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines.find((line) => line.label === "Total usage")?.used).toBe(42)
+    expect(result.lines.find((line) => line.label === "MTD usage")).toBeFalsy()
+    expect(ctx.host.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("usage export MTD attach failed")
+    )
   })
 })

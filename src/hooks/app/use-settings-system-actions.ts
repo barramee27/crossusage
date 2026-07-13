@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   getEnabledPluginIds,
@@ -27,6 +27,8 @@ export function useSettingsSystemActions({
   setStartOnLogin,
   applyStartOnLogin,
 }: UseSettingsSystemActionsArgs) {
+  const [startOnLoginError, setStartOnLoginError] = useState<string | null>(null)
+
   const handleAutoUpdateIntervalChange = useCallback((value: AutoUpdateIntervalMinutes) => {
     setAutoUpdateInterval(value)
 
@@ -56,11 +58,14 @@ export function useSettingsSystemActions({
 
   const handleStartOnLoginChange = useCallback((value: boolean) => {
     setStartOnLogin(value)
+    setStartOnLoginError(null)
     void saveStartOnLogin(value).catch((error) => {
       console.error("Failed to save start on login:", error)
+      setStartOnLoginError(error instanceof Error ? error.message : String(error))
     })
     void applyStartOnLogin(value).catch((error) => {
       console.error("Failed to update start on login:", error)
+      setStartOnLoginError(error instanceof Error ? error.message : String(error))
     })
   }, [applyStartOnLogin, setStartOnLogin])
 
@@ -68,5 +73,6 @@ export function useSettingsSystemActions({
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
     handleStartOnLoginChange,
+    startOnLoginError,
   }
 }

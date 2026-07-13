@@ -116,7 +116,7 @@ describe("useAppUpdate", () => {
     expect(result.current.updateStatus).toEqual({ status: "ready", version: "1.0.0" })
   })
 
-  it("does not check again when already ready", async () => {
+  it("re-checks when ready so a resolved channel can clear the banner", async () => {
     const downloadMock = vi.fn(async (onEvent: (event: any) => void) => {
       onEvent({ event: "Finished", data: {} })
     })
@@ -128,8 +128,10 @@ describe("useAppUpdate", () => {
     expect(result.current.updateStatus.status).toBe("ready")
 
     checkMock.mockClear()
+    checkMock.mockResolvedValue(null)
     await act(() => result.current.checkForUpdates())
-    expect(checkMock).not.toHaveBeenCalled()
+    expect(checkMock).toHaveBeenCalled()
+    expect(result.current.updateStatus.status).toBe("up-to-date")
   })
 
   it("shows up-to-date then returns to idle when check returns null", async () => {

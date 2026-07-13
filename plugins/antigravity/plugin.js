@@ -165,7 +165,7 @@
         return null
       }
       var expiresIn = (typeof body.expires_in === "number") ? body.expires_in : 3600
-      cacheToken(ctx, body.access_token, expiresIn)
+      cacheToken(ctx, body.access_token, expiresIn, refreshTokenValue)
       return body.access_token
     } catch (e) {
       ctx.host.log.warn("Google OAuth refresh failed: " + String(e))
@@ -175,13 +175,52 @@
 
   // --- Token cache ---
 
-  function loadCachedToken(ctx) {
+  function credentialFingerprint(ctx, refreshTokenValue) {
+    var token = trimString(refreshTokenValue)
+    if (!token) return null
+    if (ctx.host.crypto && typeof ctx.host.crypto.sha256Hex === "function") {
+      return ctx.host.crypto.sha256Hex(token)
+    }
+    return token
+  }
+
+  function discardCachedToken(ctx) {
+    var path = ctx.app.pluginDataDir + "/auth.json"
+    try {
+      if (ctx.host.fs.exists(path)) {
+        // Host fs has no remove; overwrite so loadCachedToken treats it as a miss.
+        ctx.host.fs.writeText(path, "")
+      }
+    } catch (e) {
+      ctx.host.log.warn("failed to remove stale refreshed-token cache: " + String(e))
+    }
+  }
+
+  function loadCachedToken(ctx, sourceRefreshToken) {
+    var expectedFingerprint = credentialFingerprint(ctx, sourceRefreshToken)
+    if (!expectedFingerprint) {
+      discardCachedToken(ctx)
+      return null
+    }
     var path = ctx.app.pluginDataDir + "/auth.json"
     try {
       if (!ctx.host.fs.exists(path)) return null
       var data = ctx.util.tryParseJson(ctx.host.fs.readText(path))
-      if (!data || !data.accessToken || !data.expiresAtMs) return null
-      if (data.expiresAtMs <= Date.now()) return null
+      if (!data || !data.accessToken || !data.expiresAtMs) {
+        discardCachedToken(ctx)
+        return null
+      }
+      // Bind cache to the verified local refresh credential (#961). Older unbound
+      // caches decode as a safe miss and are discarded.
+      if (data.credentialFingerprint !== expectedFingerprint) {
+        discardCachedToken(ctx)
+        return null
+      }
+      // Require refreshBuffer of life left (5 min), matching local token usability.
+      if (data.expiresAtMs <= Date.now() + 5 * 60 * 1000) {
+        discardCachedToken(ctx)
+        return null
+      }
       return data.accessToken
     } catch (e) {
       ctx.host.log.warn("failed to read cached token: " + String(e))
@@ -189,12 +228,15 @@
     }
   }
 
-  function cacheToken(ctx, accessToken, expiresInSeconds) {
+  function cacheToken(ctx, accessToken, expiresInSeconds, sourceRefreshToken) {
+    var fingerprint = credentialFingerprint(ctx, sourceRefreshToken)
+    if (!fingerprint || !trimString(accessToken)) return
     var path = ctx.app.pluginDataDir + "/auth.json"
     try {
       ctx.host.fs.writeText(path, JSON.stringify({
         accessToken: accessToken,
         expiresAtMs: Date.now() + (expiresInSeconds || 3600) * 1000,
+        credentialFingerprint: fingerprint,
       }))
     } catch (e) {
       ctx.host.log.warn("failed to cache refreshed token: " + String(e))
@@ -217,9 +259,13 @@
 
   function unwrapAgyKeychainText(ctx, raw) {
     var text = trimString(raw)
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+    text = trimString(text)
     if (!text) return null
     if (text.indexOf("go-keyring-base64:") === 0) {
       text = trimString(decodeBase64(ctx, text.slice("go-keyring-base64:".length)))
+      if (text && text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+      text = trimString(text)
     }
     return text || null
   }
@@ -255,9 +301,12 @@
     var text = unwrapAgyKeychainText(ctx, raw)
     if (!text) return null
 
+    var looksStructured = text.charAt(0) === "{" || text.charAt(0) === "["
     var parsed = ctx.util.tryParseJson(text)
     if (typeof parsed === "string" && parsed.trim()) return parsed.trim()
     if (parsed) return extractTokenFromObject(parsed)
+    // BOM-prefixed / malformed structured credentials must not be sent as Bearer tokens.
+    if (looksStructured) return null
 
     if (text.indexOf("Bearer ") === 0) return text.slice("Bearer ".length).trim() || null
     return text
@@ -719,15 +768,29 @@
       tokens.push(injected.accessToken)
     }
     var nowSec = Math.floor(Date.now() / 1000)
+    var localRefreshTokens = []
     for (var i = 0; i < dbTokenCandidates.length; i++) {
       var dbTokens = dbTokenCandidates[i]
       if (dbTokens.accessToken && (!dbTokens.expirySeconds || dbTokens.expirySeconds > nowSec)) {
         if (tokens.indexOf(dbTokens.accessToken) === -1) tokens.push(dbTokens.accessToken)
       }
+      if (dbTokens.refreshToken && localRefreshTokens.indexOf(dbTokens.refreshToken) === -1) {
+        localRefreshTokens.push(dbTokens.refreshToken)
+      }
+    }
+    if (injected && injected.refreshToken && localRefreshTokens.indexOf(injected.refreshToken) === -1) {
+      localRefreshTokens.push(injected.refreshToken)
     }
 
-    var cached = loadCachedToken(ctx)
-    if (cached && tokens.indexOf(cached) === -1) tokens.push(cached)
+    // No verified local auth → purge any derived cache so a logout cannot reuse it (#961).
+    if (localRefreshTokens.length === 0 && tokens.length === 0) {
+      discardCachedToken(ctx)
+    } else {
+      for (var c = 0; c < localRefreshTokens.length; c++) {
+        var cached = loadCachedToken(ctx, localRefreshTokens[c])
+        if (cached && tokens.indexOf(cached) === -1) tokens.push(cached)
+      }
+    }
 
     var ccData = null
     var sawAuthFailure = false
@@ -745,14 +808,7 @@
     // guard a Cloud Code incident would trigger a Google OAuth refresh every probe cycle
     // instead of ~once per token lifetime — risking refresh-token throttling or rotation.
     if (!ccData && (sawAuthFailure || tokens.length === 0)) {
-      var refreshTokens = []
-      if (injected && injected.refreshToken && refreshTokens.indexOf(injected.refreshToken) === -1) {
-        refreshTokens.push(injected.refreshToken)
-      }
-      for (var j = 0; j < dbTokenCandidates.length; j++) {
-        var refreshToken = dbTokenCandidates[j].refreshToken
-        if (refreshToken && refreshTokens.indexOf(refreshToken) === -1) refreshTokens.push(refreshToken)
-      }
+      var refreshTokens = localRefreshTokens.slice()
       for (var k = 0; k < refreshTokens.length; k++) {
         var refreshed = refreshAccessToken(ctx, refreshTokens[k])
         if (!refreshed) continue

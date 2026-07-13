@@ -357,6 +357,7 @@ mod tests {
             model_breakdown: None,
             status_dot: None,
             expiry_tooltip: None,
+            reset_credit_expiries: None,
             }],
             icon_url: String::new(),
         }

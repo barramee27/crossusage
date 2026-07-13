@@ -59,6 +59,7 @@ export function ProviderDetailPage({
         lastManualRefreshAt={plugin.lastManualRefreshAt}
         lastUpdatedAt={plugin.lastUpdatedAt}
         onRetry={onRetry}
+        pluginId={plugin.meta.id}
         scopeFilter="all"
         displayMode={displayMode}
         resetTimerDisplayMode={resetTimerDisplayMode}

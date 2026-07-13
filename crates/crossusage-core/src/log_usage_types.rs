@@ -1,7 +1,78 @@
 //! Shared types for native Claude/Codex log scanners (ccusage-compatible daily output).
 
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+use std::path::Path;
+use std::sync::Mutex;
+use std::time::SystemTime;
+
+/// Newest-N file cap per scan pass (upstream #888 bound for large log trees).
+pub const LOG_SCAN_MAX_FILES: usize = 500;
+/// Soft byte budget for files considered in one pass (always keeps ≥1 file if any).
+pub const LOG_SCAN_MAX_BYTES: u64 = 256 * 1024 * 1024;
+
+static WARNED_UNREADABLE: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+/// Keep the newest files by mtime, then apply a soft byte budget.
+pub fn cap_log_files_by_mtime<T>(
+    files: &mut Vec<T>,
+    mtime: impl Fn(&T) -> SystemTime,
+    size: impl Fn(&T) -> u64,
+) {
+    if files.is_empty() {
+        return;
+    }
+    files.sort_by(|a, b| mtime(b).cmp(&mtime(a)).then_with(|| size(b).cmp(&size(a))));
+    if files.len() > LOG_SCAN_MAX_FILES {
+        files.truncate(LOG_SCAN_MAX_FILES);
+    }
+    let mut kept = Vec::with_capacity(files.len());
+    let mut bytes = 0u64;
+    for file in files.drain(..) {
+        let sz = size(&file);
+        if !kept.is_empty() && bytes.saturating_add(sz) > LOG_SCAN_MAX_BYTES {
+            continue;
+        }
+        bytes = bytes.saturating_add(sz);
+        kept.push(file);
+    }
+    *files = kept;
+}
+
+/// Log once per path per process when a usage file cannot be read (#890).
+pub fn warn_unreadable_usage_file(path: &Path) {
+    let key = path.to_string_lossy().to_string();
+    let Ok(mut guard) = WARNED_UNREADABLE.lock() else {
+        return;
+    };
+    let set = guard.get_or_insert_with(HashSet::new);
+    if set.insert(key.clone()) {
+        log::warn!(
+            "Could not read local usage log file (skipping for this process): {}",
+            key
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn caps_newest_files_and_byte_budget() {
+        let t0 = SystemTime::UNIX_EPOCH;
+        let mut files: Vec<(SystemTime, u64, u32)> = (0u32..600)
+            .map(|i| (t0 + Duration::from_secs(u64::from(i)), 1024u64, i))
+            .collect();
+        cap_log_files_by_mtime(&mut files, |f| f.0, |f| f.1);
+        assert!(files.len() <= LOG_SCAN_MAX_FILES);
+        assert_eq!(files.len(), LOG_SCAN_MAX_FILES);
+        // Newest ids survive.
+        assert!(files.iter().any(|f| f.2 == 599));
+        assert!(!files.iter().any(|f| f.2 == 0));
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

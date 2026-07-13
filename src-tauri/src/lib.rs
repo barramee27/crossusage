@@ -27,7 +27,6 @@ mod webkit_config;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
@@ -51,6 +50,83 @@ const MAX_CONCURRENT_PROBES: usize = 4;
 
 fn probe_worker_count(plugin_count: usize) -> usize {
     plugin_count.min(MAX_CONCURRENT_PROBES)
+}
+
+/// Coalesces overlapping probe requests so an enablement wake mid-batch is not
+/// dropped (#856). If `instance_id` is already probing, the latest request is
+/// kept in `pending` and runs after the in-flight probe finishes.
+struct PendingProbe {
+    batch_id: String,
+    plugin: plugin_engine::manifest::LoadedPlugin,
+    account: provider_accounts::ProviderAccountContext,
+}
+
+struct ProbeCoord {
+    in_flight: HashSet<String>,
+    pending: HashMap<String, PendingProbe>,
+    batch_remaining: HashMap<String, usize>,
+    active_workers: usize,
+}
+
+fn probe_coord() -> &'static Mutex<ProbeCoord> {
+    static COORD: OnceLock<Mutex<ProbeCoord>> = OnceLock::new();
+    COORD.get_or_init(|| {
+        Mutex::new(ProbeCoord {
+            in_flight: HashSet::new(),
+            pending: HashMap::new(),
+            batch_remaining: HashMap::new(),
+            active_workers: 0,
+        })
+    })
+}
+
+fn note_probe_finished(app_handle: &tauri::AppHandle, batch_id: &str) {
+    let complete = {
+        let mut coord = probe_coord()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let remaining = coord.batch_remaining.entry(batch_id.to_string()).or_insert(0);
+        if *remaining > 0 {
+            *remaining -= 1;
+        }
+        if *remaining == 0 {
+            coord.batch_remaining.remove(batch_id);
+            true
+        } else {
+            false
+        }
+    };
+    if complete {
+        log::info!("[refresh] batch {} complete", batch_id);
+        let _ = app_handle.emit(
+            "probe:batch-complete",
+            ProbeBatchComplete {
+                batch_id: batch_id.to_string(),
+            },
+        );
+    }
+}
+
+fn take_follow_up(finished_id: Option<&str>) -> Option<PendingProbe> {
+    let mut coord = probe_coord()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(id) = finished_id {
+        coord.in_flight.remove(id);
+        if let Some(entry) = coord.pending.remove(id) {
+            coord.in_flight.insert(id.to_string());
+            return Some(entry);
+        }
+    }
+    let free_id = coord
+        .pending
+        .keys()
+        .find(|id| !coord.in_flight.contains(*id))
+        .cloned();
+    free_id.and_then(|id| {
+        coord.in_flight.insert(id.clone());
+        coord.pending.remove(&id)
+    })
 }
 
 /// Create `~/.crossusage/config.json` on first launch if missing (proxy + optional Synthetic key).
@@ -651,33 +727,86 @@ async fn start_probe_batch(
         });
     }
 
-    let selected_count = selected_plugins.len();
-    let worker_count = probe_worker_count(selected_count);
-    if worker_count < selected_count {
+    // Partition: run now vs coalesce into pending follow-up (#856).
+    let (to_run, need_drain_worker) = {
+        let mut coord = probe_coord()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        coord
+            .batch_remaining
+            .insert(batch_id.clone(), selected_plugins.len());
+        let mut to_run = Vec::new();
+        let mut deferred = Vec::new();
+        for (plugin, account) in selected_plugins {
+            let id = account.instance_id.clone();
+            if coord.in_flight.contains(&id) {
+                coord.pending.insert(
+                    id.clone(),
+                    PendingProbe {
+                        batch_id: batch_id.clone(),
+                        plugin,
+                        account,
+                    },
+                );
+                deferred.push(id);
+            } else {
+                coord.in_flight.insert(id);
+                to_run.push((plugin, account));
+            }
+        }
+        if !deferred.is_empty() {
+            log::info!(
+                "[refresh] batch {} deferred (already in-flight): {:?}",
+                batch_id,
+                deferred
+            );
+        }
+        let need_drain = to_run.is_empty() && !deferred.is_empty() && coord.active_workers == 0;
+        if need_drain {
+            // Stale in_flight with no workers — free deferred ids so the drain worker can run them.
+            for id in &deferred {
+                coord.in_flight.remove(id);
+            }
+        }
+        (to_run, need_drain)
+    };
+
+    let history_dir = app_data_dir.clone();
+    let spawn_count = if to_run.is_empty() {
+        if need_drain_worker {
+            1
+        } else {
+            0
+        }
+    } else {
+        probe_worker_count(to_run.len())
+    };
+
+    if spawn_count > 0 && !to_run.is_empty() && spawn_count < to_run.len() {
         log::info!(
             "[refresh] batch {} using {} workers for {} plugins",
             batch_id,
-            worker_count,
-            selected_count
+            spawn_count,
+            to_run.len()
         );
     }
 
-    let remaining = Arc::new(AtomicUsize::new(selected_count));
-    let probe_queue = Arc::new(Mutex::new(
-        selected_plugins.into_iter().collect::<VecDeque<_>>(),
-    ));
-    let history_dir = app_data_dir.clone();
+    let probe_queue = Arc::new(Mutex::new(to_run.into_iter().collect::<VecDeque<_>>()));
 
-    for _ in 0..worker_count {
+    {
+        let mut coord = probe_coord()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        coord.active_workers += spawn_count;
+    }
+
+    for _ in 0..spawn_count {
         let handle = app_handle.clone();
-        let completion_handle = app_handle.clone();
-        let bid = batch_id.clone();
-        let completion_bid = batch_id.clone();
         let data_dir = app_data_dir.clone();
         let history_dir_spawn = history_dir.clone();
         let version = app_version.clone();
-        let counter = Arc::clone(&remaining);
         let queue = Arc::clone(&probe_queue);
+        let queue_batch_id = batch_id.clone();
 
         tauri::async_runtime::spawn_blocking(move || {
             loop {
@@ -688,94 +817,32 @@ async fn start_probe_batch(
                     queue.pop_front()
                 };
 
-                let Some((plugin, account_context)) = item else {
-                    break;
-                };
-
-                let plugin_id = account_context.instance_id.clone();
-                let probe_display_name = if account_context.label.trim().is_empty() {
-                    plugin.manifest.name.clone()
-                } else {
-                    format!(
-                        "{} ({})",
-                        plugin.manifest.name,
-                        account_context.label.trim()
-                    )
-                };
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    plugin_engine::runtime::run_probe_with_account(
-                        &plugin,
-                        &data_dir,
-                        &version,
-                        Some(account_context),
-                    )
-                }));
-
-                match result {
-                    Ok(output) => {
-                        let has_error = output.lines.iter().any(|line| {
-                            matches!(line, plugin_engine::runtime::MetricLine::Badge { label, .. } if label == "Error")
-                        });
-                        if has_error {
-                            log::warn!("probe {} completed with error", plugin_id);
-                        } else {
-                            log::info!(
-                                "probe {} completed ok ({} lines)",
-                                plugin_id,
-                                output.lines.len()
-                            );
-                            local_http_api::cache_successful_output(&output);
-                            if persist_usage_history_enabled(&handle) {
-                                if let Err(e) =
-                                    crossusage_core::usage_history::append_probe_snapshot(
-                                        &history_dir_spawn,
-                                        &output,
-                                    )
-                                {
-                                    log::debug!("usage history append: {}", e);
-                                }
-                                crossusage_core::plugin_engine::host_api::post_probe_ccusage_daily(
-                                    &history_dir_spawn,
-                                    &plugin_id,
-                                    &output.display_name,
-                                );
-                            }
-                        }
-                        let _ = handle.emit(
-                            "probe:result",
-                            ProbeResult {
-                                batch_id: bid.clone(),
-                                output,
-                            },
-                        );
+                let (plugin, account_context, bid) = match item {
+                    Some((plugin, account_context)) => {
+                        (plugin, account_context, queue_batch_id.clone())
                     }
-                    Err(_) => {
-                        log::error!("probe {} panicked", plugin_id);
-                        let output = plugin_engine::runtime::probe_fault_output(
-                            &plugin,
-                            &plugin_id,
-                            &probe_display_name,
-                            "The probe crashed. Try again or update the app.".to_string(),
-                        );
-                    let _ = handle.emit(
-                        "probe:result",
-                        ProbeResult {
-                            batch_id: bid.clone(),
-                            output,
-                        },
-                    );
-                }
-            }
+                    None => match take_follow_up(None) {
+                        Some(pending) => (pending.plugin, pending.account, pending.batch_id),
+                        None => break,
+                    },
+                };
+
+                run_and_emit_probe(
+                    &handle,
+                    &data_dir,
+                    &history_dir_spawn,
+                    &version,
+                    &bid,
+                    plugin,
+                    account_context,
+                );
             }
 
-            if counter.fetch_sub(1, Ordering::SeqCst) == 1 {
-                log::info!("[refresh] batch {} complete", completion_bid);
-                let _ = completion_handle.emit(
-                    "probe:batch-complete",
-                    ProbeBatchComplete {
-                        batch_id: completion_bid,
-                    },
-                );
+            {
+                let mut coord = probe_coord()
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                coord.active_workers = coord.active_workers.saturating_sub(1);
             }
         });
     }
@@ -784,6 +851,103 @@ async fn start_probe_batch(
         batch_id,
         plugin_ids: response_plugin_ids,
     })
+}
+
+fn run_and_emit_probe(
+    handle: &tauri::AppHandle,
+    data_dir: &PathBuf,
+    history_dir: &PathBuf,
+    version: &str,
+    batch_id: &str,
+    plugin: plugin_engine::manifest::LoadedPlugin,
+    account_context: provider_accounts::ProviderAccountContext,
+) {
+    let plugin_id = account_context.instance_id.clone();
+    let probe_display_name = if account_context.label.trim().is_empty() {
+        plugin.manifest.name.clone()
+    } else {
+        format!(
+            "{} ({})",
+            plugin.manifest.name,
+            account_context.label.trim()
+        )
+    };
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        plugin_engine::runtime::run_probe_with_account(
+            &plugin,
+            data_dir,
+            version,
+            Some(account_context),
+        )
+    }));
+
+    match result {
+        Ok(output) => {
+            let has_error = output.lines.iter().any(|line| {
+                matches!(line, plugin_engine::runtime::MetricLine::Badge { label, .. } if label == "Error")
+            });
+            if has_error {
+                log::warn!("probe {} completed with error", plugin_id);
+            } else {
+                log::info!(
+                    "probe {} completed ok ({} lines)",
+                    plugin_id,
+                    output.lines.len()
+                );
+                local_http_api::cache_successful_output(&output);
+                if persist_usage_history_enabled(handle) {
+                    if let Err(e) =
+                        crossusage_core::usage_history::append_probe_snapshot(history_dir, &output)
+                    {
+                        log::debug!("usage history append: {}", e);
+                    }
+                    crossusage_core::plugin_engine::host_api::post_probe_ccusage_daily(
+                        history_dir,
+                        &plugin_id,
+                        &output.display_name,
+                    );
+                }
+            }
+            let _ = handle.emit(
+                "probe:result",
+                ProbeResult {
+                    batch_id: batch_id.to_string(),
+                    output,
+                },
+            );
+        }
+        Err(_) => {
+            log::error!("probe {} panicked", plugin_id);
+            let output = plugin_engine::runtime::probe_fault_output(
+                &plugin,
+                &plugin_id,
+                &probe_display_name,
+                "The probe crashed. Try again or update the app.".to_string(),
+            );
+            let _ = handle.emit(
+                "probe:result",
+                ProbeResult {
+                    batch_id: batch_id.to_string(),
+                    output,
+                },
+            );
+        }
+    }
+
+    note_probe_finished(handle, batch_id);
+
+    // Run coalesced follow-up for this id (nested call continues the chain).
+    if let Some(pending) = take_follow_up(Some(&plugin_id)) {
+        run_and_emit_probe(
+            handle,
+            data_dir,
+            history_dir,
+            version,
+            &pending.batch_id,
+            pending.plugin,
+            pending.account,
+        );
+    }
 }
 
 pub(crate) fn resolve_log_file_path(app_handle: &tauri::AppHandle) -> Result<String, String> {
@@ -802,6 +966,85 @@ pub(crate) fn resolve_log_file_path(app_handle: &tauri::AppHandle) -> Result<Str
         let log_file = log_dir.join(format!("{}.log", app_handle.package_info().name));
         Ok(log_file.to_string_lossy().to_string())
     }
+}
+
+#[tauri::command]
+fn codex_claim_reset_credit(
+    state: tauri::State<'_, Mutex<AppState>>,
+    app_handle: tauri::AppHandle,
+    expires_at_iso: String,
+    redeem_request_id: String,
+    plugin_id: Option<String>,
+) -> Result<String, String> {
+    let instance_id = plugin_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("codex")
+        .to_string();
+    let (plugins, app_data_dir, version) = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        (
+            locked.plugins.clone(),
+            locked.app_data_dir.clone(),
+            app_handle.package_info().version.to_string(),
+        )
+    };
+
+    let account = provider_accounts::get_account(&app_data_dir, &instance_id)
+        .ok()
+        .flatten();
+    let base_provider_id = account
+        .as_ref()
+        .map(|entry| entry.base_provider_id.clone())
+        .filter(|base| !base.is_empty())
+        .unwrap_or_else(|| {
+            instance_id
+                .split_once(':')
+                .map(|(base, _)| base.to_string())
+                .unwrap_or_else(|| {
+                    if instance_id.starts_with("codex") {
+                        "codex".to_string()
+                    } else {
+                        instance_id.clone()
+                    }
+                })
+        });
+
+    let plugin = plugins
+        .into_iter()
+        .find(|p| p.manifest.id == base_provider_id || p.manifest.id == "codex")
+        .ok_or_else(|| "codex plugin not loaded".to_string())?;
+
+    let credential = account
+        .as_ref()
+        .map(|entry| entry.credential.clone())
+        .filter(|credential| !credential.is_empty());
+    let label = account
+        .as_ref()
+        .map(|entry| entry.label.clone())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| instance_id.clone());
+    let account_context = provider_accounts::ProviderAccountContext {
+        instance_id: instance_id.clone(),
+        base_provider_id,
+        label,
+        credential,
+        store_path: Some(provider_accounts::store_path(&app_data_dir)),
+    };
+
+    let args = serde_json::json!({
+        "expiresAtIso": expires_at_iso,
+        "redeemRequestId": redeem_request_id,
+    });
+    plugin_engine::runtime::run_plugin_action(
+        &plugin,
+        &app_data_dir,
+        &version,
+        "claimResetCredit",
+        &args.to_string(),
+        Some(account_context),
+    )
 }
 
 #[tauri::command]
@@ -1118,6 +1361,7 @@ pub fn run() {
             set_liquid_glass_enabled,
             open_devtools,
             start_probe_batch,
+            codex_claim_reset_credit,
             list_provider_accounts,
             save_provider_account,
             delete_provider_account,

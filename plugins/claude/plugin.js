@@ -16,6 +16,8 @@
   let rateLimitedUntilMs = 0  // epoch ms; 0 = not rate-limited
   let lastUsageFetchMs = 0    // epoch ms of the most-recent API attempt
   let cachedUsageData = null  // last successful API response body (parsed JSON)
+  // Cache belongs to the access+refresh credential pair — clear on login change (#953).
+  let cachedUsageLoginKey = null
 
   function utf8DecodeBytes(bytes) {
     // Prefer native TextDecoder when available (QuickJS may not expose it).
@@ -106,15 +108,23 @@
     return out
   }
 
+  function stripBom(text) {
+    const s = String(text == null ? "" : text)
+    return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s
+  }
+
   function tryParseCredentialJSON(ctx, text) {
     if (!text) return null
-    const parsed = ctx.util.tryParseJson(text)
-    if (parsed) return parsed
+    // Reject BOM-prefixed malformed credentials: strip BOM, then require valid JSON object.
+    const normalized = stripBom(text).replace(/^\uFEFF/, "").trim()
+    if (!normalized) return null
+    const parsed = ctx.util.tryParseJson(normalized)
+    if (parsed && typeof parsed === "object") return parsed
 
     // Some macOS keychain items are returned by `security ... -w` as hex-encoded UTF-8 bytes.
     // Example prefix: "7b0a" ( "{\\n" ).
     // Support both plain hex and "0x..." forms.
-    let hex = String(text).trim()
+    let hex = normalized
     if (hex.startsWith("0x") || hex.startsWith("0X")) hex = hex.slice(2)
     if (!hex || hex.length % 2 !== 0) return null
     if (!/^[0-9a-fA-F]+$/.test(hex)) return null
@@ -124,11 +134,30 @@
         bytes.push(parseInt(hex.slice(i, i + 2), 16))
       }
       const decoded = utf8DecodeBytes(bytes)
-      const decodedParsed = ctx.util.tryParseJson(decoded)
-      if (decodedParsed) return decodedParsed
+      const decodedParsed = ctx.util.tryParseJson(stripBom(decoded).trim())
+      if (decodedParsed && typeof decodedParsed === "object") return decodedParsed
     } catch {}
 
     return null
+  }
+
+  function credentialLoginKey(ctx, oauth) {
+    const access = oauth && oauth.accessToken ? String(oauth.accessToken) : ""
+    const refresh = oauth && oauth.refreshToken ? String(oauth.refreshToken) : ""
+    const material = access + "\0" + refresh
+    if (ctx.host.crypto && typeof ctx.host.crypto.sha256Hex === "function") {
+      return ctx.host.crypto.sha256Hex(material)
+    }
+    return material
+  }
+
+  function activateUsageCache(ctx, oauth) {
+    const key = credentialLoginKey(ctx, oauth)
+    if (cachedUsageLoginKey === key) return
+    cachedUsageLoginKey = key
+    cachedUsageData = null
+    rateLimitedUntilMs = 0
+    lastUsageFetchMs = 0
   }
 
   function readEnvText(ctx, name) {
@@ -334,11 +363,18 @@
       return stored
     }
 
+    // Prefer a profile-scoped interactive login over an inference-only env token (#865).
+    // CLAUDE_CODE_OAUTH_TOKEN (e.g. `claude setup-token`) 403s on /api/oauth/usage and must not
+    // shadow a stored login that can fetch live limits.
+    if (stored && hasProfileScope(stored)) {
+      return stored
+    }
+
     const oauth = stored && stored.oauth ? Object.assign({}, stored.oauth) : {}
     oauth.accessToken = envAccessToken
     return {
       oauth: oauth,
-      source: stored ? stored.source : null,
+      source: "environment",
       serviceName: stored ? stored.serviceName : null,
       fullData: stored ? stored.fullData : null,
       inferenceOnly: true,
@@ -939,6 +975,9 @@
     const nowMs = Date.now()
     let accessToken = creds.oauth.accessToken
     const canFetchLiveUsage = hasProfileScope(creds)
+    if (canFetchLiveUsage) {
+      activateUsageCache(ctx, creds.oauth)
+    }
 
     let data = null
     let lines = []
@@ -1220,6 +1259,7 @@
     rateLimitedUntilMs = 0
     lastUsageFetchMs = 0
     cachedUsageData = null
+    cachedUsageLoginKey = null
   }
 
   globalThis.__openusage_plugin = { id: "claude", probe, _resetState }

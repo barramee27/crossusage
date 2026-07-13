@@ -19,6 +19,8 @@ const {
   loadShowAccountIdentityMock,
   loadShowTrayIconMock,
   loadShowTrayInsightMock,
+  loadShowTotalSpendMock,
+  loadTotalSpendMetricMock,
   loadStartOnLoginMock,
   loadThemeModeMock,
   loadUILayoutMock,
@@ -52,6 +54,8 @@ const {
   loadShowAccountIdentityMock: vi.fn(),
   loadShowTrayIconMock: vi.fn(),
   loadShowTrayInsightMock: vi.fn(),
+  loadShowTotalSpendMock: vi.fn(),
+  loadTotalSpendMetricMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   loadThemeModeMock: vi.fn(),
   loadUILayoutMock: vi.fn(),
@@ -102,6 +106,8 @@ vi.mock("@/lib/settings", () => ({
   DEFAULT_SHOW_ACCOUNT_IDENTITY: true,
   DEFAULT_SHOW_TRAY_ICON: true,
   DEFAULT_SHOW_TRAY_INSIGHT: true,
+  DEFAULT_SHOW_TOTAL_SPEND: true,
+  DEFAULT_TOTAL_SPEND_METRIC: "apiSpend",
   DEFAULT_START_ON_LOGIN: false,
   DEFAULT_THEME_MODE: "system",
   DEFAULT_UI_LAYOUT: "classic",
@@ -113,6 +119,8 @@ vi.mock("@/lib/settings", () => ({
   getEnabledPluginIds: getEnabledPluginIdsMock,
   loadShowTrayIcon: loadShowTrayIconMock,
   loadShowTrayInsight: loadShowTrayInsightMock,
+  loadShowTotalSpend: loadShowTotalSpendMock,
+  loadTotalSpendMetric: loadTotalSpendMetricMock,
   loadAutoUpdateInterval: loadAutoUpdateIntervalMock,
   loadDisplayMode: loadDisplayModeMock,
   loadGlobalShortcut: loadGlobalShortcutMock,
@@ -171,6 +179,8 @@ function createArgs() {
     setUIScale: vi.fn(),
     setShowTrayIcon: vi.fn(),
     setShowTrayInsight: vi.fn(),
+    setShowTotalSpend: vi.fn(),
+    setTotalSpendMetric: vi.fn(),
     setUsageAlertEnabled: vi.fn(),
     setUsageAlertThreshold: vi.fn(),
     setCustomUsageAlertThreshold: vi.fn(),
@@ -204,6 +214,8 @@ describe("useSettingsBootstrap", () => {
     loadShowAccountIdentityMock.mockReset()
     loadShowTrayIconMock.mockReset()
     loadShowTrayInsightMock.mockReset()
+    loadShowTotalSpendMock.mockReset()
+    loadTotalSpendMetricMock.mockReset()
     loadStartOnLoginMock.mockReset()
     loadThemeModeMock.mockReset()
     loadUILayoutMock.mockReset()
@@ -255,6 +267,8 @@ describe("useSettingsBootstrap", () => {
     loadShowAccountIdentityMock.mockResolvedValue(false)
     loadShowTrayIconMock.mockResolvedValue(true)
     loadShowTrayInsightMock.mockResolvedValue(true)
+    loadShowTotalSpendMock.mockResolvedValue(true)
+    loadTotalSpendMetricMock.mockResolvedValue("apiSpend")
     migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     savePluginSettingsMock.mockResolvedValue(undefined)
     resolveOnboardingCompleteMock.mockResolvedValue(true)

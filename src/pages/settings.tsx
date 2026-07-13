@@ -36,6 +36,7 @@ import {
   savePersistUsageHistory,
   saveUsageHistoryRetentionDays,
   saveShowTrayInsight,
+  saveShowTotalSpend,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
@@ -669,6 +670,8 @@ function ProviderAccountForm({
 function InsightsSection() {
   const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight);
   const setShowTrayInsight = useAppPreferencesStore((state) => state.setShowTrayInsight);
+  const showTotalSpend = useAppPreferencesStore((state) => state.showTotalSpend);
+  const setShowTotalSpend = useAppPreferencesStore((state) => state.setShowTotalSpend);
 
   const onTrayInsightChange = async (checked: boolean) => {
     const prev = showTrayInsight;
@@ -678,6 +681,17 @@ function InsightsSection() {
     } catch (e) {
       console.error(e);
       setShowTrayInsight(prev);
+    }
+  };
+
+  const onTotalSpendChange = async (checked: boolean) => {
+    const prev = showTotalSpend;
+    setShowTotalSpend(checked);
+    try {
+      await saveShowTotalSpend(checked);
+    } catch (e) {
+      console.error(e);
+      setShowTotalSpend(prev);
     }
   };
 
@@ -693,6 +707,13 @@ function InsightsSection() {
           onCheckedChange={(checked) => void onTrayInsightChange(checked === true)}
         />
         Show top insight in menu bar / tray tooltip
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm select-none text-foreground">
+        <Checkbox
+          checked={showTotalSpend}
+          onCheckedChange={(checked) => void onTotalSpendChange(checked === true)}
+        />
+        Show Total Spend card on Modern dashboard
       </label>
     </section>
   );
@@ -1082,6 +1103,7 @@ interface SettingsPageProps {
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
   startOnLogin: boolean;
   onStartOnLoginChange: (value: boolean) => void;
+  startOnLoginError?: string | null;
   usageAlertEnabled: boolean;
   onUsageAlertEnabledChange: (value: boolean) => void;
   usageAlertThreshold: UsageAlertThreshold;
@@ -1141,6 +1163,7 @@ export function SettingsPage({
   onGlobalShortcutChange,
   startOnLogin,
   onStartOnLoginChange,
+  startOnLoginError,
   usageAlertEnabled,
   onUsageAlertEnabledChange,
   usageAlertThreshold,
@@ -1724,6 +1747,11 @@ export function SettingsPage({
           />
           Start on login
         </label>
+        {startOnLoginError ? (
+          <p className="mt-2 text-xs text-destructive" role="alert">
+            Couldn&apos;t update start on login: {startOnLoginError}
+          </p>
+        ) : null}
       </section>
       <InsightsSection />
       <LocalApiSection />

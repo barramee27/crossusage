@@ -105,6 +105,8 @@ function App() {
     setUsageSpikeAlertThresholdPct,
     setShowTrayIcon,
     setShowTrayInsight,
+    setShowTotalSpend,
+    setTotalSpendMetric,
     onboardingComplete,
     setOnboardingComplete,
   } = useAppPreferencesStore(
@@ -141,6 +143,8 @@ function App() {
       setUsageSpikeAlertThresholdPct: state.setUsageSpikeAlertThresholdPct,
       setShowTrayIcon: state.setShowTrayIcon,
       setShowTrayInsight: state.setShowTrayInsight,
+      setShowTotalSpend: state.setShowTotalSpend,
+      setTotalSpendMetric: state.setTotalSpendMetric,
       onboardingComplete: state.onboardingComplete,
       setOnboardingComplete: state.setOnboardingComplete,
     }))
@@ -209,6 +213,8 @@ function App() {
     setUIScale,
     setShowTrayIcon,
     setShowTrayInsight,
+    setShowTotalSpend,
+    setTotalSpendMetric,
     setGlobalShortcut,
     setStartOnLogin,
     setUsageAlertEnabled,
@@ -276,6 +282,7 @@ function App() {
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
     handleStartOnLoginChange,
+    startOnLoginError,
   } = useSettingsSystemActions({
     pluginSettings,
     setAutoUpdateInterval,
@@ -670,6 +677,7 @@ function App() {
       traySettingsPreview,
       onGlobalShortcutChange: handleGlobalShortcutChange,
       onStartOnLoginChange: handleStartOnLoginChange,
+      startOnLoginError,
       onUsageAlertEnabledChange: handleUsageAlertEnabledChange,
       onUsageAlertThresholdChange: handleUsageAlertThresholdChange,
       onUsageAlertCustomThresholdChange: handleUsageAlertCustomThresholdChange,

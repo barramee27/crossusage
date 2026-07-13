@@ -40,7 +40,9 @@ export function useAppUpdate(): UseAppUpdateReturn {
     if (!isTauri()) return
     if (!UPDATER_CHECKS_ENABLED) return
     if (inFlightRef.current.checking || inFlightRef.current.downloading || inFlightRef.current.installing) return
-    if (statusRef.current.status === "ready") return
+    // Keep a ready banner sticky until install — but allow a later check to clear it
+    // when the channel reports no update (#882 resolved banner).
+    const stickyReady = statusRef.current.status === "ready"
 
     // Clear any pending up-to-date timeout
     if (upToDateTimeoutRef.current !== null) {
@@ -48,12 +50,13 @@ export function useAppUpdate(): UseAppUpdateReturn {
       upToDateTimeoutRef.current = null
     }
     inFlightRef.current.checking = true
-    setStatus({ status: "checking" })
+    if (!stickyReady) setStatus({ status: "checking" })
     try {
       const update = await check()
       inFlightRef.current.checking = false
       if (!mountedRef.current) return
       if (!update) {
+        updateRef.current = null
         setStatus({ status: "up-to-date" })
         upToDateTimeoutRef.current = window.setTimeout(() => {
           upToDateTimeoutRef.current = null
@@ -63,6 +66,10 @@ export function useAppUpdate(): UseAppUpdateReturn {
       }
       if (update) {
         updateRef.current = update
+        if (stickyReady && statusRef.current.status === "ready") {
+          // Same ready version still available — leave the banner alone.
+          if (update.version === statusRef.current.version) return
+        }
         inFlightRef.current.downloading = true
         setStatus({ status: "downloading", progress: -1 })
 

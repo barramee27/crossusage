@@ -45,6 +45,8 @@ pub enum MetricLine {
         model_breakdown: Option<Vec<ModelSpendBreakdown>>,
         status_dot: Option<String>,
         expiry_tooltip: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reset_credit_expiries: Option<Vec<String>>,
     },
     Progress {
         label: String,
@@ -305,6 +307,105 @@ fn run_probe_with_account_timeout(
     })
 }
 
+/// Call a named export on `__openusage_plugin` (e.g. `claimResetCredit`) with JSON args.
+/// Returns the string result of the function, or an error message.
+pub fn run_plugin_action(
+    plugin: &LoadedPlugin,
+    app_data_dir: &PathBuf,
+    app_version: &str,
+    action: &str,
+    args_json: &str,
+    account: Option<ProviderAccountContext>,
+) -> Result<String, String> {
+    let timeout = Duration::from_secs(PROBE_TIMEOUT_SECS);
+    let deadline_at = Instant::now()
+        .checked_add(timeout)
+        .unwrap_or_else(Instant::now);
+    let deadline = host_api::ProbeDeadline::at(deadline_at);
+
+    let rt = Runtime::new().map_err(|_| "runtime init failed".to_string())?;
+    rt.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline_at)));
+    let ctx = Context::full(&rt).map_err(|_| "context init failed".to_string())?;
+
+    let plugin_id = account
+        .as_ref()
+        .map(|account| account.instance_id.clone())
+        .unwrap_or_else(|| plugin.manifest.id.clone());
+    let base_plugin_id = account
+        .as_ref()
+        .map(|account| account.base_provider_id.clone())
+        .unwrap_or_else(|| plugin.manifest.id.clone());
+    let entry_script = plugin.entry_script.clone();
+    let app_data = app_data_dir.clone();
+    let action_name = action.to_string();
+    let args_json = args_json.to_string();
+
+    ctx.with(|ctx| {
+        host_api::inject_host_api_with_deadline(
+            &ctx,
+            &base_plugin_id,
+            &plugin_id,
+            account.as_ref(),
+            &app_data,
+            app_version,
+            deadline,
+        )
+        .map_err(|_| "host api injection failed".to_string())?;
+        host_api::patch_http_wrapper(&ctx).map_err(|_| "http wrapper failed".to_string())?;
+        host_api::inject_utils(&ctx).map_err(|_| "utils injection failed".to_string())?;
+        ctx.eval::<(), _>(entry_script.as_bytes())
+            .map_err(|_| "script eval failed".to_string())?;
+
+        let globals = ctx.globals();
+        let plugin_obj: Object = globals
+            .get("__openusage_plugin")
+            .map_err(|_| "missing __openusage_plugin".to_string())?;
+        let action_fn: rquickjs::Function = plugin_obj
+            .get(action_name.as_str())
+            .map_err(|_| format!("missing action {action_name}"))?;
+
+        let probe_ctx: Value = globals
+            .get("__openusage_ctx")
+            .unwrap_or_else(|_| Value::new_undefined(ctx.clone()));
+
+        // Inject args as a global JSON literal, then read it back as a Value.
+        let inject = format!(
+            "globalThis.__openusage_action_args = ({args_json});"
+        );
+        ctx.eval::<(), _>(inject.as_bytes())
+            .map_err(|_| "invalid action args json".to_string())?;
+        let args_value: Value = globals
+            .get("__openusage_action_args")
+            .map_err(|_| "missing action args".to_string())?;
+
+        let result_value: Value = action_fn
+            .call((probe_ctx, args_value))
+            .map_err(|_| extract_error_string(&ctx))?;
+
+        let as_outcome = |value: Value| -> Result<String, String> {
+            if let Some(s) = value.as_string() {
+                return s
+                    .to_string()
+                    .map_err(|_| "action string decode failed".to_string());
+            }
+            Err("action returned non-string".to_string())
+        };
+
+        if result_value.is_promise() {
+            let promise: Promise = result_value
+                .into_promise()
+                .ok_or_else(|| "action returned invalid promise".to_string())?;
+            let finished: Value = promise.finish().map_err(|e| match e {
+                Error::WouldBlock => "action returned unresolved promise".to_string(),
+                _ => extract_error_string(&ctx),
+            })?;
+            as_outcome(finished)
+        } else {
+            as_outcome(result_value)
+        }
+    })
+}
+
 fn parse_model_breakdown(line: &Object) -> Option<Vec<ModelSpendBreakdown>> {
     let arr: Array = line.get("modelBreakdown").ok()?;
     let mut out = Vec::new();
@@ -344,6 +445,30 @@ fn parse_model_breakdown(line: &Object) -> Option<Vec<ModelSpendBreakdown>> {
     }
 }
 
+fn parse_reset_credit_expiries(line: &Object) -> Option<Vec<String>> {
+    let arr: Array = line.get("resetCreditExpiries").ok()?;
+    let mut out = Vec::new();
+    let len = arr.len();
+    for idx in 0..len {
+        let Ok(value) = arr.get::<Value>(idx) else {
+            continue;
+        };
+        if let Some(s) = value.as_string() {
+            if let Ok(text) = s.to_string() {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    out.push(trimmed.to_string());
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
 fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
     let lines: Array = result
         .get("lines")
@@ -367,6 +492,7 @@ fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
                 let model_breakdown = parse_model_breakdown(&line);
                 let status_dot = line.get::<_, String>("statusDot").ok();
                 let expiry_tooltip = line.get::<_, String>("expiryTooltip").ok();
+                let reset_credit_expiries = parse_reset_credit_expiries(&line);
                 out.push(MetricLine::Text {
                     label,
                     value,
@@ -375,6 +501,7 @@ fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
                     model_breakdown,
                     status_dot,
                     expiry_tooltip,
+                    reset_credit_expiries,
                 });
             }
             "progress" => {

@@ -2,8 +2,9 @@
 
 use crate::claude_usage_scanner;
 use crate::log_usage_types::{
-    DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, expand_tilde, host_query_response,
-    local_day_key_from_offset, since_local_midnight,
+    DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, cap_log_files_by_mtime,
+    expand_tilde, host_query_response, local_day_key_from_offset, since_local_midnight,
+    warn_unreadable_usage_file,
 };
 use crate::model_pricing::{ModelPricing, default_pricing};
 use serde_json::Value;
@@ -158,6 +159,7 @@ fn session_files(homes: &[PathBuf]) -> Vec<DiscoveredFile> {
             collect_session_files(home, home, &home_key, "", &mut files, &mut seen_relative);
         }
     }
+    cap_log_files_by_mtime(&mut files, |f| f.mtime, |f| f.size);
     files.sort_by(|a, b| a.path.cmp(&b.path));
     files
 }
@@ -265,8 +267,12 @@ impl RawUsage {
 }
 
 fn parse_file(path: &Path) -> Vec<CodexEvent> {
-    let Ok(data) = fs::read(path) else {
-        return vec![];
+    let data = match fs::read(path) {
+        Ok(data) => data,
+        Err(_) => {
+            warn_unreadable_usage_file(path);
+            return vec![];
+        }
     };
     let subagent = data.len() >= 16 * 1024 && data[..16 * 1024].windows(12).any(|w| w == b"thread_spawn");
     let replay_second = if subagent {

@@ -10,6 +10,8 @@ import {
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_SHOW_TRAY_INSIGHT,
+  DEFAULT_SHOW_TOTAL_SPEND,
+  DEFAULT_TOTAL_SPEND_METRIC,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_UI_LAYOUT,
@@ -59,6 +61,8 @@ type AppPreferencesStore = {
   uiScale: UIScale
   showTrayIcon: boolean
   showTrayInsight: boolean
+  showTotalSpend: boolean
+  totalSpendMetric: string
   usageAlertEnabled: boolean
   usageAlertThreshold: UsageAlertThreshold
   customUsageAlertThreshold: number | null
@@ -86,6 +90,8 @@ type AppPreferencesStore = {
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
   setShowTrayInsight: (value: boolean) => void
+  setShowTotalSpend: (value: boolean) => void
+  setTotalSpendMetric: (value: string) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -116,6 +122,8 @@ const initialState = {
   uiScale: DEFAULT_UI_SCALE,
   showTrayIcon: DEFAULT_SHOW_TRAY_ICON,
   showTrayInsight: DEFAULT_SHOW_TRAY_INSIGHT,
+  showTotalSpend: DEFAULT_SHOW_TOTAL_SPEND,
+  totalSpendMetric: DEFAULT_TOTAL_SPEND_METRIC,
   usageAlertEnabled: DEFAULT_USAGE_ALERT_ENABLED,
   usageAlertThreshold: DEFAULT_USAGE_ALERT_THRESHOLD,
   customUsageAlertThreshold: DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD,
@@ -146,6 +154,8 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setUIScale: (value) => set({ uiScale: value }),
   setShowTrayIcon: (value) => set({ showTrayIcon: value }),
   setShowTrayInsight: (value) => set({ showTrayInsight: value }),
+  setShowTotalSpend: (value) => set({ showTotalSpend: value }),
+  setTotalSpendMetric: (value) => set({ totalSpendMetric: value }),
   setUsageAlertEnabled: (value) => set({ usageAlertEnabled: value }),
   setUsageAlertThreshold: (value) => set({ usageAlertThreshold: value }),
   setCustomUsageAlertThreshold: (value) => set({ customUsageAlertThreshold: value }),

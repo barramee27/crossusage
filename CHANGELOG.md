@@ -2,6 +2,37 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.3.2
+
+**Theme:** OpenUsage **v0.7.4 + v0.7.5** upstream mega-patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.4-0.7.5.md](docs/PORT-0.7.4-0.7.5.md).
+
+### New features
+
+- **Total Spend** ring card — cross-provider spend sectors, Cost / Cost·MTok / Tokens menu, settings toggle, empty-state card.
+- **Codex claim resets** — hover popover claim flow against the real Codex consume endpoint (retry + `nothing_to_reset` copy).
+- **Pricing aliases** — GPT-5.6 / Grok 4.5 / Kimi K2.7 / Claude 4.7 Opus; request-wide long-context tier; Cursor `grok-4.5-fast-high` slug order. Bundled supplement `updated_at` **2026-07-08** (upstream hourly gh-pages refresh; fork keeps bundled data, no live HTTP fetch yet).
+
+### Bug fixes
+
+- **Refresh coordinator** — overlapping probe batches coalesce per plugin id so enablement wakes mid-refresh are not dropped (`MAX_CONCURRENT_PROBES = 4`).
+- **Log scanners** — cap Claude/Codex JSONL scan to 500 newest files / 256 MiB soft budget; warn once per unreadable path.
+- **Claude** — isolate usage cache on login change; prefer profile-scoped login over env token.
+- **Antigravity** — bind credential caches to verified local state; purge on logout.
+- **Cursor** — validate usage exports without dropping primary usage; mark MTD spend as estimated; log optional endpoint failures.
+- **Z.ai** — reject malformed / boolean quota values at numeric boundaries.
+- **OpenCode** — fail loudly on unreadable SQLite / auth sources.
+- **Credentials** — `host.fs.writeText` Unix `0600`; reject BOM-prefixed malformed credentials; OAuth refresh form encoding audited.
+- **Codex** — window routing by `limit_window_seconds`; show usage % as reported.
+- **UI** — update banner clears when up-to-date; launch-at-login errors stay visible; spend-row / resets hover polish.
+
+### Security
+
+- Private local credential file writes (`0600` on Unix) for plugin host text writes.
+
+Skipped macOS-only / upstream CI items (transparency Options, LaunchAgent, LaunchServices, PostHog iOS, Pages deploy actions) — see PORT doc Skip table.
+
+---
+
 ## 1.3.1
 
 **Theme:** OpenUsage **v0.7.2 + v0.7.3** upstream mega-patch (exceptional PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)).

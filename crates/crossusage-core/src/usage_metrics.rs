@@ -253,6 +253,7 @@ mod tests {
                 model_breakdown: None,
                 status_dot: None,
                 expiry_tooltip: None,
+                reset_credit_expiries: None,
                 },
                 MetricLine::Text {
                     label: "Output tokens".into(),
@@ -262,6 +263,7 @@ mod tests {
                 model_breakdown: None,
                 status_dot: None,
                 expiry_tooltip: None,
+                reset_credit_expiries: None,
                 },
                 MetricLine::Text {
                     label: "Cost".into(),
@@ -271,6 +273,7 @@ mod tests {
                 model_breakdown: None,
                 status_dot: None,
                 expiry_tooltip: None,
+                reset_credit_expiries: None,
                 },
                 MetricLine::Progress {
                     label: "Usage".into(),

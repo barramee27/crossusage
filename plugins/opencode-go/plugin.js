@@ -264,6 +264,20 @@
     ];
   }
 
+  function buildUnreadableSourceLines(ctx, detail) {
+    return {
+      plan: "Go",
+      warning: detail,
+      lines: [
+        ctx.line.badge({
+          label: "Status",
+          text: "Usage database unreadable",
+          color: "#f59e0b",
+        }),
+      ],
+    };
+  }
+
   function probe(ctx) {
     const authKey = loadAuthKey(ctx);
     const history = hasHistory(ctx);
@@ -273,12 +287,28 @@
       throw "OpenCode Go not detected. Log in with OpenCode Go or use it locally first.";
     }
 
+    // Auth present but SQLite unreadable — fail loudly (#969), not a silent empty badge.
+    if (authKey && !history.ok) {
+      ctx.host.log.warn("opencode sqlite unreadable while auth exists");
+      return buildUnreadableSourceLines(
+        ctx,
+        "Couldn't read OpenCode's usage database. Check file permissions or repair opencode.db.",
+      );
+    }
+
     if (!history.ok) {
       return { plan: "Go", lines: buildSoftEmptyLines(ctx) };
     }
 
     const rowsResult = loadHistory(ctx);
     if (!rowsResult.ok) {
+      if (authKey) {
+        ctx.host.log.warn("opencode sqlite history query failed while auth exists");
+        return buildUnreadableSourceLines(
+          ctx,
+          "Couldn't read OpenCode's usage database. Check file permissions or repair opencode.db.",
+        );
+      }
       return { plan: "Go", lines: buildSoftEmptyLines(ctx) };
     }
 

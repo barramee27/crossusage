@@ -5,9 +5,13 @@
   const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
   const REFRESH_URL = "https://auth.openai.com/oauth/token"
   const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
+  const RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
+  const CONSUME_RESET_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume"
   const CREDIT_USD_RATE = 0.04
   const REFRESH_AGE_MS = 8 * 24 * 60 * 60 * 1000
   const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
+  const PERIOD_SESSION_MS = 5 * 60 * 60 * 1000    // 5 hours
+  const PERIOD_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
   const ERR_NOT_LOGGED_IN = "Not logged in. Run `codex` to authenticate."
   const ERR_SESSION_EXPIRED = "Session expired. Run `codex` to log in again."
   const ERR_TOKEN_CONFLICT = "Token conflict. Run `codex` to log in again."
@@ -331,6 +335,192 @@
     })
   }
 
+  function resetCreditHeaders(accessToken, accountId, withJson) {
+    const headers = {
+      Authorization: "Bearer " + accessToken,
+      Accept: "application/json",
+      "User-Agent": "OpenUsage",
+      "OpenAI-Beta": "codex-1",
+      originator: "Codex Desktop",
+    }
+    if (withJson) headers["Content-Type"] = "application/json"
+    if (accountId) headers["ChatGPT-Account-Id"] = accountId
+    return headers
+  }
+
+  function fetchResetCredits(ctx, accessToken, accountId) {
+    return ctx.util.request({
+      method: "GET",
+      url: RESET_CREDITS_URL,
+      headers: resetCreditHeaders(accessToken, accountId, false),
+      timeoutMs: 10000,
+    })
+  }
+
+  function consumeResetCredit(ctx, accessToken, accountId, creditId, redeemRequestId) {
+    return ctx.util.request({
+      method: "POST",
+      url: CONSUME_RESET_URL,
+      headers: resetCreditHeaders(accessToken, accountId, true),
+      bodyText: JSON.stringify({
+        redeem_request_id: redeemRequestId,
+        credit_id: creditId,
+      }),
+      timeoutMs: 15000,
+    })
+  }
+
+  function outcomeFromConsume(status, bodyText) {
+    if (status < 200 || status >= 300) return "failed"
+    const parsed = ctxUtilTryParse(bodyText)
+    if (!parsed || typeof parsed.code !== "string") return "failed"
+    if (parsed.code === "reset" || parsed.code === "already_redeemed") return "success"
+    if (parsed.code === "nothing_to_reset") return "nothing_to_reset"
+    if (parsed.code === "no_credit") return "no_credit"
+    return "failed"
+  }
+
+  function ctxUtilTryParse(text) {
+    try {
+      return JSON.parse(String(text || ""))
+    } catch {
+      return null
+    }
+  }
+
+  function parseExpiryMs(value) {
+    if (typeof value === "string") {
+      const ms = Date.parse(value)
+      return Number.isFinite(ms) ? ms : null
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value
+    }
+    return null
+  }
+
+  function creditIdForExpiry(body, expiryMs) {
+    const credits = body && Array.isArray(body.credits) ? body.credits : []
+    for (let i = 0; i < credits.length; i++) {
+      const credit = credits[i]
+      if (!credit || typeof credit !== "object") continue
+      if (typeof credit.status === "string" && credit.status !== "available") continue
+      const ms = parseExpiryMs(credit.expires_at)
+      if (ms == null) continue
+      if (Math.abs(ms - expiryMs) < 1000 && typeof credit.id === "string" && credit.id) {
+        return credit.id
+      }
+    }
+    return null
+  }
+
+  function collectAuthCandidates(ctx) {
+    const out = []
+    const providerAuth = loadAuthFromProviderAccount(ctx)
+    if (providerAuth && providerAuth.auth && providerAuth.auth.tokens && providerAuth.auth.tokens.access_token) {
+      out.push({
+        accessToken: providerAuth.auth.tokens.access_token,
+        accountId: providerAuth.auth.tokens.account_id || null,
+      })
+    }
+    const fileAuth = loadFileAuthCandidates(ctx)
+    for (let i = 0; i < fileAuth.candidates.length; i++) {
+      const auth = fileAuth.candidates[i].auth
+      if (auth && auth.tokens && auth.tokens.access_token) {
+        out.push({
+          accessToken: auth.tokens.access_token,
+          accountId: auth.tokens.account_id || null,
+        })
+      }
+    }
+    const keychainAuth = loadAuthFromKeychain(ctx)
+    if (keychainAuth && keychainAuth.auth && keychainAuth.auth.tokens && keychainAuth.auth.tokens.access_token) {
+      out.push({
+        accessToken: keychainAuth.auth.tokens.access_token,
+        accountId: keychainAuth.auth.tokens.account_id || null,
+      })
+    }
+    return out
+  }
+
+  /**
+   * Claim a reset credit by expiry ISO. Returns outcome string:
+   * success | nothing_to_reset | no_credit | failed
+   */
+  function claimResetCredit(ctx, args) {
+    const expiresAtIso = args && args.expiresAtIso
+    const redeemRequestId = args && args.redeemRequestId
+    if (!expiresAtIso || !redeemRequestId) return "failed"
+    const expiryMs = Date.parse(expiresAtIso)
+    if (!Number.isFinite(expiryMs)) return "failed"
+
+    const candidates = collectAuthCandidates(ctx)
+    if (!candidates.length) {
+      ctx.host.log.error("reset claim: no usable Codex credentials")
+      return "failed"
+    }
+
+    let creditId = null
+    let preferred = candidates
+    let lastFailure = "no credential candidate authenticated"
+    for (let i = 0; i < candidates.length; i++) {
+      const creds = candidates[i]
+      let list
+      try {
+        list = fetchResetCredits(ctx, creds.accessToken, creds.accountId)
+      } catch (e) {
+        ctx.host.log.error("reset claim: credit list fetch failed: " + String(e))
+        return "failed"
+      }
+      if (list.status === 401 || list.status === 403) {
+        lastFailure = "credit list fetch rejected (" + list.status + ")"
+        continue
+      }
+      if (list.status < 200 || list.status >= 300) {
+        ctx.host.log.error("reset claim: credit list fetch failed (" + list.status + ")")
+        return "failed"
+      }
+      const body = ctxUtilTryParse(list.bodyText)
+      if (!body) {
+        ctx.host.log.error("reset claim: credit list body invalid")
+        return "failed"
+      }
+      creditId = creditIdForExpiry(body, expiryMs)
+      if (!creditId) return "no_credit"
+      preferred = [creds].concat(candidates.filter(function (c) {
+        return c.accessToken !== creds.accessToken || c.accountId !== creds.accountId
+      }))
+      break
+    }
+    if (!creditId) {
+      ctx.host.log.error("reset claim: " + lastFailure)
+      return "failed"
+    }
+
+    let lastRejection = null
+    for (let j = 0; j < preferred.length; j++) {
+      const creds = preferred[j]
+      let resp
+      try {
+        resp = consumeResetCredit(ctx, creds.accessToken, creds.accountId, creditId, redeemRequestId)
+      } catch (e) {
+        ctx.host.log.error("reset claim: consume request failed: " + String(e))
+        return "failed"
+      }
+      if (resp.status === 401 || resp.status === 403) {
+        lastRejection = resp.status
+        continue
+      }
+      const outcome = outcomeFromConsume(resp.status, resp.bodyText)
+      if (outcome === "failed") {
+        ctx.host.log.error("reset claim: consume failed (" + resp.status + ")")
+      }
+      return outcome
+    }
+    ctx.host.log.error("reset claim: consume rejected for every credential (last: " + (lastRejection || "none") + ")")
+    return "failed"
+  }
+
   function readPercent(value) {
     const n = Number(value)
     return Number.isFinite(n) ? n : null
@@ -385,6 +575,76 @@
     return fallbackMs
   }
 
+  function exactWindowKind(window) {
+    if (!window || typeof window !== "object") return null
+    if (typeof window.limit_window_seconds !== "number") return null
+    const periodMs = window.limit_window_seconds * 1000
+    if (periodMs === PERIOD_SESSION_MS) return "session"
+    if (periodMs === PERIOD_WEEKLY_MS) return "weekly"
+    return null
+  }
+
+  function windowCandidate(window, headerPercent, fallbackKind) {
+    if (!window || typeof window !== "object") {
+      if (headerPercent == null) return null
+      return { window: {}, usedPercent: headerPercent, fallbackKind: fallbackKind }
+    }
+    const usedPercent = typeof window.used_percent === "number"
+      ? window.used_percent
+      : headerPercent
+    if (usedPercent == null || typeof usedPercent !== "number") return null
+    return { window: window, usedPercent: usedPercent, fallbackKind: fallbackKind }
+  }
+
+  function classifiedWindowLine(ctx, kind, label, candidates, nowSec) {
+    let candidate = null
+    for (let i = 0; i < candidates.length; i++) {
+      if (exactWindowKind(candidates[i].window) === kind) {
+        candidate = candidates[i]
+        break
+      }
+    }
+    if (!candidate) {
+      for (let j = 0; j < candidates.length; j++) {
+        if (exactWindowKind(candidates[j].window) == null && candidates[j].fallbackKind === kind) {
+          candidate = candidates[j]
+          break
+        }
+      }
+    }
+    if (!candidate) return null
+    const defaultPeriodMs = kind === "session" ? PERIOD_SESSION_MS : PERIOD_WEEKLY_MS
+    const periodMs = readPeriodMs(candidate.window, defaultPeriodMs)
+    return ctx.line.progress({
+      label: label,
+      used: normalizedUsedPercent(ctx, candidate.usedPercent, candidate.window, nowSec, periodMs),
+      limit: 100,
+      format: { kind: "percent" },
+      resetsAt: getResetsAtIso(ctx, nowSec, candidate.window),
+      periodDurationMs: periodMs,
+    })
+  }
+
+  function classifiedWindowLines(ctx, rateLimit, labels, headerPercents, nowSec) {
+    const candidates = [
+      windowCandidate(
+        rateLimit && rateLimit.primary_window,
+        headerPercents && headerPercents.primary,
+        "session",
+      ),
+      windowCandidate(
+        rateLimit && rateLimit.secondary_window,
+        headerPercents && headerPercents.secondary,
+        "weekly",
+      ),
+    ].filter(Boolean)
+
+    return [
+      classifiedWindowLine(ctx, "session", labels.session, candidates, nowSec),
+      classifiedWindowLine(ctx, "weekly", labels.weekly, candidates, nowSec),
+    ].filter(Boolean)
+  }
+
   function isFreshRateLimitWindow(nowMs, resetsAtMs, periodDurationMs) {
     if (!Number.isFinite(resetsAtMs) || !Number.isFinite(periodDurationMs) || periodDurationMs <= 0) {
       return false
@@ -405,7 +665,11 @@
   }
 
   function readResetCredits(data) {
-    const src = data && data.rate_limit_reset_credits
+    let src = data && data.rate_limit_reset_credits
+    // Dedicated /rate-limit-reset-credits response is the credits object itself.
+    if ((!src || typeof src !== "object") && data && typeof data === "object" && data.available_count != null) {
+      src = data
+    }
     if (!src || typeof src !== "object") return null
     if (src.available_count == null) return null
     const count = readNumber(src.available_count)
@@ -419,7 +683,7 @@
       if (status && status !== "available") continue
       const expiresAt = credit.expires_at
       let ms = NaN
-      if (typeof expiresAt === "number") ms = expiresAt * 1000
+      if (typeof expiresAt === "number") ms = expiresAt < 1e12 ? expiresAt * 1000 : expiresAt
       else if (typeof expiresAt === "string") ms = Date.parse(expiresAt)
       if (Number.isFinite(ms)) expiries.push(ms)
     }
@@ -451,10 +715,6 @@
     }
     return lines.join("\n")
   }
-
-  // Period durations in milliseconds
-  var PERIOD_SESSION_MS = 5 * 60 * 60 * 1000    // 5 hours
-  var PERIOD_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
   function dailyHasUsage(daily) {
     if (!Array.isArray(daily) || daily.length === 0) return false
@@ -931,67 +1191,20 @@
       const lines = []
       const nowSec = Math.floor(Date.now() / 1000)
       const rateLimit = data.rate_limit || null
-      const primaryWindow = rateLimit && rateLimit.primary_window ? rateLimit.primary_window : null
-      const secondaryWindow = rateLimit && rateLimit.secondary_window ? rateLimit.secondary_window : null
 
       const headerPrimary = readPercent(resp.headers["x-codex-primary-used-percent"])
       const headerSecondary = readPercent(resp.headers["x-codex-secondary-used-percent"])
 
-      if (headerPrimary !== null) {
-        lines.push(ctx.line.progress({
-          label: "Session",
-          used: normalizedUsedPercent(ctx, headerPrimary, primaryWindow, nowSec, PERIOD_SESSION_MS),
-          limit: 100,
-          format: { kind: "percent" },
-          resetsAt: getResetsAtIso(ctx, nowSec, primaryWindow),
-          periodDurationMs: PERIOD_SESSION_MS
-        }))
-      }
-      if (headerSecondary !== null) {
-        lines.push(ctx.line.progress({
-          label: "Weekly",
-          used: normalizedUsedPercent(ctx, headerSecondary, secondaryWindow, nowSec, PERIOD_WEEKLY_MS),
-          limit: 100,
-          format: { kind: "percent" },
-          resetsAt: getResetsAtIso(ctx, nowSec, secondaryWindow),
-          periodDurationMs: PERIOD_WEEKLY_MS
-        }))
-      }
-
-      if (lines.length === 0 && data.rate_limit) {
-        if (data.rate_limit.primary_window && typeof data.rate_limit.primary_window.used_percent === "number") {
-          lines.push(ctx.line.progress({
-            label: "Session",
-            used: normalizedUsedPercent(
-              ctx,
-              data.rate_limit.primary_window.used_percent,
-              primaryWindow,
-              nowSec,
-              PERIOD_SESSION_MS,
-            ),
-            limit: 100,
-            format: { kind: "percent" },
-            resetsAt: getResetsAtIso(ctx, nowSec, primaryWindow),
-            periodDurationMs: PERIOD_SESSION_MS
-          }))
-        }
-        if (data.rate_limit.secondary_window && typeof data.rate_limit.secondary_window.used_percent === "number") {
-          lines.push(ctx.line.progress({
-            label: "Weekly",
-            used: normalizedUsedPercent(
-              ctx,
-              data.rate_limit.secondary_window.used_percent,
-              secondaryWindow,
-              nowSec,
-              PERIOD_WEEKLY_MS,
-            ),
-            limit: 100,
-            format: { kind: "percent" },
-            resetsAt: getResetsAtIso(ctx, nowSec, secondaryWindow),
-            periodDurationMs: PERIOD_WEEKLY_MS
-          }))
-        }
-      }
+      // Classify Session vs Weekly by limit_window_seconds duration when present (#980).
+      // Codex can move a sole weekly limit into the primary slot.
+      const classified = classifiedWindowLines(
+        ctx,
+        rateLimit,
+        { session: "Session", weekly: "Weekly" },
+        { primary: headerPrimary, secondary: headerSecondary },
+        nowSec,
+      )
+      for (let i = 0; i < classified.length; i++) lines.push(classified[i])
 
       if (Array.isArray(data.additional_rate_limits)) {
         for (const entry of data.additional_rate_limits) {
@@ -999,40 +1212,48 @@
           const name = typeof entry.limit_name === "string" ? entry.limit_name : ""
           let shortName = name.replace(/^GPT-[\d.]+-Codex-/, "")
           if (!shortName) shortName = name || "Model"
-          const rl = entry.rate_limit
-          if (rl.primary_window && typeof rl.primary_window.used_percent === "number") {
-            const periodMs = readPeriodMs(rl.primary_window, PERIOD_SESSION_MS)
-            lines.push(ctx.line.progress({
-              label: shortName,
-              used: normalizedUsedPercent(ctx, rl.primary_window.used_percent, rl.primary_window, nowSec, periodMs),
-              limit: 100,
-              format: { kind: "percent" },
-              resetsAt: getResetsAtIso(ctx, nowSec, rl.primary_window),
-              periodDurationMs: periodMs
-            }))
-          }
-          if (rl.secondary_window && typeof rl.secondary_window.used_percent === "number") {
-            const periodMs = readPeriodMs(rl.secondary_window, PERIOD_WEEKLY_MS)
-            lines.push(ctx.line.progress({
-              label: shortName + " Weekly",
-              used: normalizedUsedPercent(ctx, rl.secondary_window.used_percent, rl.secondary_window, nowSec, periodMs),
-              limit: 100,
-              format: { kind: "percent" },
-              resetsAt: getResetsAtIso(ctx, nowSec, rl.secondary_window),
-              periodDurationMs: periodMs
-            }))
-          }
+          const sparkLines = classifiedWindowLines(
+            ctx,
+            entry.rate_limit,
+            { session: shortName, weekly: shortName + " Weekly" },
+            { primary: null, secondary: null },
+            nowSec,
+          )
+          for (let s = 0; s < sparkLines.length; s++) lines.push(sparkLines[s])
         }
       }
 
       const resetCredits = readResetCredits(data)
-      if (resetCredits !== null) {
+      // Dedicated expiry list only when usage reported credits (count) — avoid an extra call otherwise.
+      let mergedCredits = resetCredits
+      if (accessToken && resetCredits !== null) {
+        try {
+          const creditsResp = fetchResetCredits(ctx, accessToken, accountId)
+          if (creditsResp && creditsResp.status >= 200 && creditsResp.status < 300) {
+            const creditsBody = ctxUtilTryParse(creditsResp.bodyText)
+            const detailed = readResetCredits(creditsBody)
+            if (detailed) {
+              mergedCredits = {
+                count: detailed.count,
+                expiries: detailed.expiries.length ? detailed.expiries : resetCredits.expiries,
+              }
+            }
+          }
+        } catch (e) {
+          ctx.host.log.warn("reset credits detail fetch failed: " + String(e))
+        }
+      }
+      if (mergedCredits !== null) {
         const nowMs = Date.now()
+        const expiryIsos = mergedCredits.expiries.map(function (ms) {
+          return new Date(ms).toISOString()
+        })
         lines.push(ctx.line.text({
           label: "Rate Limit Resets",
-          value: resetCredits.count + " available",
-          statusDot: expiryStatusDot(resetCredits.expiries, nowMs),
-          expiryTooltip: formatExpiryTooltip(resetCredits.expiries),
+          value: mergedCredits.count + " available",
+          statusDot: expiryStatusDot(mergedCredits.expiries, nowMs),
+          expiryTooltip: formatExpiryTooltip(mergedCredits.expiries),
+          resetCreditExpiries: expiryIsos,
         }))
       }
 
@@ -1184,5 +1405,5 @@
     throw ERR_NOT_LOGGED_IN
   }
 
-  globalThis.__openusage_plugin = { id: "codex", probe }
+  globalThis.__openusage_plugin = { id: "codex", probe, claimResetCredit }
 })()
