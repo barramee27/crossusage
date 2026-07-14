@@ -246,6 +246,18 @@ const DEFAULT_ENABLED_PLUGINS = new Set(["claude", "codex", "cursor"]);
 
 export { DEFAULT_ENABLED_PLUGINS };
 
+const ANTIGRAVITY_LABEL_MIGRATION: Record<string, string> = {
+  "Gemini 3 Pro": "Session",
+  "Gemini 3 Flash": "Session",
+  "Gemini Pro": "Session",
+  "Gemini Flash": "Session",
+  "Claude Opus 4.5": "Session — Claude and GPT Models",
+  "Claude Opus 4.6": "Session — Claude and GPT Models",
+  "Claude": "Session — Claude and GPT Models",
+};
+
+const ANTIGRAVITY_PLUGIN_IDS = new Set(["antigravity", "antigravity-cli", "antigravity-ide"]);
+
 export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   order: [],
   disabled: [],
@@ -396,6 +408,19 @@ export function normalizePluginSettings(
           normalizedLines.map((l) =>
             l === "All usage" || l === "Total usage" ? "Total usage" : l
           )
+        ),
+      ];
+    }
+    // Migrate old Antigravity line labels to new overview equivalents
+    const migratedLines = trayLines[key];
+    if (
+      ANTIGRAVITY_PLUGIN_IDS.has(key) &&
+      Array.isArray(migratedLines) &&
+      migratedLines[0] !== "__NONE__"
+    ) {
+      trayLines[key] = [
+        ...new Set(
+          migratedLines.map((l) => ANTIGRAVITY_LABEL_MIGRATION[l] ?? l)
         ),
       ];
     }
