@@ -667,6 +667,7 @@ describe("antigravity plugin", () => {
       "Weekly — Claude and GPT Models",
     ])
     expect(result.lines.map((line) => line.used)).toEqual([12, 2, 0, 0])
+    expect(result.lines.map((line) => line.color)).toEqual(["#4285F4", "#4285F4", "#4285F4", "#4285F4"])
     expect(result.lines[0].resetsAt).toBe("2026-07-10T04:55:18Z")
     expect(result.lines[1].periodDurationMs).toBe(7 * 24 * 60 * 60 * 1000)
   })

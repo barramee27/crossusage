@@ -583,6 +583,7 @@
       limit: 100,
       format: { kind: "percent" },
       periodDurationMs: typeof bucket.periodMs === "number" ? bucket.periodMs : QUOTA_PERIOD_MS,
+      color: "#4285F4",
     }
     if (bucket.resetTime) {
       var iso = ctx.util.toIso ? ctx.util.toIso(bucket.resetTime) : bucket.resetTime

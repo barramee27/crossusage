@@ -9,6 +9,11 @@
 - **Unknown pi models:** skipped from totals (no `unknownModelsByDay` on `DailyUsageRow`); same as existing Claude/Codex Rust aggregate.
 - **Cursor enterprise on-demand without limit:** CrossUsage has no `values` MetricLine; emit `text` (`$X.XX`) when usage-summary has used>0 but no positive limit (Swift uses `.values`).
 
+## 2026-07-14
+
+- Antigravity label migration: migrate old desktop/CLI line labels in both Classic `trayLines` and Modern `metricId` state; exclude `antigravity-ide` because its labels/API path were intentionally left alone.
+- Antigravity display color: carry `#4285F4` as `line.color` from desktop/CLI plugin output and let Modern widget progress fill/pace dot honor custom line colors.
+
 ## 2026-07-10
 
 - Tauri dev on Windows: use explicit IPv4 loopback (`127.0.0.1:1420`) for both `devUrl` and Vite host. Avoid `localhost` because Vite can bind only `[::1]`, leaving WebView unable to reach the dev server on some Windows setups.

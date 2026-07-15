@@ -498,6 +498,7 @@
       format: { kind: "percent" },
       resetsAt: resetTime || undefined,
       periodDurationMs: duration,
+      color: "#4285F4",
     })
   }
 

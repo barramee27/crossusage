@@ -1,6 +1,7 @@
 import { metricId, metricIdPrefix, migrateMetricId, parseMetricId } from "@/lib/metric-id"
 import type { PluginSettings } from "@/lib/settings"
 import type { MetricDescriptor } from "@/lib/metric-registry"
+import { migrateAntigravityLineLabel } from "@/lib/antigravity-label-migration"
 
 export const MAX_PINS_PER_PROVIDER = 2
 
@@ -69,7 +70,16 @@ export function normalizeModernLayout(raw: unknown): ModernLayoutState {
   const o = raw as Record<string, unknown>
   const strArray = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []
-  const metricIdArray = (v: unknown): string[] => strArray(v).map(migrateMetricId)
+  const migrateStoredMetricId = (id: string): string => {
+    const normalized = migrateMetricId(id)
+    const parsed = parseMetricId(normalized)
+    if (!parsed) return normalized
+    return metricId(
+      parsed.pluginId,
+      migrateAntigravityLineLabel(parsed.pluginId, parsed.lineLabel),
+    )
+  }
+  const metricIdArray = (v: unknown): string[] => strArray(v).map(migrateStoredMetricId)
   const metricOrder: Record<string, string[]> = {}
   if (o.metricOrderByProvider && typeof o.metricOrderByProvider === "object") {
     for (const [k, v] of Object.entries(o.metricOrderByProvider as Record<string, unknown>)) {

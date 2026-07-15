@@ -39,13 +39,15 @@ type WidgetRowProps = {
 function PaceDot({ data }: { data: WidgetData }) {
   if (!data.bounded || !data.paceStatus) return null
   const status = data.paceStatus
+  const dotColor = data.color
   return (
     <Tooltip>
       <TooltipTrigger
         render={(props) => (
           <span
             {...props}
-            className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0", PACE_DOT[status])}
+            className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0", !dotColor && PACE_DOT[status])}
+            style={dotColor ? { backgroundColor: dotColor } : undefined}
             aria-label={data.isLimitReached ? "Limit reached" : getPaceStatusText(status)}
           />
         )}
@@ -202,6 +204,7 @@ export function WidgetRow({ data, compact, className, onRefreshPlugin }: WidgetR
     data.paceStatus && !data.isLimitReached
       ? PACE_FILL[data.paceStatus]
       : "bg-primary"
+  const fillColor = data.color
 
   return (
     <div className={cn(compact ? "py-1" : "py-1.5", className)}>
@@ -212,8 +215,11 @@ export function WidgetRow({ data, compact, className, onRefreshPlugin }: WidgetR
       </div>
       <div className={cn("rounded-full bg-muted overflow-hidden", compact ? "h-1" : "h-1.5")}>
         <div
-          className={cn("h-full rounded-full transition-all", fillClass)}
-          style={{ width: `${Math.round(fraction * 100)}%` }}
+          className={cn("h-full rounded-full transition-all", !fillColor && fillClass)}
+          style={{
+            width: `${Math.round(fraction * 100)}%`,
+            ...(fillColor ? { backgroundColor: fillColor } : {}),
+          }}
         />
       </div>
       {data.textSecondary ? (

@@ -95,6 +95,7 @@ describe("antigravity-cli plugin", () => {
       "Weekly — Claude and GPT Models",
     ])
     expect(result.lines.map((line) => line.used)).toEqual([12, 2, 0, 0])
+    expect(result.lines.map((line) => line.color)).toEqual(["#4285F4", "#4285F4", "#4285F4", "#4285F4"])
     expect(result.lines.find((line) => line.label === "Weekly").periodDurationMs).toBe(604800000)
     expect(ctx.host.http.request).toHaveBeenCalledTimes(1)
   })

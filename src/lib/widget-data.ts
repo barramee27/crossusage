@@ -33,6 +33,7 @@ export type WidgetData = {
   resetCreditExpiries?: string[]
   /** Plugin instance id for claim actions (e.g. codex). */
   pluginId?: string
+  color?: string
 }
 
 export function placeholderWidgetData(args: {
@@ -158,6 +159,7 @@ export function resolveWidgetData(args: {
       paceStatus,
       paceDetail,
       isLimitReached: limit > 0 && used >= limit,
+      color: line.color,
     }
   }
 
