@@ -1,8 +1,9 @@
 //! Native Claude Code session log scanner (ports upstream ClaudeLogUsageScanner).
 
 use crate::log_usage_types::{
-    DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, expand_tilde, host_query_response,
-    local_day_key_from_offset, since_local_midnight,
+    DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, cap_log_files_by_mtime,
+    expand_tilde, host_query_response, local_day_key_from_offset, since_local_midnight,
+    warn_unreadable_usage_file,
 };
 use crate::model_pricing::{ModelPricing, default_pricing};
 use serde_json::Value;
@@ -216,6 +217,8 @@ fn usage_files(roots: &[PathBuf]) -> Vec<DiscoveredFile> {
     for root in roots {
         walk_jsonl(&root.join("projects"), &mut files);
     }
+    cap_log_files_by_mtime(&mut files, |f| f.mtime, |f| f.size);
+    // Stable path order for keep-first dedup after the newest-N / byte cap.
     files.sort_by(|a, b| a.path.cmp(&b.path));
     files
 }
@@ -251,8 +254,12 @@ fn file_mtime_before(mtime: &SystemTime, since: OffsetDateTime) -> bool {
 }
 
 fn parse_file(path: &Path) -> Vec<ClaudeEntry> {
-    let Ok(data) = fs::read(path) else {
-        return vec![];
+    let data = match fs::read(path) {
+        Ok(data) => data,
+        Err(_) => {
+            warn_unreadable_usage_file(path);
+            return vec![];
+        }
     };
     let marker = br#""usage":{"#;
     let mut entries = Vec::new();
@@ -548,7 +555,12 @@ mod tests {
         let projects = tmp.path().join("projects").join("demo");
         fs::create_dir_all(&projects).unwrap();
         let log = projects.join("sess.jsonl");
-        let line = r#"{"timestamp":"2026-07-06T12:00:00Z","message":{"id":"m1","model":"claude-sonnet-4-20250514","usage":{"input_tokens":100,"output_tokens":50}},"requestId":"r1","version":"1.0.0"}"#;
+        let line = format!(
+            r#"{{"timestamp":"{}","message":{{"id":"m1","model":"claude-sonnet-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}},"requestId":"r1","version":"1.0.0"}}"#,
+            OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap()
+        );
         let mut f = fs::File::create(&log).unwrap();
         writeln!(f, "{line}").unwrap();
 

@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useTotalSpendVisibilityToggle } from "@/components/modern/total-spend-card"
 import type { MetricDescriptor } from "@/lib/metric-registry"
 import { cn } from "@/lib/utils"
 
@@ -248,6 +249,7 @@ export function CustomizeView({
   const placed = new Set(placedMetricIds)
   const groups = orderDescriptors(descriptors, providerOrder, metricOrderByProvider)
   const providerIds = groups.map((g) => g.pluginId)
+  const { showTotalSpend, setShowTotalSpend } = useTotalSpendVisibilityToggle()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -273,6 +275,13 @@ export function CustomizeView({
 
   return (
     <div className="space-y-3 pb-2">
+      <label className="flex items-center gap-2 text-sm select-none px-0.5">
+        <Checkbox
+          checked={showTotalSpend}
+          onCheckedChange={(checked) => setShowTotalSpend(checked === true)}
+        />
+        Show Total Spend card
+      </label>
       <p className="text-xs text-muted-foreground px-0.5">
         Drag to reorder dashboard cards and rows. Metric toggles stay in sync with Classic provider lines.
       </p>

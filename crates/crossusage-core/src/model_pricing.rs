@@ -1,4 +1,7 @@
-//! Bundled model pricing (supplement + LiteLLM compact snapshot). Ports upstream OpenUsage v0.7.3.
+//! Bundled model pricing (supplement + LiteLLM compact snapshot).
+//! Ports upstream OpenUsage v0.7.3+ aliases; v0.7.4 #909 refreshes price lists hourly
+//! upstream via gh-pages. This fork ships the bundled supplement (`updated_at` in JSON)
+//! and does not fetch over the network — optional follow-up if live refresh is needed.
 
 use crate::log_usage_types::TokenBreakdown;
 use regex_lite::Regex;
@@ -37,43 +40,55 @@ impl ModelRates {
         }
     }
 
+    /// Dollar cost of one request. When `apply_long_context_rates` and prompt tokens
+    /// (input + cache writes + cache reads) exceed 200k, the whole request uses the
+    /// long-context tier rates (upstream OpenUsage 0.7.4 #885).
     pub fn cost_dollars(&self, tokens: &TokenBreakdown) -> f64 {
+        self.cost_dollars_with_options(tokens, true)
+    }
+
+    pub fn cost_dollars_with_options(
+        &self,
+        tokens: &TokenBreakdown,
+        apply_long_context_rates: bool,
+    ) -> f64 {
         const CACHE_WRITE_1H_MULT: f64 = 2.0;
         let mult = if tokens.is_fast { self.fast_multiplier } else { 1.0 };
-        let cost = tiered_cost(tokens.input, self.input_per_million, self.input_above_200k)
-            + tiered_cost(tokens.output, self.output_per_million, self.output_above_200k)
-            + tiered_cost(
-                tokens.cache_write5m,
-                self.cache_write_per_million,
-                self.cache_write_above_200k,
-            )
-            + tiered_cost(
-                tokens.cache_write1h,
-                self.input_per_million * CACHE_WRITE_1H_MULT,
-                self.input_above_200k.map(|v| v * CACHE_WRITE_1H_MULT),
-            )
-            + tiered_cost(
-                tokens.cache_read,
-                self.cache_read_per_million,
-                self.cache_read_above_200k,
-            );
+        let prompt_tokens =
+            tokens.input + tokens.cache_write5m + tokens.cache_write1h + tokens.cache_read;
+        let use_long = apply_long_context_rates && prompt_tokens > 200_000;
+        let input_rate = selected_rate(self.input_per_million, self.input_above_200k, use_long);
+        let output_rate = selected_rate(self.output_per_million, self.output_above_200k, use_long);
+        let cache_write_rate =
+            selected_rate(self.cache_write_per_million, self.cache_write_above_200k, use_long);
+        let cache_read_rate =
+            selected_rate(self.cache_read_per_million, self.cache_read_above_200k, use_long);
+        let cache_write_1h_rate =
+            selected_rate(self.input_per_million, self.input_above_200k, use_long)
+                * CACHE_WRITE_1H_MULT;
+
+        let cost = flat_cost(tokens.input, input_rate)
+            + flat_cost(tokens.output, output_rate)
+            + flat_cost(tokens.cache_write5m, cache_write_rate)
+            + flat_cost(tokens.cache_write1h, cache_write_1h_rate)
+            + flat_cost(tokens.cache_read, cache_read_rate);
         cost * mult
     }
 }
 
-fn tiered_cost(tokens: i32, base: f64, above: Option<f64>) -> f64 {
+fn selected_rate(base: f64, long_context: Option<f64>, use_long: bool) -> f64 {
+    if use_long {
+        long_context.unwrap_or(base)
+    } else {
+        base
+    }
+}
+
+fn flat_cost(tokens: i32, rate_per_million: f64) -> f64 {
     if tokens <= 0 {
         return 0.0;
     }
-    let threshold = 200_000;
-    if let Some(above_rate) = above {
-        if tokens > threshold {
-            return (f64::from(threshold) * base
-                + f64::from(tokens - threshold) * above_rate)
-                / 1_000_000.0;
-        }
-    }
-    f64::from(tokens) * base / 1_000_000.0
+    f64::from(tokens) * rate_per_million / 1_000_000.0
 }
 
 struct AliasRule {
@@ -363,5 +378,65 @@ mod tests {
         let p = ModelPricing::from_bundled();
         let rates = p.resolve("claude-opus-4-7-fast").expect("opus fast");
         assert!((rates.input_per_million - 30.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn gpt_5_6_aliases_resolve() {
+        let p = ModelPricing::from_bundled();
+        assert!(p.can_price("gpt-5.6-sol"));
+        assert!(p.can_price("gpt-5.6-terra-fast"));
+        assert!(p.can_price("gpt-5.6-luna"));
+    }
+
+    #[test]
+    fn grok_4_5_and_kimi_k2_7_aliases() {
+        let p = ModelPricing::from_bundled();
+        let grok = p.resolve("grok-4.5-fast-high").expect("grok fast high");
+        let grok_fast = p.resolve("grok-4.5-fast").expect("grok fast");
+        assert!((grok.input_per_million - grok_fast.input_per_million).abs() < 0.01);
+        assert!(p.can_price("kimi-k2.7-code"));
+        assert!(p.can_price("kimi-k2p7"));
+    }
+
+    #[test]
+    fn request_wide_long_context_uses_higher_tier_for_all_fields() {
+        let rates = ModelRates {
+            input_per_million: 1.0,
+            output_per_million: 2.0,
+            cache_write_per_million: 1.0,
+            cache_read_per_million: 0.1,
+            input_above_200k: Some(10.0),
+            output_above_200k: Some(20.0),
+            cache_write_above_200k: Some(10.0),
+            cache_read_above_200k: Some(1.0),
+            fast_multiplier: 1.0,
+        };
+        let tokens = TokenBreakdown {
+            input: 150_000,
+            output: 1_000,
+            cache_write5m: 40_000,
+            cache_write1h: 0,
+            cache_read: 20_000,
+            is_fast: false,
+        };
+        // prompt = 210k → whole request at long-context rates
+        let cost = rates.cost_dollars(&tokens);
+        let expected = flat_cost(150_000, 10.0)
+            + flat_cost(1_000, 20.0)
+            + flat_cost(40_000, 10.0)
+            + flat_cost(20_000, 1.0);
+        assert!((cost - expected).abs() < 1e-9);
+        let short = rates.cost_dollars_with_options(
+            &TokenBreakdown {
+                input: 1_000,
+                output: 1_000,
+                cache_write5m: 0,
+                cache_write1h: 0,
+                cache_read: 0,
+                is_fast: false,
+            },
+            true,
+        );
+        assert!((short - flat_cost(1_000, 1.0) - flat_cost(1_000, 2.0)).abs() < 1e-9);
     }
 }

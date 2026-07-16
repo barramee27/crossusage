@@ -463,6 +463,51 @@ describe("claude plugin", () => {
     expect(result.lines.find((line) => line.label === "Last 30 Days")?.value).toContain("150 tokens")
   })
 
+  it("prefers profile-scoped stored login over CLAUDE_CODE_OAUTH_TOKEN for live usage", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.exists = () => true
+    ctx.host.fs.readText = () =>
+      JSON.stringify({
+        claudeAiOauth: {
+          accessToken: "stored-profile-token",
+          refreshToken: "stored-refresh",
+          scopes: ["user:profile", "user:inference"],
+          subscriptionType: "pro",
+        },
+      })
+    ctx.host.env.get.mockImplementation((name) =>
+      name === "CLAUDE_CODE_OAUTH_TOKEN" ? "env-inference-only" : null
+    )
+    ctx.host.http.request.mockImplementation((opts) => {
+      expect(String(opts.headers?.Authorization)).toBe("Bearer stored-profile-token")
+      return {
+        status: 200,
+        bodyText: JSON.stringify({
+          five_hour: { utilization: 33, resets_at: "2099-01-01T00:00:00.000Z" },
+        }),
+      }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Pro")
+    expect(result.lines.find((line) => line.label === "Session")?.used).toBe(33)
+    expect(
+      ctx.host.http.request.mock.calls.some((call) => String(call[0]?.url).includes("/api/oauth/usage"))
+    ).toBe(true)
+  })
+
+  it("rejects BOM-prefixed malformed Claude credentials", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.exists = () => true
+    ctx.host.fs.readText = () => "\uFEFF \n\t{broken-json"
+    ctx.host.env.get.mockReturnValue(null)
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow(/Not logged in/)
+  })
+
   it("renders usage lines from response", async () => {
     const ctx = makeCtx()
     ctx.host.fs.readText = () =>
@@ -2060,6 +2105,62 @@ describe("claude plugin", () => {
         const result2 = plugin.probe(ctx)
         expect(result2.lines.find((l) => l.label === "Session")).toBeTruthy()
         expect(result2.lines.find((l) => l.label === "Status")).toBeTruthy()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("clears usage cache when login identity changes", async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date("2026-04-14T10:00:00.000Z"))
+      try {
+        const farExpiry = Date.now() + 24 * 60 * 60 * 1000
+        let creds = {
+          accessToken: "account-a",
+          refreshToken: "refresh-a",
+          expiresAt: farExpiry,
+          subscriptionType: "pro",
+        }
+        const ctx = makeCtx()
+        ctx.host.fs.exists = () => true
+        ctx.host.fs.readText = () => JSON.stringify({ claudeAiOauth: creds })
+        ctx.host.http.request
+          .mockReturnValueOnce({
+            status: 200,
+            bodyText: JSON.stringify({ five_hour: { utilization: 25, resets_at: null } }),
+            headers: {},
+          })
+          .mockReturnValueOnce({
+            status: 429,
+            bodyText: "",
+            headers: { "Retry-After": "600" },
+          })
+          .mockReturnValue({
+            status: 200,
+            bodyText: JSON.stringify({ five_hour: { utilization: 70, resets_at: null } }),
+            headers: {},
+          })
+        const plugin = await loadPlugin()
+
+        expect(plugin.probe(ctx).lines.find((l) => l.label === "Session")?.used).toBe(25)
+
+        // Rate-limit account A (still same login → cache kept)
+        vi.setSystemTime(new Date("2026-04-14T10:05:01.000Z"))
+        const limited = plugin.probe(ctx)
+        expect(limited.lines.find((l) => l.label === "Session")?.used).toBe(25)
+        expect(limited.lines.find((l) => l.label === "Status")).toBeTruthy()
+
+        // Switch login while still inside cooldown — must bypass cache/cooldown
+        creds = {
+          accessToken: "account-b",
+          refreshToken: "refresh-b",
+          expiresAt: farExpiry,
+          subscriptionType: "max",
+        }
+        const switched = plugin.probe(ctx)
+        expect(switched.plan).toBe("Max")
+        expect(switched.lines.find((l) => l.label === "Session")?.used).toBe(70)
+        expect(ctx.host.http.request).toHaveBeenCalledTimes(3)
       } finally {
         vi.useRealTimers()
       }

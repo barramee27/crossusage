@@ -595,7 +595,7 @@
   function fetchStripePayload(ctx, accessToken) {
     var session = buildSessionToken(ctx, accessToken)
     if (!session) {
-      ctx.host.log.warn("stripe: cannot build session token")
+      ctx.host.log.warn("optional prepaid-balance request could not be prepared from the current session")
       return null
     }
     try {
@@ -613,12 +613,17 @@
         timeoutMs: 10000,
       })
       if (resp.status < 200 || resp.status >= 300) {
-        ctx.host.log.warn("stripe payload returned status=" + resp.status)
+        ctx.host.log.warn("optional prepaid-balance request returned HTTP " + resp.status)
         return null
       }
-      return ctx.util.tryParseJson(resp.bodyText)
+      var parsed = ctx.util.tryParseJson(resp.bodyText)
+      if (!parsed) {
+        ctx.host.log.warn("optional prepaid-balance response was invalid")
+        return null
+      }
+      return parsed
     } catch (e) {
-      ctx.host.log.warn("stripe payload fetch failed: " + String(e))
+      ctx.host.log.warn("optional prepaid-balance request failed: " + String(e))
       return null
     }
   }
@@ -778,9 +783,14 @@
         resetsAt: ctx.util.toIso(usage.billingCycleEnd),
         periodDurationMs: billingPeriodMs,
       }))
+      // Dollar total usage from Connect is authoritative for team plans; still mark
+      // locally-derived bonus/export spend as estimated below.
 
       if (typeof pu.bonusSpend === "number" && pu.bonusSpend > 0) {
-        lines.push(ctx.line.text({ label: "Bonus spend", value: "$" + String(ctx.fmt.dollars(pu.bonusSpend)) }))
+        lines.push(ctx.line.text({
+          label: "Bonus spend",
+          value: "$" + String(ctx.fmt.dollars(pu.bonusSpend)),
+        }))
       }
     } else {
       lines.push(ctx.line.progress({
@@ -1072,24 +1082,36 @@
     if (!ctx.host.cursorUsageExport || typeof ctx.host.cursorUsageExport.queryMtd !== "function") return result
     try {
       var resp = ctx.host.cursorUsageExport.queryMtd({})
-      if (!resp || resp.status !== "ok" || !resp.data) return result
+      if (!resp || resp.status !== "ok" || !resp.data) {
+        if (resp && resp.status && resp.status !== "ok") {
+          ctx.host.log.warn("usage export MTD query failed: status=" + String(resp.status))
+        }
+        return result
+      }
       var d = resp.data
       var inputTok = Number(d.inputTokens) || 0
       var outputTok = Number(d.outputTokens) || 0
       var total = d.totalTokens != null ? d.totalTokens : inputTok + outputTok
       var value = formatCompactTokens(total)
+      var hasCost = d.costUsd != null && Number(d.costUsd) > 0
       if (inputTok > 0 || outputTok > 0) {
         value = formatCompactTokens(inputTok) + " in · " + formatCompactTokens(outputTok) + " out"
-        if (d.costUsd != null && Number(d.costUsd) > 0) value += " · $" + Number(d.costUsd).toFixed(2)
-      } else if (d.costUsd != null && Number(d.costUsd) > 0) {
+        if (hasCost) value += " · $" + Number(d.costUsd).toFixed(2)
+      } else if (hasCost) {
         value += " · $" + Number(d.costUsd).toFixed(2)
       }
       result.lines.push(ctx.line.text({
         label: "MTD usage",
         value: value,
-        subtitle: "From Cursor dashboard export (billing data)",
+        // Costs from token×price tables are estimates (#886); tokens come from the export.
+        subtitle: hasCost
+          ? "Estimated spend from Cursor usage export"
+          : "From Cursor dashboard export (billing data)",
       }))
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      // Never drop primary Connect usage when export enrichment fails (#948).
+      ctx.host.log.warn("usage export MTD attach failed: " + String(e))
+    }
     return result
   }
 
@@ -1101,7 +1123,12 @@
         since: cursorSince31DaysAgo(),
         until: cursorUntilToday(),
       })
-      if (!resp || resp.status !== "ok" || !resp.data || !Array.isArray(resp.data.daily)) return
+      if (!resp || resp.status !== "ok" || !resp.data || !Array.isArray(resp.data.daily)) {
+        if (resp && resp.status && resp.status !== "ok") {
+          ctx.host.log.warn("usage export daily query failed: status=" + String(resp.status))
+        }
+        return
+      }
       if (!resp.data.daily.length) return
       var daily = resp.data.daily.map(function (row) {
         return {
@@ -1118,6 +1145,7 @@
         daily: daily,
       })
     } catch (e) {
+      // Log only — never clear primary Connect usage (#948).
       ctx.host.log.warn("cursor billing daily ingest failed: " + String(e))
     }
   }
@@ -1312,16 +1340,18 @@
       const planResp = connectPost(ctx, PLAN_URL, accessToken)
       if (planResp.status >= 200 && planResp.status < 300) {
         const plan = ctx.util.tryParseJson(planResp.bodyText)
-        if (plan && plan.planInfo && plan.planInfo.planName) {
+        if (plan && plan.planInfo && typeof plan.planInfo.planName === "string") {
           planName = plan.planInfo.planName
+        } else if (plan && plan.planInfo) {
+          ctx.host.log.warn("optional plan response contained invalid plan metadata")
         }
       } else {
         planInfoUnavailable = true
-        ctx.host.log.warn("plan info returned error: status=" + planResp.status)
+        ctx.host.log.warn("optional plan request returned HTTP " + planResp.status)
       }
     } catch (e) {
       planInfoUnavailable = true
-      ctx.host.log.warn("plan info fetch failed: " + String(e))
+      ctx.host.log.warn("optional plan request failed: " + String(e))
     }
 
     const normalizedPlanName = typeof planName === "string"
@@ -1381,9 +1411,14 @@
       const creditsResp = connectPost(ctx, CREDITS_URL, accessToken)
       if (creditsResp.status >= 200 && creditsResp.status < 300) {
         creditGrants = ctx.util.tryParseJson(creditsResp.bodyText)
+        if (!creditGrants) {
+          ctx.host.log.warn("optional credit-grants response was invalid")
+        }
+      } else {
+        ctx.host.log.warn("optional credit-grants request returned HTTP " + creditsResp.status)
       }
     } catch (e) {
-      ctx.host.log.warn("credit grants fetch failed: " + String(e))
+      ctx.host.log.warn("optional credit-grants request failed: " + String(e))
     }
 
     const stripeBalanceCents = fetchStripeBalance(ctx, accessToken) || 0

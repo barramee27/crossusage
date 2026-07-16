@@ -57,6 +57,7 @@ export type AppContentActionProps = {
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
   onStartOnLoginChange: (value: boolean) => void
+  startOnLoginError?: string | null
   onUsageAlertEnabledChange: (value: boolean) => void
   onUsageAlertThresholdChange: (value: UsageAlertThreshold) => void
   onUsageAlertCustomThresholdChange: (value: number | null) => void
@@ -102,6 +103,7 @@ export function AppContent({
   traySettingsPreview,
   onGlobalShortcutChange,
   onStartOnLoginChange,
+  startOnLoginError,
   onUsageAlertEnabledChange,
   onUsageAlertThresholdChange,
   onUsageAlertCustomThresholdChange,
@@ -228,6 +230,7 @@ export function AppContent({
         onGlobalShortcutChange={onGlobalShortcutChange}
         startOnLogin={startOnLogin}
         onStartOnLoginChange={onStartOnLoginChange}
+        startOnLoginError={startOnLoginError}
         usageAlertEnabled={usageAlertEnabled}
         onUsageAlertEnabledChange={onUsageAlertEnabledChange}
         usageAlertThreshold={usageAlertThreshold}

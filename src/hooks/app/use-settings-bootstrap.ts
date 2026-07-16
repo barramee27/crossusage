@@ -54,6 +54,8 @@ import {
   loadShowAccountIdentity,
   loadShowTrayIcon,
   loadShowTrayInsight,
+  loadShowTotalSpend,
+  loadTotalSpendMetric,
   loadStartOnLogin,
   loadThemeMode,
   loadUILayout,
@@ -104,6 +106,8 @@ type UseSettingsBootstrapArgs = {
   setUIScale: (value: UIScale) => void
   setShowTrayIcon: (value: boolean) => void
   setShowTrayInsight: (value: boolean) => void
+  setShowTotalSpend: (value: boolean) => void
+  setTotalSpendMetric: (value: string) => void
   setUsageAlertEnabled: (value: boolean) => void
   setUsageAlertThreshold: (value: UsageAlertThreshold) => void
   setCustomUsageAlertThreshold: (value: number | null) => void
@@ -137,6 +141,8 @@ export function useSettingsBootstrap({
   setUIScale,
   setShowTrayIcon,
   setShowTrayInsight,
+  setShowTotalSpend,
+  setTotalSpendMetric,
   setUsageAlertEnabled,
   setUsageAlertThreshold,
   setCustomUsageAlertThreshold,
@@ -314,6 +320,20 @@ export function useSettingsBootstrap({
           console.error("Failed to load show tray insight:", error)
         }
 
+        let storedShowTotalSpend = true
+        try {
+          storedShowTotalSpend = await loadShowTotalSpend()
+        } catch (error) {
+          console.error("Failed to load show total spend:", error)
+        }
+
+        let storedTotalSpendMetric = "apiSpend"
+        try {
+          storedTotalSpendMetric = await loadTotalSpendMetric()
+        } catch (error) {
+          console.error("Failed to load total spend metric:", error)
+        }
+
         try {
           await applyStartOnLogin(storedStartOnLogin)
         } catch (error) {
@@ -411,6 +431,8 @@ export function useSettingsBootstrap({
           setShowAccountIdentity(storedShowAccountIdentity)
           setShowTrayIcon(storedShowTrayIcon)
           setShowTrayInsight(storedShowTrayInsight)
+          setShowTotalSpend(storedShowTotalSpend)
+          setTotalSpendMetric(storedTotalSpendMetric)
           setMenubarIconStyle(storedMenubarIconStyle)
           setPreferMenubarWeeklyLimit(storedPreferMenubarWeeklyLimit)
           setUIScale(storedUIScale)
@@ -462,6 +484,8 @@ export function useSettingsBootstrap({
     setResetTimerDisplayMode,
     setShowTrayIcon,
     setShowTrayInsight,
+    setShowTotalSpend,
+    setTotalSpendMetric,
     setOnboardingComplete,
     setStartOnLogin,
     setShowAccountIdentity,

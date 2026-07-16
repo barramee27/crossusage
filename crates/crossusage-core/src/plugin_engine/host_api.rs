@@ -987,8 +987,25 @@ fn inject_fs<'js>(ctx: &Ctx<'js>, host: &Object<'js>) -> rquickjs::Result<()> {
             move |ctx_inner: Ctx<'_>, path: String, content: String| -> rquickjs::Result<()> {
                 reject_path_traversal(&ctx_inner, &path)?;
                 let expanded = expand_path(&path);
+                if let Some(parent) = std::path::Path::new(&expanded).parent() {
+                    if !parent.as_os_str().is_empty() {
+                        std::fs::create_dir_all(parent).map_err(|e| {
+                            Exception::throw_message(&ctx_inner, &e.to_string())
+                        })?;
+                    }
+                }
                 std::fs::write(&expanded, &content)
-                    .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()))
+                    .map_err(|e| Exception::throw_message(&ctx_inner, &e.to_string()))?;
+                // Keep plugin credential/cache files private on Unix (#910).
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        &expanded,
+                        std::fs::Permissions::from_mode(0o600),
+                    );
+                }
+                Ok(())
             },
         )?,
     )?;
@@ -1388,6 +1405,10 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
                     var line = { type: "text", label: opts.label, value: opts.value };
                     if (opts.color) line.color = opts.color;
                     if (opts.subtitle) line.subtitle = opts.subtitle;
+                    if (opts.modelBreakdown) line.modelBreakdown = opts.modelBreakdown;
+                    if (opts.statusDot) line.statusDot = opts.statusDot;
+                    if (opts.expiryTooltip) line.expiryTooltip = opts.expiryTooltip;
+                    if (opts.resetCreditExpiries) line.resetCreditExpiries = opts.resetCreditExpiries;
                     return line;
                 },
                 progress: function(opts) {
@@ -1447,7 +1468,7 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
             ctx.util = {
                 tryParseJson: function(text) {
                     if (text === null || text === undefined) return null;
-                    var trimmed = String(text).trim();
+                    var trimmed = String(text).replace(/^\uFEFF/, "").trim();
                     if (!trimmed) return null;
                     try {
                         return JSON.parse(trimmed);
@@ -1457,7 +1478,7 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
                 },
                 safeJsonParse: function(text) {
                     if (text === null || text === undefined) return { ok: false };
-                    var trimmed = String(text).trim();
+                    var trimmed = String(text).replace(/^\uFEFF/, "").trim();
                     if (!trimmed) return { ok: false };
                     try {
                         return { ok: true, value: JSON.parse(trimmed) };

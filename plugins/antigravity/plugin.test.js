@@ -12,6 +12,20 @@ const STATE_DB_V2 = "~/Library/Application Support/Antigravity IDE/User/globalSt
 const STATE_DB_V1 = "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
 const LOGIN_MESSAGE = "Start Antigravity or run `agy` and try again."
 
+function cacheFingerprint(ctx, refreshToken) {
+  return ctx.host.crypto.sha256Hex(String(refreshToken || "").trim())
+}
+
+function writeBoundCache(ctx, accessToken, refreshToken, expiresAtMs) {
+  const cachePath = ctx.app.pluginDataDir + "/auth.json"
+  ctx.host.fs.writeText(cachePath, JSON.stringify({
+    accessToken,
+    expiresAtMs: expiresAtMs != null ? expiresAtMs : Date.now() + 3600000,
+    credentialFingerprint: cacheFingerprint(ctx, refreshToken),
+  }))
+  return cachePath
+}
+
 // --- Fixtures ---
 
 function makeDiscovery(overrides) {
@@ -1014,11 +1028,7 @@ describe("antigravity plugin", () => {
     setupSqliteMock(ctx, protoB64)
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.cached",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.cached", "1//refresh")
 
     const capturedTokens = []
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1048,11 +1058,7 @@ describe("antigravity plugin", () => {
     setupSqliteMock(ctx, protoB64)
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.cached-also-bad",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.cached-also-bad", "1//refresh")
 
     const capturedTokens = []
     let refreshCalled = false
@@ -1089,11 +1095,7 @@ describe("antigravity plugin", () => {
     setupSqliteMock(ctx, protoB64)
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.same-token",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.same-token", "1//refresh")
 
     const capturedTokens = []
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1148,18 +1150,20 @@ describe("antigravity plugin", () => {
     const cached = JSON.parse(ctx.host.fs.writeText.mock.calls.find((c) => c[0] === cachePath)[1])
     expect(cached.accessToken).toBe("ya29.refreshed")
     expect(cached.expiresAtMs).toBeGreaterThan(Date.now())
+    expect(cached.credentialFingerprint).toBe(cacheFingerprint(ctx, "1//refresh"))
   })
 
-  it("uses cached token when no DB access token", async () => {
+  it("uses cached token bound to local refresh credential when DB access token missing", async () => {
     const ctx = makeCtx()
-    setupSqliteMock(ctx, null)
+    const pastExpiry = Math.floor(Date.now() / 1000) - 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, {
+      accessToken: "ya29.expired",
+      refreshToken: "1//refresh",
+      expirySeconds: pastExpiry,
+    }))
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.cached-token",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.cached-token", "1//refresh")
 
     const capturedTokens = []
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1176,6 +1180,24 @@ describe("antigravity plugin", () => {
     expect(capturedTokens[0]).toBe("Bearer ya29.cached-token")
   })
 
+  it("purges unbound cache when local auth is missing", async () => {
+    const ctx = makeCtx()
+    setupSqliteMock(ctx, null)
+    ctx.host.ls.discover.mockReturnValue(null)
+
+    const cachePath = ctx.app.pluginDataDir + "/auth.json"
+    ctx.host.fs.writeText(cachePath, JSON.stringify({
+      accessToken: "ya29.orphaned-cache",
+      expiresAtMs: Date.now() + 3600000,
+    }))
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow(LOGIN_MESSAGE)
+    expect(ctx.host.http.request).not.toHaveBeenCalled()
+    // Cache overwritten/purged so a later login cannot reuse it.
+    expect(ctx.host.fs.readText(cachePath)).toBe("")
+  })
+
   it("throws when cached token is expired and no DB tokens", async () => {
     const ctx = makeCtx()
     setupSqliteMock(ctx, null)
@@ -1186,6 +1208,17 @@ describe("antigravity plugin", () => {
       accessToken: "ya29.expired-cache",
       expiresAtMs: Date.now() - 1000,
     }))
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow(LOGIN_MESSAGE)
+    expect(ctx.host.http.request).not.toHaveBeenCalled()
+  })
+
+  it("rejects BOM-prefixed malformed keychain credentials", async () => {
+    const ctx = makeCtx()
+    setupSqliteMock(ctx, null)
+    ctx.host.ls.discover.mockReturnValue(null)
+    ctx.host.keychain.readGenericPassword.mockReturnValue("\uFEFF \n\t{broken-json")
 
     const plugin = await loadPlugin()
     expect(() => plugin.probe(ctx)).toThrow(LOGIN_MESSAGE)
@@ -1645,11 +1678,7 @@ describe("antigravity plugin", () => {
     setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.shared", refreshToken: "1//refresh", expirySeconds: futureExpiry }))
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.shared",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.shared", "1//refresh")
 
     let ccCalls = 0
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1696,11 +1725,7 @@ describe("antigravity plugin", () => {
     setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.valid", refreshToken: "1//refresh", expirySeconds: futureExpiry }))
     ctx.host.ls.discover.mockReturnValue(null)
 
-    const cachePath = ctx.app.pluginDataDir + "/auth.json"
-    ctx.host.fs.writeText(cachePath, JSON.stringify({
-      accessToken: "ya29.cached",
-      expiresAtMs: Date.now() + 3600000,
-    }))
+    writeBoundCache(ctx, "ya29.cached", "1//refresh")
 
     let refreshCalls = 0
     ctx.host.http.request.mockImplementation((opts) => {

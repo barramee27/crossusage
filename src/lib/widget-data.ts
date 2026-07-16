@@ -27,6 +27,12 @@ export type WidgetData = {
   barChartPoints?: BarChartPoint[]
   barChartNote?: string
   loading?: boolean
+  modelBreakdown?: import("@/lib/plugin-types").ModelSpendBreakdown[]
+  statusDot?: import("@/lib/plugin-types").ExpiryStatusDot
+  expiryTooltip?: string
+  resetCreditExpiries?: string[]
+  /** Plugin instance id for claim actions (e.g. codex). */
+  pluginId?: string
 }
 
 export function placeholderWidgetData(args: {
@@ -173,6 +179,14 @@ export function resolveWidgetData(args: {
       paceStatus: null,
       paceDetail: null,
       isLimitReached: false,
+      ...(line.type === "text"
+        ? {
+            modelBreakdown: line.modelBreakdown,
+            statusDot: line.statusDot,
+            expiryTooltip: line.expiryTooltip,
+            resetCreditExpiries: line.resetCreditExpiries,
+          }
+        : {}),
     }
   }
 

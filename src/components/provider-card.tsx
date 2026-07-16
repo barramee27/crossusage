@@ -12,6 +12,7 @@ import { UsageSparkline } from "@/components/usage-sparkline"
 import { PluginError } from "@/components/plugin-error"
 import { useNowTicker } from "@/hooks/use-now-ticker"
 import { REFRESH_COOLDOWN_MS, type DisplayMode, type ResetTimerDisplayMode, type TimeFormatMode } from "@/lib/settings"
+import { RateLimitResetsValue } from "@/components/rate-limit-resets-popover"
 import type { ExpiryStatusDot, ManifestLine, MetricLine, ModelSpendBreakdown, PluginLink } from "@/lib/plugin-types"
 import { groupLinesByType } from "@/lib/group-lines-by-type"
 import { clamp01, cn, formatCountNumber } from "@/lib/utils"
@@ -34,6 +35,8 @@ interface ProviderCardProps {
   lastManualRefreshAt?: number | null
   lastUpdatedAt?: number | null
   onRetry?: () => void
+  /** Instance id for claim actions (Codex resets). */
+  pluginId?: string
   scopeFilter?: "overview" | "all"
   allowedLabels?: string[] | null
   displayMode: DisplayMode
@@ -113,6 +116,7 @@ export function ProviderCard({
   lastManualRefreshAt,
   lastUpdatedAt,
   onRetry,
+  pluginId,
   scopeFilter = "all",
   allowedLabels = null,
   displayMode,
@@ -405,6 +409,8 @@ export function ProviderCard({
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
                       refreshing={isRefreshingWithData}
+                      pluginId={pluginId}
+                      onRetry={onRetry}
                     />
                   ))}
                 </div>
@@ -420,6 +426,8 @@ export function ProviderCard({
                       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
                       now={now}
                       refreshing={isRefreshingWithData}
+                      pluginId={pluginId}
+                      onRetry={onRetry}
                     />
                   ))}
                 </Fragment>
@@ -451,10 +459,26 @@ const EXPIRY_DOT_CLASS: Record<ExpiryStatusDot, string> = {
 function TextMetricValue({
   line,
   showBreakdown,
+  pluginId,
+  onRetry,
 }: {
   line: Extract<MetricLine, { type: "text" }>
   showBreakdown: boolean
+  pluginId?: string
+  onRetry?: () => void
 }) {
+  if (line.label === "Rate Limit Resets") {
+    return (
+      <RateLimitResetsValue
+        countLabel={line.value}
+        expiries={line.resetCreditExpiries ?? []}
+        pluginId={pluginId}
+        onClaimed={onRetry}
+        compact
+      />
+    )
+  }
+
   const valueNode = showBreakdown ? (
     <SpendBreakdownValue line={line} />
   ) : (
@@ -558,6 +582,8 @@ function MetricLineRenderer({
   onResetTimerDisplayModeToggle,
   now,
   refreshing,
+  pluginId,
+  onRetry,
 }: {
   line: MetricLine
   displayMode: DisplayMode
@@ -566,6 +592,8 @@ function MetricLineRenderer({
   onResetTimerDisplayModeToggle?: () => void
   now: number
   refreshing?: boolean
+  pluginId?: string
+  onRetry?: () => void
 }) {
   useAppPreferencesStore(
     useShallow((s) => ({
@@ -586,8 +614,13 @@ function MetricLineRenderer({
           <span className="text-xs text-muted-foreground min-w-0 truncate" title={line.label}>
             {line.label}
           </span>
-          {showBreakdown || line.statusDot ? (
-            <TextMetricValue line={line} showBreakdown={Boolean(showBreakdown)} />
+          {showBreakdown || line.statusDot || line.label === "Rate Limit Resets" ? (
+            <TextMetricValue
+              line={line}
+              showBreakdown={Boolean(showBreakdown)}
+              pluginId={pluginId}
+              onRetry={onRetry}
+            />
           ) : (
             <span
               className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[45%] text-right"

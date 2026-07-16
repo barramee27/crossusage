@@ -138,6 +138,10 @@ export const makeCtx = () => {
       const line = { type: "text", label: opts.label, value: opts.value }
       if (opts.color) line.color = opts.color
       if (opts.subtitle) line.subtitle = opts.subtitle
+      if (opts.modelBreakdown) line.modelBreakdown = opts.modelBreakdown
+      if (opts.statusDot) line.statusDot = opts.statusDot
+      if (opts.expiryTooltip) line.expiryTooltip = opts.expiryTooltip
+      if (opts.resetCreditExpiries) line.resetCreditExpiries = opts.resetCreditExpiries
       return line
     },
     progress: (opts) => {
@@ -245,7 +249,7 @@ export const makeCtx = () => {
   ctx.util = {
     tryParseJson: (text) => {
       if (text === null || text === undefined) return null
-      const trimmed = String(text).trim()
+      const trimmed = String(text).replace(/^\uFEFF/, "").trim()
       if (!trimmed) return null
       try {
         return JSON.parse(trimmed)
@@ -255,7 +259,7 @@ export const makeCtx = () => {
     },
     safeJsonParse: (text) => {
       if (text === null || text === undefined) return { ok: false }
-      const trimmed = String(text).trim()
+      const trimmed = String(text).replace(/^\uFEFF/, "").trim()
       if (!trimmed) return { ok: false }
       try {
         return { ok: true, value: JSON.parse(trimmed) }

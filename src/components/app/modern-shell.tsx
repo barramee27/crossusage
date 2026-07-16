@@ -4,6 +4,7 @@ import { LiquidGlassFilter } from "@/components/liquid-glass-filter"
 import { OnboardingWizard } from "@/components/onboarding-wizard"
 import { PanelFooter } from "@/components/panel-footer"
 import { CustomizeView } from "@/components/modern/customize-view"
+import { TotalSpendCard } from "@/components/modern/total-spend-card"
 import {
   WidgetGroupedList,
   buildProviderWidgetGroups,
@@ -74,7 +75,7 @@ export function ModernShell({
   const appVersion = useAppVersion()
   useTrayRestartBridge(updateStatus, onUpdateInstall)
 
-  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision } =
+  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision, showTotalSpend } =
     useAppPreferencesStore(
     useShallow((s) => ({
       themeMode: s.themeMode,
@@ -83,6 +84,7 @@ export function ModernShell({
       modernDensity: s.modernDensity,
       displayCurrency: s.displayCurrency,
       exchangeRatesRevision: s.exchangeRatesRevision,
+      showTotalSpend: s.showTotalSpend,
     })),
   )
 
@@ -192,7 +194,10 @@ export function ModernShell({
         resetTimerDisplayMode,
         nowMs,
       })
-      if (data) map.set(d.id, data)
+      if (data) {
+        data.pluginId = d.pluginId
+        map.set(d.id, data)
+      }
     }
     return map
   }, [descriptors, displayPlugins, displayMode, resetTimerDisplayMode, nowMs, pluginSettings, displayCurrency, exchangeRatesRevision])
@@ -215,6 +220,24 @@ export function ModernShell({
       pluginsMeta,
     ],
   )
+
+  const spendProviders = useMemo(
+    () =>
+      displayPlugins.map((p) => ({
+        id: p.meta.id,
+        displayName: p.meta.name,
+        brandColor: p.meta.brandColor,
+      })),
+    [displayPlugins],
+  )
+
+  const spendOutputs = useMemo(() => {
+    const map = new Map<string, import("@/lib/plugin-types").PluginOutput | null>()
+    for (const p of displayPlugins) {
+      map.set(p.meta.id, p.data)
+    }
+    return map
+  }, [displayPlugins])
 
   const insights = useMemo(
     () =>
@@ -288,7 +311,20 @@ export function ModernShell({
                   nowMs={nowMs}
                   onSelectProvider={setActiveView}
                 />
-                <WidgetGroupedList groups={groups} compact={compact} />
+                {showTotalSpend ? (
+                  <TotalSpendCard
+                    providers={spendProviders}
+                    outputs={spendOutputs}
+                    compact={compact}
+                  />
+                ) : null}
+                <WidgetGroupedList
+                  groups={groups}
+                  compact={compact}
+                  onRefreshPlugin={(pluginId) => {
+                    appContentProps.onRetryPlugin(pluginId)
+                  }}
+                />
               </div>
             ) : null}
 

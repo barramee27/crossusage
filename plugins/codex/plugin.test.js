@@ -1426,6 +1426,8 @@ describe("codex plugin", () => {
       type: "text",
       label: "Rate Limit Resets",
       value: "1 available",
+      statusDot: "normal",
+      resetCreditExpiries: [],
     })
     expect(resetIndex).toBeGreaterThanOrEqual(0)
     expect(resetIndex).toBe(firstTextIndex)
@@ -1607,6 +1609,43 @@ describe("codex plugin", () => {
     })
     const plugin = await loadPlugin()
     expect(() => plugin.probe(ctx)).toThrow("Usage request failed after refresh")
+  })
+
+  it("routes Session vs Weekly by limit_window_seconds even when slots are swapped", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      headers: {},
+      bodyText: JSON.stringify({
+        plan_type: "plus",
+        // Weekly duration temporarily occupies the primary slot (#980).
+        rate_limit: {
+          primary_window: {
+            used_percent: 22,
+            limit_window_seconds: 604800,
+            reset_after_seconds: 400000,
+          },
+          secondary_window: {
+            used_percent: 55,
+            limit_window_seconds: 18000,
+            reset_after_seconds: 3000,
+          },
+        },
+      }),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const session = result.lines.find((l) => l.label === "Session")
+    const weekly = result.lines.find((l) => l.label === "Weekly")
+    expect(session.used).toBe(55)
+    expect(session.periodDurationMs).toBe(5 * 60 * 60 * 1000)
+    expect(weekly.used).toBe(22)
+    expect(weekly.periodDurationMs).toBe(7 * 24 * 60 * 60 * 1000)
   })
 
   it("surfaces additional_rate_limits as Spark lines", async () => {
