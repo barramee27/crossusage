@@ -22,6 +22,10 @@ pub struct ModelRates {
     pub output_above_200k: Option<f64>,
     pub cache_write_above_200k: Option<f64>,
     pub cache_read_above_200k: Option<f64>,
+    /// Catalog published an explicit cache-read rate (not a synthesized 10%-of-input fallback).
+    pub cache_read_is_explicit: bool,
+    /// Prompt-token threshold for optional long-context rates (200k default; Codex uses 272k).
+    pub long_context_threshold_tokens: i32,
     pub fast_multiplier: f64,
 }
 
@@ -36,13 +40,15 @@ impl ModelRates {
             output_above_200k: self.output_above_200k.map(|v| v * factor),
             cache_write_above_200k: self.cache_write_above_200k.map(|v| v * factor),
             cache_read_above_200k: self.cache_read_above_200k.map(|v| v * factor),
+            cache_read_is_explicit: self.cache_read_is_explicit,
+            long_context_threshold_tokens: self.long_context_threshold_tokens,
             fast_multiplier: 1.0,
         }
     }
 
     /// Dollar cost of one request. When `apply_long_context_rates` and prompt tokens
-    /// (input + cache writes + cache reads) exceed 200k, the whole request uses the
-    /// long-context tier rates (upstream OpenUsage 0.7.4 #885).
+    /// exceed `long_context_threshold_tokens`, the whole request uses long-context rates
+    /// (upstream OpenUsage 0.7.4 #885 / 0.7.6 #995).
     pub fn cost_dollars(&self, tokens: &TokenBreakdown) -> f64 {
         self.cost_dollars_with_options(tokens, true)
     }
@@ -56,7 +62,8 @@ impl ModelRates {
         let mult = if tokens.is_fast { self.fast_multiplier } else { 1.0 };
         let prompt_tokens =
             tokens.input + tokens.cache_write5m + tokens.cache_write1h + tokens.cache_read;
-        let use_long = apply_long_context_rates && prompt_tokens > 200_000;
+        let use_long =
+            apply_long_context_rates && prompt_tokens > self.long_context_threshold_tokens;
         let input_rate = selected_rate(self.input_per_million, self.input_above_200k, use_long);
         let output_rate = selected_rate(self.output_per_million, self.output_above_200k, use_long);
         let cache_write_rate =
@@ -146,6 +153,9 @@ struct CompactModel {
     cra: Option<f64>,
     #[serde(default)]
     fast: Option<f64>,
+    /// Omitted / true = explicit cache-read; `false` = synthesized fallback.
+    #[serde(default)]
+    cre: Option<bool>,
 }
 
 pub struct ModelPricing {
@@ -172,6 +182,11 @@ impl ModelPricing {
 
     pub fn estimated_cost_dollars(&self, model: &str, tokens: &TokenBreakdown) -> Option<f64> {
         self.resolve(model).map(|r| r.cost_dollars(tokens))
+    }
+
+    /// Supplement alias canonical name when a rule matches; otherwise `None`.
+    pub fn canonical_name(&self, model: &str) -> Option<String> {
+        self.supplement.canonical_name(model)
     }
 
     pub fn resolve(&self, model: &str) -> Option<ModelRates> {
@@ -280,6 +295,7 @@ fn load_supplement(json: &str) -> PricingSupplement {
     });
     let mut pricing = HashMap::new();
     for (model, entry) in file.pricing {
+        let cache_read_is_explicit = entry.cache_read_per_million.is_some();
         pricing.insert(
             model,
             ModelRates {
@@ -295,6 +311,8 @@ fn load_supplement(json: &str) -> PricingSupplement {
                 output_above_200k: None,
                 cache_write_above_200k: None,
                 cache_read_above_200k: None,
+                cache_read_is_explicit,
+                long_context_threshold_tokens: 200_000,
                 fast_multiplier: 1.0,
             },
         );
@@ -336,6 +354,8 @@ fn load_compact_catalog(json: &str) -> HashMap<String, ModelRates> {
                     output_above_200k: m.oa,
                     cache_write_above_200k: m.cwa,
                     cache_read_above_200k: m.cra,
+                    cache_read_is_explicit: m.cre.unwrap_or(true),
+                    long_context_threshold_tokens: 200_000,
                     fast_multiplier: m.fast.unwrap_or(1.0),
                 },
             )
@@ -394,6 +414,7 @@ mod tests {
         let grok = p.resolve("grok-4.5-fast-high").expect("grok fast high");
         let grok_fast = p.resolve("grok-4.5-fast").expect("grok fast");
         assert!((grok.input_per_million - grok_fast.input_per_million).abs() < 0.01);
+        assert!(p.can_price("cursor-grok-4.5-fast-xhigh"));
         assert!(p.can_price("kimi-k2.7-code"));
         assert!(p.can_price("kimi-k2p7"));
     }
@@ -409,6 +430,8 @@ mod tests {
             output_above_200k: Some(20.0),
             cache_write_above_200k: Some(10.0),
             cache_read_above_200k: Some(1.0),
+            cache_read_is_explicit: true,
+            long_context_threshold_tokens: 200_000,
             fast_multiplier: 1.0,
         };
         let tokens = TokenBreakdown {

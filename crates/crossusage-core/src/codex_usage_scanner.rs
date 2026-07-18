@@ -1,10 +1,11 @@
 //! Native Codex CLI session log scanner (ports upstream CodexLogUsageScanner).
 
 use crate::claude_usage_scanner;
+use crate::codex_pricing::{self, CodexCostInput};
 use crate::log_usage_types::{
     DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, cap_log_files_by_mtime,
-    expand_tilde, host_query_response, local_day_key_from_offset, since_local_midnight,
-    warn_unreadable_usage_file,
+    expand_tilde, host_query_response, local_day_key_from_offset, merge_daily_rows,
+    since_local_midnight, warn_unreadable_usage_file,
 };
 use crate::model_pricing::{ModelPricing, default_pricing};
 use serde_json::Value;
@@ -32,21 +33,25 @@ struct CodexEvent {
     output: i32,
     reasoning: i32,
     total: i32,
+    is_fast: bool,
 }
 
 struct DiscoveredFile {
     path: PathBuf,
     size: u64,
     mtime: SystemTime,
-    relative: String,
 }
 
 pub fn query_daily_since(since_compact: &str, home_path: Option<&str>) -> (LogScanStatus, Vec<DailyUsageRow>) {
     let since = parse_since(since_compact);
     let pricing = default_pricing();
-    match scan(days_back_from_since(since), home_path, pricing) {
-        Some(rows) if !rows.is_empty() => (LogScanStatus::Ok, rows),
-        _ => (LogScanStatus::NoData, vec![]),
+    let native = scan(days_back_from_since(since), home_path, pricing).unwrap_or_default();
+    let pi = crate::pi_usage_scanner::query_daily_for_card("codex", since_compact);
+    let rows = merge_daily_rows(native, pi);
+    if rows.is_empty() {
+        (LogScanStatus::NoData, vec![])
+    } else {
+        (LogScanStatus::Ok, rows)
     }
 }
 
@@ -146,17 +151,26 @@ fn session_files(homes: &[PathBuf]) -> Vec<DiscoveredFile> {
     let mut files = Vec::new();
     let mut seen_relative: HashSet<(String, String)> = HashSet::new();
     for home in homes {
+        let home_resolved = fs::canonicalize(home).unwrap_or_else(|_| home.clone());
         for sub in ["sessions", "archived_sessions"] {
-            let dir = home.join(sub);
+            let dir = home_resolved.join(sub);
+            let dir = fs::canonicalize(&dir).unwrap_or(dir);
             if !dir.is_dir() {
                 continue;
             }
-            let home_key = home.to_string_lossy().to_string();
+            let home_key = home_resolved.to_string_lossy().to_string();
             collect_session_files(&dir, &dir, &home_key, sub, &mut files, &mut seen_relative);
         }
-        if !home.join("sessions").is_dir() && !home.join("archived_sessions").is_dir() {
-            let home_key = home.to_string_lossy().to_string();
-            collect_session_files(home, home, &home_key, "", &mut files, &mut seen_relative);
+        if !home_resolved.join("sessions").is_dir() && !home_resolved.join("archived_sessions").is_dir() {
+            let home_key = home_resolved.to_string_lossy().to_string();
+            collect_session_files(
+                &home_resolved,
+                &home_resolved,
+                &home_key,
+                "",
+                &mut files,
+                &mut seen_relative,
+            );
         }
     }
     cap_log_files_by_mtime(&mut files, |f| f.mtime, |f| f.size);
@@ -180,26 +194,24 @@ fn collect_session_files(
         if path.is_dir() {
             collect_session_files(root, &path, home_key, source, out, seen);
         } else if path.extension().is_some_and(|e| e == "jsonl") {
+            // Dedup by home + path relative to resolved sessions root (symlink-safe).
             let rel = path
                 .strip_prefix(root)
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|_| path.to_string_lossy().to_string());
-            let key = (home_key.to_string(), rel.clone());
-            if source == "archived_sessions" && seen.contains(&(home_key.to_string(), rel.clone())) {
+            let key = (home_key.to_string(), rel);
+            if source == "archived_sessions" && seen.contains(&key) {
                 continue;
             }
-            if source == "sessions" {
-                seen.insert(key.clone());
+            if !seen.insert(key) {
+                continue;
             }
-            if seen.insert(key) {
-                if let Ok(meta) = entry.metadata() {
-                    out.push(DiscoveredFile {
-                        path,
-                        size: meta.len(),
-                        mtime: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-                        relative: rel,
-                    });
-                }
+            if let Ok(meta) = entry.metadata() {
+                out.push(DiscoveredFile {
+                    path,
+                    size: meta.len(),
+                    mtime: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                });
             }
         }
     }
@@ -254,6 +266,14 @@ impl RawUsage {
         }
     }
 
+    fn equal_counts(&self, other: &RawUsage) -> bool {
+        self.input == other.input
+            && self.cached == other.cached
+            && self.output == other.output
+            && self.reasoning == other.reasoning
+            && self.total == other.total
+    }
+
     fn subtracting(&self, previous: Option<&RawUsage>) -> RawUsage {
         let p = previous.cloned().unwrap_or_default();
         RawUsage {
@@ -266,6 +286,69 @@ impl RawUsage {
     }
 }
 
+/// Child-session replay gate (upstream OpenUsage 0.7.6 #1001).
+#[derive(Clone, Copy)]
+enum ChildReplayGate {
+    UntilStartedAt(i64),
+    UntilSelfTimedTaskStarted,
+}
+
+impl ChildReplayGate {
+    fn is_cleared(self, started_at: f64, line_timestamp: Option<&str>) -> bool {
+        match self {
+            ChildReplayGate::UntilStartedAt(gate) => started_at >= gate as f64,
+            ChildReplayGate::UntilSelfTimedTaskStarted => {
+                let Some(raw) = line_timestamp.map(str::trim).filter(|s| !s.is_empty()) else {
+                    return false;
+                };
+                let Some(line_dt) = claude_usage_scanner::parse_iso_timestamp(raw) else {
+                    return false;
+                };
+                started_at >= line_dt.unix_timestamp() as f64
+            }
+        }
+    }
+}
+
+fn has_non_null_value(v: Option<&Value>) -> bool {
+    match v {
+        None | Some(Value::Null) => false,
+        Some(Value::String(s)) => !s.trim().is_empty(),
+        Some(_) => true,
+    }
+}
+
+fn is_child_session_meta(payload: &serde_json::Map<String, Value>) -> bool {
+    if has_non_null_value(payload.get("forked_from_id")) {
+        return true;
+    }
+    if has_non_null_value(payload.get("parent_thread_id")) {
+        return true;
+    }
+    if payload.get("thread_source").and_then(|t| t.as_str()) == Some("subagent") {
+        return true;
+    }
+    if let Some(source) = payload.get("source").and_then(|s| s.as_object()) {
+        if has_non_null_value(source.get("subagent")) {
+            return true;
+        }
+    }
+    false
+}
+
+fn service_tier_in_payload(payload: &serde_json::Map<String, Value>) -> Option<String> {
+    let settings = payload.get("thread_settings").and_then(|s| s.as_object());
+    for value in [
+        settings.and_then(|s| s.get("service_tier")),
+        payload.get("service_tier"),
+    ] {
+        if let Some(text) = value.and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty()) {
+            return Some(text.to_string());
+        }
+    }
+    None
+}
+
 fn parse_file(path: &Path) -> Vec<CodexEvent> {
     let data = match fs::read(path) {
         Ok(data) => data,
@@ -274,22 +357,34 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
             return vec![];
         }
     };
-    let subagent = data.len() >= 16 * 1024 && data[..16 * 1024].windows(12).any(|w| w == b"thread_spawn");
-    let replay_second = if subagent {
-        detect_subagent_replay_second(&data)
-    } else {
-        None
-    };
     let turn_marker = br#""type":"turn_context""#;
     let token_marker = br#""type":"token_count""#;
+    let session_meta_marker = br#""type":"session_meta""#;
+    let task_started_marker = br#""type":"task_started""#;
+    let thread_settings_marker = br#""type":"thread_settings_applied""#;
+
     let mut events = Vec::new();
     let mut previous_totals: Option<RawUsage> = None;
     let mut current_model: Option<String> = None;
-    let mut skip_replay = replay_second.is_some();
+    let mut current_tier_is_fast = false;
+    let mut saw_session_meta = false;
+    let mut replay_gate: Option<ChildReplayGate> = None;
 
     for line in data.split(|&b| b == b'\n') {
         let is_turn = line.windows(turn_marker.len()).any(|w| w == turn_marker);
-        if !is_turn && !line.windows(token_marker.len()).any(|w| w == token_marker) {
+        let is_session_meta =
+            !saw_session_meta && line.windows(session_meta_marker.len()).any(|w| w == session_meta_marker);
+        let is_task_started =
+            replay_gate.is_some() && line.windows(task_started_marker.len()).any(|w| w == task_started_marker);
+        let is_thread_settings = line
+            .windows(thread_settings_marker.len())
+            .any(|w| w == thread_settings_marker);
+        if !is_turn
+            && !is_session_meta
+            && !is_task_started
+            && !is_thread_settings
+            && !line.windows(token_marker.len()).any(|w| w == token_marker)
+        {
             continue;
         }
         let Ok(v) = serde_json::from_slice::<Value>(line) else {
@@ -309,13 +404,61 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
             }
             continue;
         }
+        if typ == "session_meta" && !saw_session_meta {
+            saw_session_meta = true;
+            if let Some(p) = payload {
+                if is_child_session_meta(p) {
+                    if let Some(timestamp_raw) = obj.get("timestamp").and_then(|t| t.as_str()) {
+                        if let Some(created) =
+                            claude_usage_scanner::parse_iso_timestamp(timestamp_raw.trim())
+                        {
+                            replay_gate = Some(ChildReplayGate::UntilStartedAt(created.unix_timestamp()));
+                        } else {
+                            replay_gate = Some(ChildReplayGate::UntilSelfTimedTaskStarted);
+                        }
+                    } else {
+                        replay_gate = Some(ChildReplayGate::UntilSelfTimedTaskStarted);
+                    }
+                }
+            }
+            continue;
+        }
+        if is_thread_settings
+            && typ == "event_msg"
+            && payload
+                .and_then(|p| p.get("type"))
+                .and_then(|t| t.as_str())
+                == Some("thread_settings_applied")
+        {
+            if let Some(p) = payload {
+                if let Some(tier) = service_tier_in_payload(p) {
+                    current_tier_is_fast = tier == "fast" || tier == "priority";
+                }
+            }
+            continue;
+        }
         if typ != "event_msg" {
             continue;
         }
         let Some(p) = payload else {
             continue;
         };
-        if p.get("type").and_then(|t| t.as_str()) != Some("token_count") {
+        let payload_type = p.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if payload_type == "task_started" {
+            if let Some(gate) = replay_gate {
+                if let Some(started_at) = p
+                    .get("started_at")
+                    .and_then(|n| n.as_f64().or_else(|| n.as_i64().map(|i| i as f64)))
+                {
+                    let line_ts = obj.get("timestamp").and_then(|t| t.as_str());
+                    if gate.is_cleared(started_at, line_ts) {
+                        replay_gate = None;
+                    }
+                }
+            }
+            continue;
+        }
+        if payload_type != "token_count" {
             continue;
         }
         let Some(timestamp_raw) = obj.get("timestamp").and_then(|t| t.as_str()) else {
@@ -330,15 +473,16 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
             .and_then(|u| u.as_object())
             .map(RawUsage::from_json);
 
-        if skip_replay {
-            if let Some(replay) = &replay_second {
-                if timestamp_raw.trim().get(..19) == Some(replay.as_str()) {
-                    if let Some(t) = totals {
-                        previous_totals = Some(t);
-                    }
-                    continue;
-                }
-                skip_replay = false;
+        if replay_gate.is_some() {
+            if let Some(t) = totals {
+                previous_totals = Some(t);
+            }
+            continue;
+        }
+
+        if let (Some(t), Some(prev)) = (&totals, &previous_totals) {
+            if t.equal_counts(prev) {
+                continue;
             }
         }
 
@@ -370,6 +514,7 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
             output: usage.output,
             reasoning: usage.reasoning,
             total: usage.total,
+            is_fast: current_tier_is_fast,
         });
     }
     events
@@ -407,51 +552,6 @@ fn resolve_model(parsed: Option<String>, current_model: &mut Option<String>) -> 
     })
 }
 
-fn detect_subagent_replay_second(data: &[u8]) -> Option<String> {
-    let marker = br#""type":"token_count""#;
-    let mut first_second: Option<String> = None;
-    for line in data.split(|&b| b == b'\n') {
-        if !line.windows(marker.len()).any(|w| w == marker) {
-            continue;
-        }
-        let Ok(v) = serde_json::from_slice::<Value>(line) else {
-            continue;
-        };
-        let Some(obj) = v.as_object() else {
-            continue;
-        };
-        if obj.get("type").and_then(|t| t.as_str()) != Some("event_msg") {
-            continue;
-        }
-        let Some(payload) = obj.get("payload").and_then(|p| p.as_object()) else {
-            continue;
-        };
-        if payload.get("type").and_then(|t| t.as_str()) != Some("token_count") {
-            continue;
-        }
-        let Some(info) = payload.get("info").and_then(|i| i.as_object()) else {
-            continue;
-        };
-        if info.get("last_token_usage").is_none() && info.get("total_token_usage").is_none() {
-            continue;
-        }
-        let Some(ts) = obj.get("timestamp").and_then(|t| t.as_str()) else {
-            continue;
-        };
-        let ts = ts.trim();
-        if ts.len() < 19 {
-            continue;
-        }
-        let second = ts[..19].to_string();
-        match &first_second {
-            None => first_second = Some(second),
-            Some(first) if first == &second => return Some(second),
-            _ => return None,
-        }
-    }
-    None
-}
-
 fn dedup_events(events: Vec<CodexEvent>) -> Vec<CodexEvent> {
     let mut seen: HashSet<(i128, String, i32, i32, i32, i32)> = HashSet::new();
     let mut out = Vec::new();
@@ -484,22 +584,23 @@ fn aggregate(events: &[CodexEvent], since: OffsetDateTime, pricing: &ModelPricin
             continue;
         }
         let day = local_day_key_from_offset(&event.timestamp);
-        let tokens = TokenBreakdown {
-            input: (event.input - event.cached).max(0),
-            cache_write5m: 0,
-            cache_write1h: 0,
-            cache_read: event.cached,
-            output: event.output + event.reasoning,
-            is_fast: false,
-        };
-        let cost = match pricing.estimated_cost_dollars(&event.model, &tokens) {
-            Some(c) => c,
-            None => continue,
+        let Some(cost) = codex_pricing::estimated_cost_dollars(
+            pricing,
+            &CodexCostInput {
+                model: &event.model,
+                input: event.input,
+                cached: event.cached,
+                output: event.output,
+                reasoning: event.reasoning,
+                is_fast: event.is_fast,
+            },
+        ) else {
+            continue;
         };
         let total = if event.total > 0 {
             event.total
         } else {
-            tokens.total_tokens()
+            (event.input - event.cached).max(0) + event.cached + event.output + event.reasoning
         };
         *tokens_by_day.entry(day.clone()).or_default() += total;
         *cost_by_day.entry(day.clone()).or_default() += cost;
@@ -555,4 +656,76 @@ fn aggregate(events: &[CodexEvent], since: OffsetDateTime, pricing: &ModelPricin
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn child_session_meta_null_parents_are_root() {
+        let payload = json!({
+            "forked_from_id": null,
+            "parent_thread_id": null,
+            "thread_source": "cli"
+        });
+        let obj = payload.as_object().unwrap();
+        assert!(!is_child_session_meta(obj));
+    }
+
+    #[test]
+    fn child_session_meta_detects_subagent_and_fork() {
+        let fork = json!({"forked_from_id": "abc"}).as_object().cloned().unwrap();
+        assert!(is_child_session_meta(&fork));
+        let sub = json!({"thread_source": "subagent"}).as_object().cloned().unwrap();
+        assert!(is_child_session_meta(&sub));
+        let nested = json!({"source": {"subagent": "worker"}})
+            .as_object()
+            .cloned()
+            .unwrap();
+        assert!(is_child_session_meta(&nested));
+    }
+
+    #[test]
+    fn equal_counts_detects_stale_snapshot() {
+        let a = RawUsage {
+            input: 10,
+            cached: 2,
+            output: 3,
+            reasoning: 1,
+            total: 16,
+        };
+        let b = a.clone();
+        assert!(a.equal_counts(&b));
+        let mut c = a.clone();
+        c.output = 4;
+        assert!(!a.equal_counts(&c));
+    }
+
+    #[test]
+    fn session_files_include_sessions_and_skip_archived_dupes() {
+        let root = std::env::temp_dir().join(format!(
+            "crossusage-codex-sessions-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        let sessions = root.join("sessions");
+        let archived = root.join("archived_sessions");
+        fs::create_dir_all(&sessions).unwrap();
+        fs::create_dir_all(&archived).unwrap();
+        fs::write(sessions.join("a.jsonl"), "{}\n").unwrap();
+        fs::write(archived.join("a.jsonl"), "{}\n").unwrap();
+        fs::write(archived.join("b.jsonl"), "{}\n").unwrap();
+
+        let files = session_files(&[root.clone()]);
+        let names: HashSet<_> = files
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(names.contains("a.jsonl"));
+        assert!(names.contains("b.jsonl"));
+        assert_eq!(files.len(), 2, "archived duplicate of sessions/a.jsonl skipped");
+        let _ = fs::remove_dir_all(&root);
+    }
 }

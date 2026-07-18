@@ -2,8 +2,8 @@
 
 use crate::log_usage_types::{
     DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, cap_log_files_by_mtime,
-    expand_tilde, host_query_response, local_day_key_from_offset, since_local_midnight,
-    warn_unreadable_usage_file,
+    expand_tilde, host_query_response, local_day_key_from_offset, merge_daily_rows,
+    since_local_midnight, warn_unreadable_usage_file,
 };
 use crate::model_pricing::{ModelPricing, default_pricing};
 use serde_json::Value;
@@ -43,9 +43,13 @@ struct DiscoveredFile {
 pub fn query_daily_since(since_compact: &str, home_path: Option<&str>) -> (LogScanStatus, Vec<DailyUsageRow>) {
     let since = parse_since(since_compact);
     let pricing = default_pricing();
-    match scan(days_back_from_since(since), home_path, pricing) {
-        Some(rows) if !rows.is_empty() => (LogScanStatus::Ok, rows),
-        _ => (LogScanStatus::NoData, vec![]),
+    let native = scan(days_back_from_since(since), home_path, pricing).unwrap_or_default();
+    let pi = crate::pi_usage_scanner::query_daily_for_card("claude", since_compact);
+    let rows = merge_daily_rows(native, pi);
+    if rows.is_empty() {
+        (LogScanStatus::NoData, vec![])
+    } else {
+        (LogScanStatus::Ok, rows)
     }
 }
 
@@ -270,19 +274,102 @@ fn parse_file(path: &Path) -> Vec<ClaudeEntry> {
         if has_unsupported_null_field(line) {
             continue;
         }
-        if let Some(entry) = parse_line(line) {
-            entries.push(entry);
-        }
+        entries.extend(parse_entries(line));
     }
     entries
 }
 
-fn parse_line(line: &[u8]) -> Option<ClaudeEntry> {
-    let v: Value = serde_json::from_slice(line).ok()?;
-    let timestamp_raw = v.get("timestamp")?.as_str()?;
-    let timestamp = parse_iso_timestamp(timestamp_raw)?;
-    let message = v.get("message")?;
-    let usage = message.get("usage")?;
+/// Parent entry from top-level usage; advisor_message iterations become extra entries.
+fn parse_entries(line: &[u8]) -> Vec<ClaudeEntry> {
+    let Ok(v) = serde_json::from_slice::<Value>(line) else {
+        return vec![];
+    };
+    let Some(timestamp_raw) = v.get("timestamp").and_then(|t| t.as_str()) else {
+        return vec![];
+    };
+    let Some(timestamp) = parse_iso_timestamp(timestamp_raw) else {
+        return vec![];
+    };
+    let Some(message) = v.get("message") else {
+        return vec![];
+    };
+    let Some(usage) = message.get("usage") else {
+        return vec![];
+    };
+    let Some((tokens, has_speed)) = token_breakdown(usage) else {
+        return vec![];
+    };
+    if !is_valid_entry(&v, message) {
+        return vec![];
+    }
+    let model = message
+        .get("model")
+        .and_then(|m| m.as_str())
+        .filter(|m| *m != "<synthetic>")
+        .map(str::to_string);
+    let message_id = message
+        .get("id")
+        .and_then(|id| id.as_str())
+        .map(str::to_string);
+    let request_id = v
+        .get("requestId")
+        .and_then(|id| id.as_str())
+        .map(str::to_string);
+    let is_sidechain = v
+        .get("isSidechain")
+        .and_then(|b| b.as_bool())
+        .unwrap_or(false);
+    let cost_usd = v.get("costUSD").and_then(|c| c.as_f64());
+
+    let parent = ClaudeEntry {
+        timestamp,
+        tokens,
+        message_id: message_id.clone(),
+        request_id: request_id.clone(),
+        is_sidechain,
+        has_speed,
+        cost_usd,
+        model,
+    };
+
+    let Some(iterations) = usage.get("iterations").and_then(|i| i.as_array()) else {
+        return vec![parent];
+    };
+
+    let mut entries = vec![parent];
+    let mut advisor_index = 0usize;
+    for iteration in iterations {
+        if iteration.get("type").and_then(|t| t.as_str()) != Some("advisor_message") {
+            continue;
+        }
+        let Some(advisor_model) = iteration
+            .get("model")
+            .and_then(|m| m.as_str())
+            .filter(|m| !m.is_empty())
+        else {
+            continue;
+        };
+        let Some((advisor_tokens, advisor_has_speed)) = token_breakdown(iteration) else {
+            continue;
+        };
+        entries.push(ClaudeEntry {
+            timestamp,
+            tokens: advisor_tokens,
+            message_id: message_id
+                .as_ref()
+                .map(|id| format!("{id}:advisor:{advisor_index}")),
+            request_id: request_id.clone(),
+            is_sidechain,
+            has_speed: advisor_has_speed,
+            cost_usd: None,
+            model: Some(advisor_model.to_string()),
+        });
+        advisor_index += 1;
+    }
+    entries
+}
+
+fn token_breakdown(usage: &Value) -> Option<(TokenBreakdown, bool)> {
     let input = usage.get("input_tokens")?.as_i64()? as i32;
     let output = usage.get("output_tokens")?.as_i64()? as i32;
     let speed = usage.get("speed").and_then(|s| s.as_str());
@@ -291,52 +378,40 @@ fn parse_line(line: &[u8]) -> Option<ClaudeEntry> {
             return None;
         }
     }
-    if !is_valid_entry(&v, message) {
-        return None;
-    }
-    let mut cache_write5m = 0;
-    let mut cache_write1h = 0;
-    if let Some(cache_creation) = usage.get("cache_creation") {
-        cache_write5m = cache_creation
-            .get("ephemeral_5m_input_tokens")
-            .and_then(|n| n.as_i64())
-            .unwrap_or(0) as i32;
-        cache_write1h = cache_creation
-            .get("ephemeral_1h_input_tokens")
-            .and_then(|n| n.as_i64())
-            .unwrap_or(0) as i32;
+    let (cache_write5m, cache_write1h) = if let Some(cache_creation) = usage.get("cache_creation") {
+        (
+            cache_creation
+                .get("ephemeral_5m_input_tokens")
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0) as i32,
+            cache_creation
+                .get("ephemeral_1h_input_tokens")
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0) as i32,
+        )
     } else {
-        cache_write5m = usage
-            .get("cache_creation_input_tokens")
-            .and_then(|n| n.as_i64())
-            .unwrap_or(0) as i32;
-    }
-    let tokens = TokenBreakdown {
-        input,
-        cache_write5m,
-        cache_write1h,
-        cache_read: usage
-            .get("cache_read_input_tokens")
-            .and_then(|n| n.as_i64())
-            .unwrap_or(0) as i32,
-        output,
-        is_fast: speed == Some("fast"),
+        (
+            usage
+                .get("cache_creation_input_tokens")
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0) as i32,
+            0,
+        )
     };
-    let model = message
-        .get("model")
-        .and_then(|m| m.as_str())
-        .filter(|m| *m != "<synthetic>")
-        .map(str::to_string);
-    Some(ClaudeEntry {
-        timestamp,
-        tokens,
-        message_id: message.get("id").and_then(|id| id.as_str()).map(str::to_string),
-        request_id: v.get("requestId").and_then(|id| id.as_str()).map(str::to_string),
-        is_sidechain: v.get("isSidechain").and_then(|b| b.as_bool()).unwrap_or(false),
-        has_speed: speed.is_some(),
-        cost_usd: v.get("costUSD").and_then(|c| c.as_f64()),
-        model,
-    })
+    Some((
+        TokenBreakdown {
+            input,
+            cache_write5m,
+            cache_write1h,
+            cache_read: usage
+                .get("cache_read_input_tokens")
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0) as i32,
+            output,
+            is_fast: speed == Some("fast"),
+        },
+        speed.is_some(),
+    ))
 }
 
 fn is_valid_entry(object: &Value, message: &Value) -> bool {
@@ -567,5 +642,19 @@ mod tests {
         let rows = scan(1, Some(&tmp.path().to_string_lossy()), default_pricing()).unwrap();
         assert!(!rows.is_empty());
         assert!(rows[0].total_tokens >= 150);
+    }
+
+    #[test]
+    fn parse_entries_emits_advisor_iterations() {
+        let line = br#"{"timestamp":"2026-07-12T10:00:00.000Z","message":{"id":"m1","model":"claude-sonnet-4-20250514","usage":{"input_tokens":100,"output_tokens":50,"iterations":[{"type":"advisor_message","model":"claude-opus-4-20250514","input_tokens":10,"output_tokens":5},{"type":"other","model":"x","input_tokens":1,"output_tokens":1}]}},"requestId":"r1","version":"1.0.0"}"#;
+        let entries = parse_entries(line);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].message_id.as_deref(), Some("m1"));
+        assert_eq!(entries[0].tokens.input, 100);
+        assert_eq!(entries[1].message_id.as_deref(), Some("m1:advisor:0"));
+        assert_eq!(entries[1].model.as_deref(), Some("claude-opus-4-20250514"));
+        assert_eq!(entries[1].tokens.input, 10);
+        assert_eq!(entries[1].tokens.output, 5);
+        assert!(entries[1].cost_usd.is_none());
     }
 }

@@ -117,3 +117,7 @@ Content-Type: application/json
   "expires_in": 3600                       // seconds
 }
 ```
+
+## Spend (log scan)
+
+Native Rust scanner reads Claude Code JSONL session logs. Pi coding-agent daily usage attributed to Claude is merged into Claude spend tiles. `advisor_message` iterations inside a usage event are counted as separate model entries.
