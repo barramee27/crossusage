@@ -9,6 +9,7 @@
   const USAGE_LIMIT_GRANTS_URL =
     BASE_URL + "/aiserver.v1.DashboardService/GetUsageLimitStatusAndActiveGrants"
   const REST_USAGE_URL = "https://cursor.com/api/usage"
+  const REST_USAGE_SUMMARY_URL = "https://cursor.com/api/usage-summary"
   const STRIPE_URL = "https://cursor.com/api/auth/stripe"
   const CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
   /** Must match `buildDevMockProviderCredentials` when `VITE_PROVIDER_ACCOUNT_DEV_MOCK` is enabled. */
@@ -931,13 +932,242 @@
     throw unavailableMessage
   }
 
+  function fetchUsageSummary(ctx, accessToken) {
+    var session = buildSessionToken(ctx, accessToken)
+    if (!session) {
+      ctx.host.log.warn("usage-summary: cannot build session token")
+      return null
+    }
+    try {
+      var resp = ctx.util.request({
+        method: "GET",
+        url: REST_USAGE_SUMMARY_URL,
+        headers: {
+          Authorization: "Bearer " + accessToken,
+          Cookie: "WorkosCursorSessionToken=" + session.sessionToken,
+          Accept: "application/json",
+          Origin: "https://cursor.com",
+          Referer: "https://cursor.com/dashboard",
+          "User-Agent": CURSOR_WEB_USER_AGENT,
+        },
+        timeoutMs: 15000,
+      })
+      if (resp.status < 200 || resp.status >= 300) {
+        ctx.host.log.warn("usage-summary returned status=" + resp.status)
+        return null
+      }
+      var parsed = ctx.util.tryParseJson(resp.bodyText)
+      if (!parsed || typeof parsed !== "object") return null
+      return parsed
+    } catch (e) {
+      ctx.host.log.warn("usage-summary fetch failed: " + String(e))
+      return null
+    }
+  }
+
+  function enterpriseBillingCycle(ctx, summary, requestUsage) {
+    var defaultPeriodMs = 30 * 24 * 60 * 60 * 1000
+    var startMs = summary && summary.billingCycleStart
+      ? ctx.util.parseDateMs(summary.billingCycleStart)
+      : null
+    var endMs = summary && summary.billingCycleEnd
+      ? ctx.util.parseDateMs(summary.billingCycleEnd)
+      : null
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+      return {
+        resetsAt: ctx.util.toIso(endMs),
+        periodDurationMs: endMs - startMs,
+      }
+    }
+    var requestStart = requestUsage && requestUsage.startOfMonth
+      ? ctx.util.parseDateMs(requestUsage.startOfMonth)
+      : null
+    var cycleEndMs = Number.isFinite(requestStart) ? requestStart + defaultPeriodMs : null
+    return {
+      resetsAt: ctx.util.toIso(cycleEndMs),
+      periodDurationMs: defaultPeriodMs,
+    }
+  }
+
+  function enterpriseDollarMeter(bucket) {
+    if (!bucket || typeof bucket !== "object" || bucket.enabled === false) return null
+    var limit = readFiniteNumber(bucket.limit)
+    if (!Number.isFinite(limit) || limit <= 0) return null
+    var reportedUsed = readFiniteNumber(bucket.used)
+    var remaining = readFiniteNumber(bucket.remaining)
+    var inferredUsed = Math.max(0, limit - (Number.isFinite(remaining) ? remaining : limit))
+    var used = Number.isFinite(reportedUsed) && reportedUsed > 0 ? reportedUsed : inferredUsed
+    return { used: Math.max(0, used), limit: limit }
+  }
+
+  function appendEnterpriseDollarProgress(ctx, lines, meter, label, cycle) {
+    lines.push(ctx.line.progress({
+      label: label,
+      used: ctx.fmt.dollars(meter.used),
+      limit: ctx.fmt.dollars(meter.limit),
+      format: { kind: "dollars" },
+      resetsAt: cycle.resetsAt,
+      periodDurationMs: cycle.periodDurationMs,
+    }))
+  }
+
+  function appendEnterpriseRequests(ctx, requestUsage, cycle, lines) {
+    var gpt4 = requestUsage && requestUsage["gpt-4"]
+    if (!gpt4 || typeof gpt4 !== "object") return false
+    var limit = readFiniteNumber(gpt4.maxRequestUsage)
+    if (!Number.isFinite(limit) || limit <= 0) return false
+    var usedRaw = readFiniteNumber(gpt4.numRequests)
+    if (!Number.isFinite(usedRaw)) usedRaw = readFiniteNumber(gpt4.numRequestsTotal)
+    var used = Math.max(0, Number.isFinite(usedRaw) ? usedRaw : 0)
+    var labels = ["Total usage", "Requests"]
+    for (var i = 0; i < labels.length; i++) {
+      lines.push(ctx.line.progress({
+        label: labels[i],
+        used: used,
+        limit: limit,
+        format: { kind: "count", suffix: "requests" },
+        resetsAt: cycle.resetsAt,
+        periodDurationMs: cycle.periodDurationMs,
+      }))
+    }
+    return true
+  }
+
+  function appendEnterpriseSummaryTotal(ctx, summary, cycle, lines) {
+    if (!summary || typeof summary !== "object") return
+    var individual = summary.individualUsage && typeof summary.individualUsage === "object"
+      ? summary.individualUsage
+      : null
+    var team = summary.teamUsage && typeof summary.teamUsage === "object"
+      ? summary.teamUsage
+      : null
+    var limitType = typeof summary.limitType === "string"
+      ? summary.limitType.toLowerCase()
+      : ""
+    var pooled
+    var overall
+    var plan
+    var percent
+
+    if (limitType === "team") {
+      pooled = enterpriseDollarMeter(team && team.pooled)
+      if (pooled) {
+        appendEnterpriseDollarProgress(ctx, lines, pooled, "Total usage", cycle)
+        return
+      }
+    }
+
+    plan = individual && individual.plan && typeof individual.plan === "object"
+      ? individual.plan
+      : null
+    percent = plan ? readFiniteNumber(plan.totalPercentUsed) : NaN
+    if (Number.isFinite(percent)) {
+      lines.push(ctx.line.progress({
+        label: "Total usage",
+        used: percent,
+        limit: 100,
+        format: { kind: "percent" },
+        resetsAt: cycle.resetsAt,
+        periodDurationMs: cycle.periodDurationMs,
+      }))
+      return
+    }
+
+    overall = enterpriseDollarMeter(individual && individual.overall)
+    if (overall) {
+      appendEnterpriseDollarProgress(ctx, lines, overall, "Total usage", cycle)
+      return
+    }
+
+    pooled = enterpriseDollarMeter(team && team.pooled)
+    if (pooled) {
+      appendEnterpriseDollarProgress(ctx, lines, pooled, "Total usage", cycle)
+    }
+  }
+
+  function appendEnterpriseStructuredPercentages(ctx, summary, cycle, lines) {
+    if (!summary || typeof summary !== "object") return
+    var individual = summary.individualUsage
+    var plan = individual && typeof individual === "object" && individual.plan
+      && typeof individual.plan === "object"
+      ? individual.plan
+      : null
+    if (!plan) return
+    var pairs = [
+      ["autoPercentUsed", "Auto usage"],
+      ["apiPercentUsed", "API usage"],
+    ]
+    for (var i = 0; i < pairs.length; i++) {
+      var percent = readFiniteNumber(plan[pairs[i][0]])
+      if (!Number.isFinite(percent)) continue
+      lines.push(ctx.line.progress({
+        label: pairs[i][1],
+        used: percent,
+        limit: 100,
+        format: { kind: "percent" },
+        resetsAt: cycle.resetsAt,
+        periodDurationMs: cycle.periodDurationMs,
+      }))
+    }
+  }
+
+  function appendEnterpriseOnDemandBucket(ctx, bucket, cycle, lines) {
+    if (!bucket || typeof bucket !== "object" || bucket.enabled === false) return false
+    var meter = enterpriseDollarMeter(bucket)
+    if (meter) {
+      appendEnterpriseDollarProgress(ctx, lines, meter, "On-demand", cycle)
+      return true
+    }
+    var usedCents = readFiniteNumber(bucket.used)
+    if (Number.isFinite(usedCents) && usedCents > 0) {
+      lines.push(ctx.line.text({
+        label: "On-demand",
+        value: "$" + String(ctx.fmt.dollars(usedCents)),
+      }))
+      return true
+    }
+    return false
+  }
+
+  function appendEnterpriseOnDemand(ctx, summary, cycle, lines) {
+    if (!summary || typeof summary !== "object") return
+    var individual = summary.individualUsage && typeof summary.individualUsage === "object"
+      ? summary.individualUsage
+      : null
+    var team = summary.teamUsage && typeof summary.teamUsage === "object"
+      ? summary.teamUsage
+      : null
+    if (appendEnterpriseOnDemandBucket(ctx, individual && individual.onDemand, cycle, lines)) {
+      return
+    }
+    appendEnterpriseOnDemandBucket(ctx, team && team.onDemand, cycle, lines)
+  }
+
+  /** Combines /api/usage (included requests) + /api/usage-summary (percents / on-demand). */
   function buildEnterpriseResult(ctx, accessToken, planName) {
-    return buildRequestBasedResult(
-      ctx,
-      accessToken,
-      planName,
-      "Enterprise usage data unavailable. Try again later."
-    )
+    var unavailableMessage = "Enterprise usage data unavailable. Try again later."
+    var requestUsage = fetchRequestBasedUsage(ctx, accessToken)
+    var summary = fetchUsageSummary(ctx, accessToken)
+    var cycle = enterpriseBillingCycle(ctx, summary, requestUsage)
+    var lines = []
+
+    var hasRequests = appendEnterpriseRequests(ctx, requestUsage, cycle, lines)
+    if (!hasRequests) {
+      appendEnterpriseSummaryTotal(ctx, summary, cycle, lines)
+    }
+    appendEnterpriseStructuredPercentages(ctx, summary, cycle, lines)
+    appendEnterpriseOnDemand(ctx, summary, cycle, lines)
+
+    if (lines.length === 0) {
+      ctx.host.log.warn("enterprise: no usage data from /api/usage or /api/usage-summary")
+      throw unavailableMessage
+    }
+
+    var plan = planName
+    if (!plan && summary && typeof summary.membershipType === "string") {
+      plan = summary.membershipType
+    }
+    return finalizePlanResult(ctx, plan, lines)
   }
 
   function buildTeamRequestBasedResult(ctx, accessToken, planName) {

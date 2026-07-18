@@ -117,3 +117,7 @@ grant_type=refresh_token
 ```
 
 Response returns new `access_token`, and optionally new `refresh_token` and `id_token`.
+
+## Spend (log scan)
+
+Native Rust scanner reads `~/.codex/sessions` (and `archived_sessions`). Symlinked Codex homes are resolved (`canonicalize`); duplicate session files under the same home (including archived copies of the same relative path) are deduped. Pi coding-agent daily usage is merged into Codex spend tiles when present.

@@ -2,6 +2,26 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.3.3
+
+**Theme:** OpenUsage **v0.7.6** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.6.md](docs/PORT-0.7.6.md).
+
+### Bug fixes
+
+- **Codex spend** — subagent replay dedup (`session_meta` + `task_started` gate, stale equal-count skip); session dir canonicalize + relative-path dedup across symlinks / archived copies (#1001, #973).
+- **Token costs** — Codex fast-tier from rollout `thread_settings_applied`; 272k long-context + cache-discount rules (#995). Claude `advisor_message` iterations counted; session-logged fast speed (#995).
+- **Pi agent** — fold pi coding-agent daily rows into Claude and Codex spend tiles (#975).
+- **Cursor enterprise** — restore included-request + on-demand meters via `/api/usage` + `/api/usage-summary` (#986); synced to Cursor Nightly.
+- **Pricing** — Grok 4.5 aliases accept `cursor-` prefix and `xhigh` effort (#981, #999). Supplement `updated_at` **2026-07-14**.
+
+### Other
+
+- **Grok** — updated provider logo (`currentColor`) (#1005).
+
+Skipped / deferred: macOS menu-bar / iCloud / Sparkle; Claude Desktop Safe Storage fallback (#962 → later); header screenshot copy (#989); limits CLI shape (#982). See PORT doc.
+
+---
+
 ## 1.3.2
 
 **Theme:** OpenUsage **v0.7.4 + v0.7.5** upstream mega-patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.4-0.7.5.md](docs/PORT-0.7.4-0.7.5.md).

@@ -72,6 +72,58 @@ mod tests {
         assert!(files.iter().any(|f| f.2 == 599));
         assert!(!files.iter().any(|f| f.2 == 0));
     }
+
+    #[test]
+    fn merge_daily_rows_sums_by_date_and_models() {
+        let a = vec![DailyUsageRow {
+            date: "2026-07-12".into(),
+            input_tokens: 10,
+            output_tokens: 5,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            total_tokens: 15,
+            total_cost: Some(1.0),
+            cost_usd: Some(1.0),
+            models: BTreeMap::from([(
+                "m".into(),
+                ModelDayUsage {
+                    input_tokens: 0,
+                    output_tokens: 15,
+                    cache_creation_tokens: 0,
+                    cache_read_tokens: 0,
+                    total_tokens: 15,
+                    total_cost: Some(1.0),
+                },
+            )]),
+        }];
+        let b = vec![DailyUsageRow {
+            date: "2026-07-12".into(),
+            input_tokens: 20,
+            output_tokens: 10,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            total_tokens: 30,
+            total_cost: Some(0.5),
+            cost_usd: Some(0.5),
+            models: BTreeMap::from([(
+                "m".into(),
+                ModelDayUsage {
+                    input_tokens: 0,
+                    output_tokens: 30,
+                    cache_creation_tokens: 0,
+                    cache_read_tokens: 0,
+                    total_tokens: 30,
+                    total_cost: Some(0.5),
+                },
+            )]),
+        }];
+        let merged = merge_daily_rows(a, b);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].total_tokens, 45);
+        assert_eq!(merged[0].total_cost, Some(1.5));
+        assert_eq!(merged[0].models["m"].total_tokens, 45);
+        assert_eq!(merged[0].models["m"].total_cost, Some(1.5));
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -167,4 +219,45 @@ pub fn host_query_response(status: LogScanStatus, daily: Vec<DailyUsageRow>) -> 
         "data": { "daily": daily }
     })
     .to_string()
+}
+
+fn sum_opt_f64(a: Option<f64>, b: Option<f64>) -> Option<f64> {
+    match (a, b) {
+        (None, None) => None,
+        (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
+    }
+}
+
+/// Sum token/cost fields by date and merge per-model maps (native + pi fold-in).
+pub fn merge_daily_rows(a: Vec<DailyUsageRow>, b: Vec<DailyUsageRow>) -> Vec<DailyUsageRow> {
+    let mut by_date: BTreeMap<String, DailyUsageRow> = BTreeMap::new();
+    for row in a.into_iter().chain(b) {
+        if let Some(existing) = by_date.get_mut(&row.date) {
+            existing.input_tokens += row.input_tokens;
+            existing.output_tokens += row.output_tokens;
+            existing.cache_creation_tokens += row.cache_creation_tokens;
+            existing.cache_read_tokens += row.cache_read_tokens;
+            existing.total_tokens += row.total_tokens;
+            existing.total_cost = sum_opt_f64(existing.total_cost, row.total_cost);
+            existing.cost_usd = sum_opt_f64(existing.cost_usd, row.cost_usd);
+            for (model, usage) in row.models {
+                match existing.models.get_mut(&model) {
+                    Some(e) => {
+                        e.input_tokens += usage.input_tokens;
+                        e.output_tokens += usage.output_tokens;
+                        e.cache_creation_tokens += usage.cache_creation_tokens;
+                        e.cache_read_tokens += usage.cache_read_tokens;
+                        e.total_tokens += usage.total_tokens;
+                        e.total_cost = sum_opt_f64(e.total_cost, usage.total_cost);
+                    }
+                    None => {
+                        existing.models.insert(model, usage);
+                    }
+                }
+            }
+        } else {
+            by_date.insert(row.date.clone(), row);
+        }
+    }
+    by_date.into_values().rev().collect()
 }

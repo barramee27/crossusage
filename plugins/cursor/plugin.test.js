@@ -588,6 +588,9 @@ describe("cursor plugin", () => {
           }),
         }
       }
+      if (String(opts.url).includes("cursor.com/api/usage-summary")) {
+        return { status: 200, bodyText: "{}" }
+      }
       if (String(opts.url).includes("cursor.com/api/usage")) {
         return {
           status: 200,
@@ -608,11 +611,203 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.plan).toBe("Enterprise")
+    const totalLine = result.lines.find((l) => l.label === "Total usage")
+    expect(totalLine).toBeTruthy()
+    expect(totalLine.used).toBe(422)
+    expect(totalLine.limit).toBe(500)
+    expect(totalLine.format).toEqual({ kind: "count", suffix: "requests" })
     const reqLine = result.lines.find((l) => l.label === "Requests")
     expect(reqLine).toBeTruthy()
     expect(reqLine.used).toBe(422)
     expect(reqLine.limit).toBe(500)
     expect(reqLine.format).toEqual({ kind: "count", suffix: "requests" })
+  })
+
+  it("maps enterprise included requests plus usage-summary Auto/API/on-demand", async () => {
+    const ctx = makeCtx()
+    const accessToken = makeJwt({ sub: "google-oauth2|user_abc123", exp: 9999999999 })
+
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            billingCycleStart: "1770539602363",
+            billingCycleEnd: "1770539602363",
+          }),
+        }
+      }
+      if (String(opts.url).includes("GetPlanInfo")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            planInfo: { planName: "Enterprise" },
+          }),
+        }
+      }
+      if (String(opts.url).includes("cursor.com/api/usage-summary")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            billingCycleStart: "2026-02-01T00:00:00.000Z",
+            billingCycleEnd: "2026-03-01T00:00:00.000Z",
+            membershipType: "enterprise",
+            individualUsage: {
+              plan: {
+                autoPercentUsed: 18.5,
+                apiPercentUsed: 42,
+              },
+              onDemand: {
+                enabled: true,
+                used: 2500,
+                limit: 10000,
+                remaining: 7500,
+              },
+            },
+          }),
+        }
+      }
+      if (String(opts.url).includes("cursor.com/api/usage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            "gpt-4": {
+              numRequests: 120,
+              maxRequestUsage: 500,
+            },
+            startOfMonth: "2026-02-01T06:12:57.000Z",
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.plan).toBe("Enterprise")
+
+    const totalLine = result.lines.find((l) => l.label === "Total usage")
+    expect(totalLine).toBeTruthy()
+    expect(totalLine.used).toBe(120)
+    expect(totalLine.limit).toBe(500)
+    expect(totalLine.format).toEqual({ kind: "count", suffix: "requests" })
+    expect(totalLine.resetsAt).toBe("2026-03-01T00:00:00.000Z")
+    expect(totalLine.periodDurationMs).toBe(
+      Date.parse("2026-03-01T00:00:00.000Z") - Date.parse("2026-02-01T00:00:00.000Z")
+    )
+
+    const reqLine = result.lines.find((l) => l.label === "Requests")
+    expect(reqLine).toBeTruthy()
+    expect(reqLine.used).toBe(120)
+    expect(reqLine.limit).toBe(500)
+
+    const autoLine = result.lines.find((l) => l.label === "Auto usage")
+    expect(autoLine).toBeTruthy()
+    expect(autoLine.used).toBe(18.5)
+    expect(autoLine.limit).toBe(100)
+    expect(autoLine.format).toEqual({ kind: "percent" })
+
+    const apiLine = result.lines.find((l) => l.label === "API usage")
+    expect(apiLine).toBeTruthy()
+    expect(apiLine.used).toBe(42)
+    expect(apiLine.format).toEqual({ kind: "percent" })
+
+    const onDemand = result.lines.find((l) => l.label === "On-demand")
+    expect(onDemand).toBeTruthy()
+    expect(onDemand.used).toBe(25)
+    expect(onDemand.limit).toBe(100)
+    expect(onDemand.format).toEqual({ kind: "dollars" })
+  })
+
+  it("uses usage-summary pooled Total usage when enterprise has no request allowance", async () => {
+    const ctx = makeCtx()
+    const accessToken = makeJwt({ sub: "google-oauth2|user_abc123", exp: 9999999999 })
+
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            billingCycleStart: "1770539602363",
+            billingCycleEnd: "1770539602363",
+          }),
+        }
+      }
+      if (String(opts.url).includes("GetPlanInfo")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            planInfo: { planName: "Enterprise" },
+          }),
+        }
+      }
+      if (String(opts.url).includes("cursor.com/api/usage-summary")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            billingCycleStart: "2026-07-01T00:00:00.000Z",
+            billingCycleEnd: "2026-08-01T00:00:00.000Z",
+            limitType: "team",
+            individualUsage: {
+              plan: {
+                autoPercentUsed: 5,
+                apiPercentUsed: 10,
+              },
+            },
+            teamUsage: {
+              pooled: {
+                enabled: true,
+                used: 3479810,
+                limit: 60000000,
+                remaining: 56520190,
+              },
+              onDemand: {
+                enabled: true,
+                used: 0,
+                limit: 5000000,
+                remaining: 5000000,
+              },
+            },
+          }),
+        }
+      }
+      if (String(opts.url).includes("cursor.com/api/usage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            "gpt-4": {
+              numRequests: 0,
+              maxRequestUsage: null,
+            },
+            startOfMonth: "2026-07-01T00:00:00.000Z",
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    const totalLine = result.lines.find((l) => l.label === "Total usage")
+    expect(totalLine).toBeTruthy()
+    expect(totalLine.format).toEqual({ kind: "dollars" })
+    expect(totalLine.used).toBe(34798.1)
+    expect(totalLine.limit).toBe(600000)
+    expect(result.lines.find((l) => l.label === "Requests")).toBeUndefined()
+
+    const autoLine = result.lines.find((l) => l.label === "Auto usage")
+    expect(autoLine.used).toBe(5)
+    const apiLine = result.lines.find((l) => l.label === "API usage")
+    expect(apiLine.used).toBe(10)
+
+    const onDemand = result.lines.find((l) => l.label === "On-demand")
+    expect(onDemand).toBeTruthy()
+    expect(onDemand.used).toBe(0)
+    expect(onDemand.limit).toBe(50000)
+    expect(onDemand.format).toEqual({ kind: "dollars" })
   })
 
   it("falls back to enterprise request-based usage when planUsage.limit is missing", async () => {
