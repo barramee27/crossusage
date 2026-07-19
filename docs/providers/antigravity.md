@@ -161,9 +161,12 @@ Interestingly, non-Google models (Claude, GPT-OSS) are proxied through Codeium/W
 
 The Antigravity IDE stores auth credentials in VS Code-compatible state databases.
 
-- **Paths, tried in order:**
-  - `~/Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb`
-  - `~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb`
+| Install | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| Current Antigravity IDE | `~/Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb` | `~/.config/Antigravity IDE/User/globalStorage/state.vscdb` | `%APPDATA%\Antigravity IDE\User\globalStorage\state.vscdb` |
+| Legacy Antigravity | `~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb` | `~/.config/Antigravity/User/globalStorage/state.vscdb` | `%APPDATA%\Antigravity\User\globalStorage\state.vscdb` |
+
+The plugin only queries state databases that exist. Antigravity 2.x's `~/.gemini/antigravity/` directory contains agent and conversation data; it is not scanned for OAuth credentials.
 - **Table:** `ItemTable` (`key` TEXT, `value` TEXT)
 
 ### antigravityUnifiedStateSync.oauthToken (sentinel envelope → protobuf)
@@ -212,58 +215,54 @@ Same client_id/secret is there in the Antigravity app bundle, used for the Googl
 
 When the language server is not running, the plugin falls back to Google's Cloud Code API using a Google OAuth access token from the unified-state protobuf, a cached refreshed token, or the `agy` keychain account.
 
-### fetchAvailableModels
+### retrieveUserQuotaSummary
 
 ```
-POST https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels
+POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary
 Authorization: Bearer <access_token>
 Content-Type: application/json
 User-Agent: antigravity
+
+{}
 ```
 
 Base URLs tried in order:
 1. `https://daily-cloudcode-pa.googleapis.com`
 2. `https://cloudcode-pa.googleapis.com`
 
+The response has two quota groups. The plugin exposes four progress lines: `Session`, `Weekly`, `Session — Claude and GPT Models`, and `Weekly — Claude and GPT Models`. A bucket's `remainingFraction` is converted to percentage used; `resetTime` is retained for the reset display.
+
 ### agy keychain fallback
 
-`agy` stores its auth in the macOS Keychain under service `gemini`, account `antigravity`. OpenUsage reads that exact account only; it does not use legacy Gemini CLI files.
+`agy` stores its auth in the OS credential store under service `gemini`, account `antigravity`. OpenUsage reads that exact account only; after a `401`, it refreshes the OAuth token once before reporting a sign-in error.
 
-For `agy`, OpenUsage calls:
+`agy` uses the same `retrieveUserQuotaSummary` request and headers. The older `fetchAvailableModels`, `loadCodeAssist`, and `retrieveUserQuota` calls are compatibility fallbacks only if a Cloud Code deployment has no usable summary response.
 
-1. `POST /v1internal:loadCodeAssist`
-2. `POST /v1internal:retrieveUserQuota`
-
-#### Response
+#### Response shape
 
 ```jsonc
 {
-  "models": {
-    "gemini-3-pro": {
-      "displayName": "Gemini 3 Pro",
-      "model": "gemini-3-pro",
-      "quotaInfo": {
-        "remainingFraction": 0.8,          // 0.0–1.0
-        "resetTime": "2026-02-08T10:00:00Z"
-      }
-    }
-    // ... more models
-  }
+  "groups": [
+    { "displayName": "Gemini Models", "buckets": [
+      { "bucketId": "gemini-5h", "remainingFraction": 0.88, "resetTime": "..." },
+      { "bucketId": "gemini-weekly", "remainingFraction": 0.98, "resetTime": "..." }
+    ] },
+    { "displayName": "Claude and GPT models", "buckets": [
+      { "bucketId": "3p-5h", "remainingFraction": 1, "resetTime": "..." },
+      { "bucketId": "3p-weekly", "remainingFraction": 1, "resetTime": "..." }
+    ] }
+  ]
 }
 ```
 
 Returns 401/403 if the token is invalid or expired — triggers reactive refresh.
-
-The response includes all models provisioned for the account. The plugin filters out non-user-facing models using three layers: (1) `isInternal: true` flag from the API, (2) empty `displayName` (catches internal autocomplete models like `chat_20706`, `tab_flash_lite_preview`), and (3) a model-ID blacklist (catches Gemini 2.5 variants and placeholders).
-
-The Cloud Code model set is a superset of the LS model set. The LS returns only cascade-configured chat models, Cloud Code includes all provisioned models. This difference is expected.
 
 ## Plugin Strategy
 
 1. Probe the Antigravity app/IDE language server.
 2. Probe the `agy` local language server.
 3. Read SQLite token candidates from both Antigravity state DB paths.
-4. Try unexpired SQLite/cached access tokens with `fetchAvailableModels`.
+4. Try unexpired SQLite/cached access tokens with `retrieveUserQuotaSummary`.
 5. Refresh SQLite refresh tokens only after auth failure or when no access token exists.
-6. Read `agy` keychain token from service `gemini`, account `antigravity`, then call `loadCodeAssist` and `retrieveUserQuota`.
+6. Read `agy` keychain token from service `gemini`, account `antigravity`, then call `retrieveUserQuotaSummary`.
 7. If all strategies fail: error "Start Antigravity or run `agy` and try again."

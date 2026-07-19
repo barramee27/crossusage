@@ -5,6 +5,7 @@ import {
   canPinMetric,
   countPinsForProvider,
   migrateModernPlacedToTrayLines,
+  normalizeModernLayout,
   pinnedIdsFromTrayLines,
   placedIdsFromPluginSettings,
   providerOrderFromPluginSettings,
@@ -154,5 +155,42 @@ describe("classic ↔ modern dashboard sync", () => {
       cursor: ["Total usage"],
       claude: ["Session"],
     })
+  })
+
+  it("normalizes old Antigravity metric ids to renamed summary labels", () => {
+    const layout = normalizeModernLayout({
+      placedMetricIds: [
+        metricId("antigravity", "Gemini Pro"),
+        metricId("antigravity-cli", "Claude"),
+        metricId("antigravity:work", "Gemini Flash"),
+        metricId("antigravity-ide", "Gemini Pro"),
+      ],
+      metricOrderByProvider: {
+        antigravity: [
+          metricId("antigravity", "Gemini Flash"),
+          metricId("antigravity", "Claude Opus 4.5"),
+        ],
+      },
+      pinnedMetricIds: [
+        metricId("antigravity-cli", "Gemini 3 Pro"),
+        metricId("antigravity-cli", "Claude Opus 4.6"),
+      ],
+      initialized: true,
+    })
+
+    expect(layout.placedMetricIds).toEqual([
+      metricId("antigravity", "Session"),
+      metricId("antigravity-cli", "Session — Claude and GPT Models"),
+      metricId("antigravity:work", "Session"),
+      metricId("antigravity-ide", "Gemini Pro"),
+    ])
+    expect(layout.metricOrderByProvider.antigravity).toEqual([
+      metricId("antigravity", "Session"),
+      metricId("antigravity", "Session — Claude and GPT Models"),
+    ])
+    expect(layout.pinnedMetricIds).toEqual([
+      metricId("antigravity-cli", "Session"),
+      metricId("antigravity-cli", "Session — Claude and GPT Models"),
+    ])
   })
 })

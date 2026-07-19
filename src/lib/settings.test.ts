@@ -195,6 +195,36 @@ describe("settings", () => {
     expect(normalized.trayLines).toEqual({ cursor: ["Total usage"] })
   })
 
+  it("migrates old Antigravity tray line labels for desktop, CLI, and account instances", () => {
+    const plugins: PluginMeta[] = [
+      { id: "antigravity", name: "Antigravity", iconUrl: "", lines: [], primaryCandidates: [] },
+      { id: "antigravity-cli", name: "Antigravity CLI", iconUrl: "", lines: [], primaryCandidates: [] },
+      { id: "antigravity-ide", name: "Antigravity IDE", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const normalized = normalizePluginSettings(
+      {
+        order: ["antigravity", "antigravity-cli", "antigravity:work", "antigravity-ide"],
+        disabled: [],
+        trayLines: {
+          antigravity: ["Gemini Pro", "Gemini Flash", "Claude"],
+          "antigravity-cli": ["Gemini 3 Pro", "Claude Opus 4.5"],
+          "antigravity:work": ["Gemini Flash", "Claude"],
+          "antigravity-ide": ["Gemini Pro", "Claude"],
+        },
+        providerInstances: {
+          "antigravity:work": { baseProviderId: "antigravity", label: "Work" },
+        },
+      },
+      plugins,
+    )
+    expect(normalized.trayLines).toEqual({
+      antigravity: ["Session", "Session — Claude and GPT Models"],
+      "antigravity-cli": ["Session", "Session — Claude and GPT Models"],
+      "antigravity:work": ["Session", "Session — Claude and GPT Models"],
+      "antigravity-ide": ["Gemini Pro", "Claude"],
+    })
+  })
+
   it("inserts provider instances directly under their base provider", () => {
     const plugins: PluginMeta[] = [
       { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },

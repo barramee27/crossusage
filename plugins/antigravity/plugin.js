@@ -1,6 +1,10 @@
 (function () {
   var LS_SERVICE = "exa.language_server_pb.LanguageServerService"
-  var STATE_DBS = [
+  var STATE_DB_RELATIVE_PATHS = [
+    "Antigravity IDE/User/globalStorage/state.vscdb",
+    "Antigravity/User/globalStorage/state.vscdb",
+  ]
+  var STATE_DB_FALLBACK_PATHS = [
     "~/Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb",
     "~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb",
   ]
@@ -10,6 +14,8 @@
     "https://daily-cloudcode-pa.googleapis.com",
     "https://cloudcode-pa.googleapis.com",
   ]
+  var RETRIEVE_QUOTA_SUMMARY_PATH = "/v1internal:retrieveUserQuotaSummary"
+  // Kept only for providers that have not rolled out quota summaries yet.
   var LOAD_CODE_ASSIST_PATH = "/v1internal:loadCodeAssist"
   var FETCH_MODELS_PATH = "/v1internal:fetchAvailableModels"
   var RETRIEVE_QUOTA_PATH = "/v1internal:retrieveUserQuota"
@@ -126,10 +132,23 @@
     }
   }
 
+  function resolveStateDbPaths(ctx) {
+    if (ctx.host.fs && typeof ctx.host.fs.firstExistingAppSupport === "function") {
+      var paths = []
+      for (var i = 0; i < STATE_DB_RELATIVE_PATHS.length; i++) {
+        var found = ctx.host.fs.firstExistingAppSupport(STATE_DB_RELATIVE_PATHS[i])
+        if (found && paths.indexOf(found) === -1) paths.push(found)
+      }
+      return paths
+    }
+    return STATE_DB_FALLBACK_PATHS
+  }
+
   function loadOAuthTokenCandidates(ctx) {
     var candidates = []
-    for (var i = 0; i < STATE_DBS.length; i++) {
-      var tokens = loadOAuthTokensFromDb(ctx, STATE_DBS[i])
+    var stateDbs = resolveStateDbPaths(ctx)
+    for (var i = 0; i < stateDbs.length; i++) {
+      var tokens = loadOAuthTokensFromDb(ctx, stateDbs[i])
       if (tokens) candidates.push(tokens)
     }
     return candidates
@@ -312,13 +331,41 @@
     return text
   }
 
-  function loadAgyKeychainToken(ctx) {
+  function extractAgyRefreshTokenFromObject(obj) {
+    if (!obj || typeof obj !== "object") return null
+    var directKeys = ["refresh_token", "refreshToken"]
+    for (var i = 0; i < directKeys.length; i++) {
+      var value = obj[directKeys[i]]
+      if (typeof value === "string" && value.trim()) return value.trim()
+    }
+
+    var nestedKeys = ["token", "tokens", "oauth", "oauth2", "credentials", "auth"]
+    for (var j = 0; j < nestedKeys.length; j++) {
+      var nested = extractAgyRefreshTokenFromObject(obj[nestedKeys[j]])
+      if (nested) return nested
+    }
+
+    return null
+  }
+
+  function extractAgyRefreshToken(ctx, raw) {
+    var text = unwrapAgyKeychainText(ctx, raw)
+    if (!text) return null
+    return extractAgyRefreshTokenFromObject(ctx.util.tryParseJson(text))
+  }
+
+  function loadAgyKeychainTokens(ctx) {
     if (!ctx.host.keychain || typeof ctx.host.keychain.readGenericPassword !== "function") {
       return null
     }
     try {
       var raw = ctx.host.keychain.readGenericPassword(AGY_KEYCHAIN_SERVICE, AGY_KEYCHAIN_ACCOUNT)
-      return extractAgyAccessToken(ctx, raw)
+      var accessToken = extractAgyAccessToken(ctx, raw)
+      if (!accessToken) return null
+      return {
+        accessToken: accessToken,
+        refreshToken: extractAgyRefreshToken(ctx, raw),
+      }
     } catch (e) {
       ctx.host.log.info("agy keychain read failed: " + String(e))
       return null
@@ -436,8 +483,8 @@
   var SUMMARY_BUCKETS = [
     { bucketId: "gemini-5h", label: "Session", periodMs: QUOTA_PERIOD_MS },
     { bucketId: "gemini-weekly", label: "Weekly", periodMs: QUOTA_WEEKLY_MS },
-    { bucketId: "3p-5h", label: "Claude", periodMs: QUOTA_PERIOD_MS },
-    { bucketId: "3p-weekly", label: "Claude Weekly", periodMs: QUOTA_WEEKLY_MS },
+    { bucketId: "3p-5h", label: "Session \u2014 Claude and GPT Models", periodMs: QUOTA_PERIOD_MS },
+    { bucketId: "3p-weekly", label: "Weekly \u2014 Claude and GPT Models", periodMs: QUOTA_WEEKLY_MS },
   ]
 
   function modelLine(ctx, label, remainingFraction, resetTime, periodMs) {
@@ -451,6 +498,7 @@
       format: { kind: "percent" },
       resetsAt: resetTime || undefined,
       periodDurationMs: duration,
+      color: "#4285F4",
     })
   }
 
@@ -582,8 +630,19 @@
     return null
   }
 
-  function probeCloudCode(ctx, token, userAgent) {
-    return requestCloudCodeJson(ctx, FETCH_MODELS_PATH, token, userAgent, {})
+  function hasQuotaSummary(ctx, data) {
+    var lines = parseQuotaSummary(ctx, data)
+    return lines !== null && lines.length > 0
+  }
+
+  function probeCloudCode(ctx, token) {
+    var summaryData = requestCloudCodeJson(ctx, RETRIEVE_QUOTA_SUMMARY_PATH, token, "antigravity", {})
+    if (summaryData && summaryData._authFailed) return summaryData
+    if (hasQuotaSummary(ctx, summaryData)) return summaryData
+
+    // Older Cloud Code deployments can still lack quota summaries. Preserve the
+    // established model endpoint only as a compatibility fallback.
+    return requestCloudCodeJson(ctx, FETCH_MODELS_PATH, token, "antigravity", {})
   }
 
   function parseCloudCodeModels(data) {
@@ -644,6 +703,13 @@
   }
 
   function probeAgyCloudCode(ctx, token) {
+    var summaryData = requestCloudCodeJson(ctx, RETRIEVE_QUOTA_SUMMARY_PATH, token, "antigravity", {})
+    if (summaryData && summaryData._authFailed) return summaryData
+    var summaryLines = parseQuotaSummary(ctx, summaryData)
+    if (summaryLines && summaryLines.length > 0) return { plan: null, lines: summaryLines }
+
+    // `agy` used these endpoints before retrieveUserQuotaSummary was available.
+    // Keep them only for older installations that return no usable summary.
     var loadData = requestCloudCodeJson(ctx, LOAD_CODE_ASSIST_PATH, token, "agy", {})
     if (!loadData || loadData._authFailed) return loadData
 
@@ -822,15 +888,27 @@
     }
 
     if (!ccData || ccData._authFailed) {
-      var agyToken = loadAgyKeychainToken(ctx)
-      if (agyToken) {
-        var agyResult = probeAgyCloudCode(ctx, agyToken)
+      var agyTokens = loadAgyKeychainTokens(ctx)
+      if (agyTokens) {
+        var agyResult = probeAgyCloudCode(ctx, agyTokens.accessToken)
         if (agyResult && !agyResult._authFailed) return agyResult
-        if (agyResult && agyResult._authFailed) ccData = agyResult
+        if (agyResult && agyResult._authFailed) {
+          ccData = agyResult
+          if (agyTokens.refreshToken) {
+            var refreshedAgyToken = refreshAccessToken(ctx, agyTokens.refreshToken)
+            if (refreshedAgyToken) {
+              var refreshedAgyResult = probeAgyCloudCode(ctx, refreshedAgyToken)
+              if (refreshedAgyResult && !refreshedAgyResult._authFailed) return refreshedAgyResult
+              if (refreshedAgyResult && refreshedAgyResult._authFailed) ccData = refreshedAgyResult
+            }
+          }
+        }
       }
     }
 
     if (ccData && !ccData._authFailed) {
+      var summaryLines = parseQuotaSummary(ctx, ccData)
+      if (summaryLines && summaryLines.length > 0) return { plan: null, lines: summaryLines }
       var configs = parseCloudCodeModels(ccData)
       var lines = buildModelLines(ctx, configs)
       if (lines.length > 0) return { plan: null, lines: lines }

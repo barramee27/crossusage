@@ -1,6 +1,7 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
 import { normalizeModernLayout, type ModernLayoutState } from "@/lib/modern-layout";
+import { migrateAntigravityLineLabel } from "@/lib/antigravity-label-migration";
 import {
   DEFAULT_APP_LOCALE,
   DEFAULT_DISPLAY_CURRENCY,
@@ -396,6 +397,15 @@ export function normalizePluginSettings(
           normalizedLines.map((l) =>
             l === "All usage" || l === "Total usage" ? "Total usage" : l
           )
+        ),
+      ];
+    }
+    // Migrate old Antigravity line labels to new overview equivalents
+    const migratedLines = trayLines[key];
+    if (Array.isArray(migratedLines) && migratedLines[0] !== "__NONE__") {
+      trayLines[key] = [
+        ...new Set(
+          migratedLines.map((l) => migrateAntigravityLineLabel(key, l))
         ),
       ];
     }
