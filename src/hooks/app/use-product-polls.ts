@@ -132,7 +132,13 @@ export async function refreshProductPolls(force = true): Promise<void> {
     // ignore
   }
 
-  const poll = await fetchActiveProductPoll({ appVersion })
+  const fetched = await fetchActiveProductPoll({ appVersion })
+  if (!fetched.ok) {
+    useProductPollsStore.getState().setFetchError(true)
+    return
+  }
+
+  const poll = fetched.poll
   const now = Date.now()
   useProductPollsStore.getState().setLastFetchAt(now)
   try {
@@ -149,7 +155,7 @@ export async function refreshProductPolls(force = true): Promise<void> {
 
   const installId = useProductPollsStore.getState().installId
   const answered = useProductPollsStore.getState().answered
-  if (poll && installId && answered[poll.id]) {
+  if (poll && installId && (answered[poll.id] || poll.ended)) {
     const { results, status } = await fetchProductPollResults({
       pollId: poll.id,
       installId,

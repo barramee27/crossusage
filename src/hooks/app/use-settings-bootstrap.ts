@@ -227,11 +227,11 @@ export function useSettingsBootstrap({
                 const names = toNotify
                   .map((id) => availablePlugins.find((p) => p.id === id)?.name ?? id)
                   .join(", ")
+                await saveNotifiedNewProviders([...already, ...toNotify])
                 await sendNotificationAsync({
                   title: "New providers available",
                   body: `${names} — enable in Settings when you want them.`,
                 })
-                await saveNotifiedNewProviders([...already, ...toNotify])
               }
             }
           } catch (error) {

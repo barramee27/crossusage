@@ -138,11 +138,15 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
+export type ActiveProductPollFetch =
+  | { ok: true; poll: ProductPoll | null }
+  | { ok: false }
+
 export async function fetchActiveProductPoll(args: {
   appVersion: string | null
   baseUrl?: string
   timeoutMs?: number
-}): Promise<ProductPoll | null> {
+}): Promise<ActiveProductPollFetch> {
   const base = args.baseUrl ?? PRODUCT_POLLS_API_BASE
   const q = args.appVersion ? `?appVersion=${encodeURIComponent(args.appVersion)}` : ""
   const url = `${base}/active${q}`
@@ -152,21 +156,22 @@ export async function fetchActiveProductPoll(args: {
       { method: "GET", headers: { Accept: "application/json" } },
       args.timeoutMs ?? PRODUCT_POLLS_FETCH_TIMEOUT_MS,
     )
-    if (res.status === 204) return null
+    if (res.status === 204) return { ok: true, poll: null }
     if (!res.ok) {
       console.warn("[product-polls] active HTTP", res.status, url)
-      return null
+      return { ok: false }
     }
     const text = await res.text()
-    if (!text.trim()) return null
+    if (!text.trim()) return { ok: false }
     const parsed = parseProductPoll(JSON.parse(text) as unknown)
     if (!parsed) {
       console.warn("[product-polls] active payload rejected by parser", text.slice(0, 200))
+      return { ok: false }
     }
-    return parsed
+    return { ok: true, poll: parsed }
   } catch (e) {
     console.warn("[product-polls] active fetch failed", e)
-    return null
+    return { ok: false }
   }
 }
 

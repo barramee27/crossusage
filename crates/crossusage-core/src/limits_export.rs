@@ -159,7 +159,18 @@ pub fn provider_limits_from_lines(
 
 pub fn limits_from_plugin_outputs(outputs: &[PluginOutput]) -> LimitsDocument {
     let mut providers = BTreeMap::new();
+    let mut errors = Vec::new();
     for out in outputs {
+        for line in &out.lines {
+            if let MetricLine::Badge { label, text, .. } = line {
+                if label == "Error" {
+                    errors.push(LimitsError {
+                        provider_id: out.provider_id.clone(),
+                        message: text.clone(),
+                    });
+                }
+            }
+        }
         providers.insert(
             out.provider_id.clone(),
             provider_limits_from_lines(
@@ -174,7 +185,7 @@ pub fn limits_from_plugin_outputs(outputs: &[PluginOutput]) -> LimitsDocument {
     LimitsDocument {
         schema: LIMITS_SCHEMA.to_string(),
         providers,
-        errors: Vec::new(),
+        errors,
     }
 }
 
@@ -235,5 +246,29 @@ mod tests {
         assert!(credits.remaining.is_none());
         assert!(credits.utilization.is_none());
         assert_eq!(credits.unit, "dollars");
+    }
+
+    #[test]
+    fn maps_probe_errors_to_limits_errors() {
+        use crate::plugin_engine::runtime::PluginOutput;
+
+        let outputs = vec![PluginOutput {
+            provider_id: "claude".to_string(),
+            display_name: "Claude".to_string(),
+            plan: None,
+            warning: None,
+            lines: vec![MetricLine::Badge {
+                label: "Error".to_string(),
+                text: "timeout".to_string(),
+                color: Some("#ef4444".to_string()),
+                subtitle: None,
+            }],
+            icon_url: String::new(),
+        }];
+        let doc = limits_from_plugin_outputs(&outputs);
+        assert_eq!(doc.errors.len(), 1);
+        assert_eq!(doc.errors[0].provider_id, "claude");
+        assert_eq!(doc.errors[0].message, "timeout");
+        assert!(doc.providers.get("claude").unwrap().resources.is_empty());
     }
 }
