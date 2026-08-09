@@ -24,11 +24,14 @@ Deploy user (see below) needs **write** access to `html/` and, if used, `files/`
 ## 3. nginx
 
 ```bash
+sudo cp nginx/polls-rate-limit.conf /etc/nginx/conf.d/polls-rate-limit.conf
 sudo cp nginx/crossusage.dev.conf /etc/nginx/sites-available/crossusage.dev
 # Before certs exist, you may temporarily use nginx/crossusage.dev.http-only.conf instead.
 sudo ln -sf /etc/nginx/sites-available/crossusage.dev /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+`crossusage.dev.conf` references `limit_req zone=polls_vote` for `/api/polls/` vote throttling; that zone is defined in `nginx/polls-rate-limit.conf` and must be loaded in the `http` context (e.g. `conf.d/`).
 
 If `options-ssl-nginx.conf` or `ssl-dhparams.pem` are missing, run `sudo certbot` once (see below); Certbot usually creates them under `/etc/letsencrypt/`.
 
@@ -94,6 +97,17 @@ The second command only works if the forced command allows it (see script) and s
 ## 7. Optional `/files/` hosting
 
 See [files/README.md](files/README.md). Nginx `location /files/` is already in `nginx/crossusage.dev.conf`. Populate `/var/www/crossusage.dev/files/vX.Y.Z/` with artifacts and checksums; **no** `autoindex`.
+
+## 8. Product polls API
+
+See [polls-api/README.md](polls-api/README.md). Install Bun service + systemd unit, install `nginx/polls-rate-limit.conf` into `conf.d/` (see section 3), then ensure nginx has `location ^~ /api/polls/` (in `nginx/crossusage.dev.conf`) proxying to `127.0.0.1:6740`. Publish polls by dropping JSON into the service `polls/` dir with `"active": true`.
+
+Verify:
+
+```bash
+curl -si https://crossusage.dev/api/polls/active
+# 204 when none active; 200 + JSON when a poll is published
+```
 
 ## Verification
 

@@ -1,4 +1,6 @@
 use super::cache::{cache_state, enabled_snapshots_ordered};
+use crossusage_core::limits_export::{provider_limits_from_lines, LimitsDocument};
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -193,6 +195,24 @@ fn route(method: &str, path: &str, raw_path: &str) -> String {
         }
     }
 
+    if path == "/v1/limits" {
+        return match method {
+            "GET" => handle_get_limits_collection(),
+            "OPTIONS" => response_no_content(),
+            _ => response_method_not_allowed(),
+        };
+    }
+
+    if let Some(provider_id) = path.strip_prefix("/v1/limits/") {
+        if !provider_id.is_empty() && !provider_id.contains('/') {
+            return match method {
+                "GET" => handle_get_limits_single(provider_id),
+                "OPTIONS" => response_no_content(),
+                _ => response_method_not_allowed(),
+            };
+        }
+    }
+
     if path == "/v1/history/quota" {
         return match method {
             "GET" => handle_get_history_quota(raw_path),
@@ -321,6 +341,66 @@ fn handle_get_usage_single(provider_id: &str) -> String {
     }
 }
 
+fn handle_get_limits_collection() -> String {
+    let snapshots = {
+        let state = cache_state().lock().expect("cache state poisoned");
+        enabled_snapshots_ordered(&state)
+    };
+    let mut providers = BTreeMap::new();
+    for snap in snapshots {
+        providers.insert(
+            snap.provider_id.clone(),
+            provider_limits_from_lines(
+                &snap.display_name,
+                snap.plan.as_deref(),
+                &snap.lines,
+                Some(&snap.fetched_at),
+                None,
+            ),
+        );
+    }
+    let doc = LimitsDocument {
+        schema: crossusage_core::limits_export::LIMITS_SCHEMA.to_string(),
+        providers,
+        errors: Vec::new(),
+    };
+    let body = serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".to_string());
+    response_json(200, "OK", &body)
+}
+
+fn handle_get_limits_single(provider_id: &str) -> String {
+    let state = cache_state().lock().expect("cache state poisoned");
+
+    let is_known = state.known_plugin_ids.iter().any(|id| id == provider_id);
+    if !is_known {
+        return response_not_found("provider_not_found");
+    }
+
+    match state.snapshots.get(provider_id) {
+        Some(snap) => {
+            let mut providers = BTreeMap::new();
+            providers.insert(
+                snap.provider_id.clone(),
+                provider_limits_from_lines(
+                    &snap.display_name,
+                    snap.plan.as_deref(),
+                    &snap.lines,
+                    Some(&snap.fetched_at),
+                    None,
+                ),
+            );
+            let doc = LimitsDocument {
+                schema: crossusage_core::limits_export::LIMITS_SCHEMA.to_string(),
+                providers,
+                errors: Vec::new(),
+            };
+            let body = serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".to_string());
+            response_json(200, "OK", &body)
+        }
+        None => response_no_content(),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // HTTP response builders
 // ---------------------------------------------------------------------------
@@ -374,6 +454,7 @@ mod tests {
             provider_id: id.to_string(),
             display_name: name.to_string(),
             plan: Some("Pro".to_string()),
+            warning: None,
             lines: vec![],
             fetched_at: "2026-03-26T08:15:30Z".to_string(),
         }
@@ -401,6 +482,13 @@ mod tests {
     fn route_get_usage_returns_200() {
         let resp = route("GET", "/v1/usage", "/v1/usage");
         assert!(resp.starts_with("HTTP/1.1 200"));
+    }
+
+    #[test]
+    fn route_get_limits_returns_200() {
+        let resp = route("GET", "/v1/limits", "/v1/limits");
+        assert!(resp.starts_with("HTTP/1.1 200"));
+        assert!(resp.contains("crossusage.limits.v1"));
     }
 
     #[test]

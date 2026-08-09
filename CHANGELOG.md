@@ -2,6 +2,26 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.4.0
+
+**Theme:** Fork MINOR — product polls, Windows Antigravity CLI keyring fix, new-provider-on-update notify, machine-readable limits.
+
+### New features
+
+- **Product polls** — dedicated Polls page (Classic + Modern), soft nav badge when unanswered; questions/options from `crossusage.dev/api/polls` (not hardcoded). Vote only on tap; results after vote. Settings toggle default **on**. Force-refresh on every Polls visit.
+- **polls-api** — Bun + SQLite service under `deploy/crossusage.dev/polls-api/` + nginx `/api/polls/` proxy. Records votes and dismiss reasons (`not_now` / `dont_ask`); dismiss counts only on admin `GET …/stats`.
+- **Limits API / CLI** — `GET /v1/limits` (+ `/:providerId`) and `crossusage-cli limits` emit `crossusage.limits.v1` (progress lines → used/limit/remaining/utilization).
+
+### Bug fixes
+
+- **Windows Antigravity CLI (#18)** — read `gemini:antigravity` via `get_secret` (UTF-8 go-keyring) with UTF-16LE fallback; refresh writes use `set_secret` so `agy` stays compatible.
+
+### Other
+
+- **New providers on update (#838)** — newly bundled plugins still auto-append and default-disable; one-shot desktop notification so users know to enable them in Settings.
+
+---
+
 ## 1.3.3
 
 **Theme:** OpenUsage **v0.7.6** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.6.md](docs/PORT-0.7.6.md).
@@ -18,7 +38,7 @@
 
 - **Grok** — updated provider logo (`currentColor`) (#1005).
 
-Skipped / deferred: macOS menu-bar / iCloud / Sparkle; Claude Desktop Safe Storage fallback (#962 → later); header screenshot copy (#989); limits CLI shape (#982). See PORT doc.
+Skipped / deferred: macOS menu-bar / iCloud / Sparkle; Claude Desktop Safe Storage fallback (#962 → later); header screenshot copy (#989). Limits CLI shape (#982) shipped in **1.4.0**. See PORT doc.
 
 ---
 

@@ -1,5 +1,19 @@
 # Choices
 
+## 2026-08-09
+
+- **Polls dismiss telemetry:** app POSTs `not_now` / `dont_ask`; admin-only `GET …/stats` via `X-Polls-Admin`. Public results stay vote-only.
+- **Polls anti-spam:** hashed IP, **1 new vote/IP/poll** + burst 429 (5 POSTs/min/IP) + nginx `limit_req`. `installId` alone is forgeable; no CAPTCHA for product feedback.
+- **1.4.0 scope:** polls + Windows #18 + #838 notify-once + limits JSON. Out: customize rewrite, screenshot share, #962, full ccusage removal.
+- **#838:** keep disabled-list model; notify once when newly bundled plugins appear after update (no credential auto-enable in v1).
+- **Limits schema:** `crossusage.limits.v1` (fork id); map progress lines only; `/v1/usage` stays UI-shaped.
+
+## 2026-07-31
+
+- **Product polls UI:** dedicated Polls page (not blocking overlay) for Classic + Modern; soft badge when unanswered; show aggregate results only after local vote (or when poll ended) to avoid herding.
+- **Polls enabled default ON** — kill-switch in Settings; empty API = quiet empty Polls page, no nag elsewhere.
+- **Votes:** opaque install UUID + poll/option ids only; server stores SHA-256 of install id.
+
 ## 2026-07-17
 
 - **#962 Claude Desktop Safe Storage:** **later** for 1.3.3 — macOS-centric decrypt; Linux/Windows has no equivalent store path worth shipping half-baked.

@@ -81,6 +81,16 @@ describe("SideNav", () => {
     expect(p2Style).toContain("rgb(255, 255, 255)")
   })
 
+  it("calls onViewChange for Polls and shows badge aria", async () => {
+    const onViewChange = vi.fn()
+    render(
+      <SideNav activeView="home" onViewChange={onViewChange} plugins={[]} pollsBadge />,
+    )
+
+    await userEvent.click(screen.getByRole("button", { name: "Polls (new)" }))
+    expect(onViewChange).toHaveBeenCalledWith("polls")
+  })
+
   it("opens the issues page and hides the panel from Help", async () => {
     const onViewChange = vi.fn()
     render(<SideNav activeView="home" onViewChange={onViewChange} plugins={[]} />)

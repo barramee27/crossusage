@@ -420,6 +420,18 @@ export function normalizePluginSettings(
   return { order: sortedOrder, disabled, trayLines, providerInstances };
 }
 
+/**
+ * Base plugin ids present in `plugins` but missing from stored `order`
+ * (e.g. newly bundled after an app update). Used for #838-style notify-once UX.
+ */
+export function listNewlyBundledPluginIds(
+  storedOrder: string[],
+  plugins: PluginMeta[],
+): string[] {
+  const seen = new Set(storedOrder.map((id) => id.trim()).filter(Boolean));
+  return plugins.map((p) => p.id).filter((id) => id && !seen.has(id));
+}
+
 /** On first-run onboarding, enable starter trio + any provider that already probed successfully. */
 export function enableDetectedProvidersOnOnboarding(
   settings: PluginSettings,
@@ -1152,5 +1164,91 @@ export async function loadModernDensity(): Promise<ModernDensity> {
 
 export async function saveModernDensity(value: ModernDensity): Promise<void> {
   await store.set(MODERN_DENSITY_KEY, value);
+  await store.save();
+}
+
+// --- Product polls (consent-first; default ON) ---
+
+const PRODUCT_POLLS_ENABLED_KEY = "polls.enabled";
+const PRODUCT_POLLS_INSTALL_ID_KEY = "polls.installId";
+const PRODUCT_POLLS_ANSWERED_KEY = "polls.answered";
+const PRODUCT_POLLS_DISMISSED_KEY = "polls.dismissed";
+const PRODUCT_POLLS_LAST_FETCH_AT_KEY = "polls.lastFetchAt";
+
+export const DEFAULT_PRODUCT_POLLS_ENABLED = true;
+
+export async function loadProductPollsEnabled(): Promise<boolean> {
+  const stored = await store.get<unknown>(PRODUCT_POLLS_ENABLED_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_PRODUCT_POLLS_ENABLED;
+}
+
+export async function saveProductPollsEnabled(value: boolean): Promise<void> {
+  await store.set(PRODUCT_POLLS_ENABLED_KEY, value);
+  await store.save();
+}
+
+export async function loadProductPollsInstallId(): Promise<string | null> {
+  const stored = await store.get<unknown>(PRODUCT_POLLS_INSTALL_ID_KEY);
+  return typeof stored === "string" && stored.length > 0 ? stored : null;
+}
+
+export async function saveProductPollsInstallId(value: string): Promise<void> {
+  await store.set(PRODUCT_POLLS_INSTALL_ID_KEY, value);
+  await store.save();
+}
+
+export async function loadProductPollsAnswered(): Promise<Record<string, string>> {
+  const stored = await store.get<unknown>(PRODUCT_POLLS_ANSWERED_KEY);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
+export async function saveProductPollsAnswered(value: Record<string, string>): Promise<void> {
+  await store.set(PRODUCT_POLLS_ANSWERED_KEY, value);
+  await store.save();
+}
+
+export async function loadProductPollsDismissed(): Promise<Record<string, number>> {
+  const stored = await store.get<unknown>(PRODUCT_POLLS_DISMISSED_KEY);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
+export async function saveProductPollsDismissed(value: Record<string, number>): Promise<void> {
+  await store.set(PRODUCT_POLLS_DISMISSED_KEY, value);
+  await store.save();
+}
+
+export async function loadProductPollsLastFetchAt(): Promise<number | null> {
+  const stored = await store.get<unknown>(PRODUCT_POLLS_LAST_FETCH_AT_KEY);
+  return typeof stored === "number" && Number.isFinite(stored) ? stored : null;
+}
+
+export async function saveProductPollsLastFetchAt(value: number): Promise<void> {
+  await store.set(PRODUCT_POLLS_LAST_FETCH_AT_KEY, value);
+  await store.save();
+}
+
+/** Plugin ids we already notified about after an update (#838). */
+const NOTIFIED_NEW_PROVIDERS_KEY = "notifiedNewProviders";
+
+export async function loadNotifiedNewProviders(): Promise<string[]> {
+  const stored = await store.get<unknown>(NOTIFIED_NEW_PROVIDERS_KEY);
+  if (!Array.isArray(stored)) return [];
+  return stored.filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+export async function saveNotifiedNewProviders(ids: string[]): Promise<void> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  await store.set(NOTIFIED_NEW_PROVIDERS_KEY, unique);
   await store.save();
 }

@@ -1,0 +1,16 @@
+{
+  "id": "example-providers-2026",
+  "version": 1,
+  "title": "Which providers matter most for you next?",
+  "body": "Example poll — set \"active\": true on the VPS when you want it live. Not active by default.",
+  "options": [
+    { "id": "claude", "label": "Claude / Anthropic" },
+    { "id": "cursor", "label": "Cursor" },
+    { "id": "codex", "label": "Codex / OpenAI" },
+    { "id": "other", "label": "Something else" }
+  ],
+  "allowDismiss": true,
+  "minAppVersion": "1.4.0",
+  "active": false,
+  "ended": false
+}

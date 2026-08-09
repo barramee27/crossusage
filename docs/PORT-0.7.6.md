@@ -67,7 +67,7 @@ git show v0.7.6:Sources/OpenUsage/LogScanning/
 | Upstream | CrossUsage action | Status |
 |----------|-------------------|--------|
 | Hover-revealed screenshot copying on provider headers (#989) | Provider header / share affordance in Modern + Classic | **later** (no share-card pipeline yet; nice UX) |
-| Machine-readable limits API + global `openusage` command (#982) | Evaluate overlap with `crossusage-cli limits` / local HTTP API | **later** (fork already has CLI; port only missing JSON shape if needed) |
+| Machine-readable limits API + global `openusage` command (#982) | Evaluate overlap with `crossusage-cli limits` / local HTTP API | **done in 1.4.0** (`crossusage.limits.v1` + `/v1/limits` + `crossusage-cli limits`; no `openusage` alias) |
 
 ---
 

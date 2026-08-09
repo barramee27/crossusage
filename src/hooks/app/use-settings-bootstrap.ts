@@ -65,6 +65,9 @@ import {
   loadDisplayCurrency,
   mergeStoredProviderAccounts,
   normalizePluginSettings,
+  listNewlyBundledPluginIds,
+  loadNotifiedNewProviders,
+  saveNotifiedNewProviders,
   resolveOnboardingComplete,
   savePluginSettings,
   saveShowTrayIcon,
@@ -84,6 +87,7 @@ import {
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings"
+import { sendNotificationAsync } from "@/lib/notification"
 import { hydrateModernLayoutStore } from "@/stores/modern-layout-store"
 
 type UseSettingsBootstrapArgs = {
@@ -207,6 +211,32 @@ export function useSettingsBootstrap({
         }
         if (!arePluginSettingsEqual(migratedSettings, settings)) {
           await savePluginSettings(settings)
+        }
+
+        // #838: after update, newly bundled providers appear disabled — notify once.
+        if (onboardingDone) {
+          try {
+            const newlyBundled = listNewlyBundledPluginIds(
+              migratedSettings.order,
+              availablePlugins,
+            )
+            if (newlyBundled.length > 0) {
+              const already = await loadNotifiedNewProviders()
+              const toNotify = newlyBundled.filter((id) => !already.includes(id))
+              if (toNotify.length > 0) {
+                const names = toNotify
+                  .map((id) => availablePlugins.find((p) => p.id === id)?.name ?? id)
+                  .join(", ")
+                await saveNotifiedNewProviders([...already, ...toNotify])
+                await sendNotificationAsync({
+                  title: "New providers available",
+                  body: `${names} — enable in Settings when you want them.`,
+                })
+              }
+            }
+          } catch (error) {
+            console.error("Failed to notify about new providers:", error)
+          }
         }
 
         let storedInterval = DEFAULT_AUTO_UPDATE_INTERVAL

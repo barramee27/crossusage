@@ -853,9 +853,7 @@ fn windows_go_keyring_target(service: &str, user: &str) -> String {
 }
 
 /// `zalando/go-keyring` writes raw UTF-8 bytes to Windows Credential Manager.
-/// Rust `keyring::Entry::get_password` expects the crate's UTF-16LE password format,
-/// so Go-managed entries must be read with `get_secret` instead.
-#[cfg(target_os = "windows")]
+/// Rust `keyring::Entry::get_password` / `set_password` use UTF-16LE instead.
 fn decode_windows_go_keyring_secret(secret: Vec<u8>) -> Result<String, String> {
     let value = String::from_utf8(secret)
         .map_err(|_| "go-keyring credential is not valid UTF-8".to_string())?;
@@ -868,6 +866,38 @@ fn decode_windows_go_keyring_secret(secret: Vec<u8>) -> Result<String, String> {
     Ok(value)
 }
 
+/// Decode a blob written by Rust `keyring` `set_password` (UTF-16LE, no BOM).
+fn decode_windows_keyring_utf16le_secret(secret: &[u8]) -> Result<String, String> {
+    if secret.is_empty() {
+        return Err("UTF-16LE credential is empty".to_string());
+    }
+    if secret.len() % 2 != 0 {
+        return Err("UTF-16LE credential has odd length".to_string());
+    }
+    let units: Vec<u16> = secret
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect();
+    let value = String::from_utf16(&units)
+        .map_err(|_| "credential is not valid UTF-16LE".to_string())?;
+    if value.trim().is_empty() {
+        return Err("UTF-16LE credential is empty".to_string());
+    }
+    if value.contains('\0') {
+        return Err("UTF-16LE credential unexpectedly contains NUL bytes".to_string());
+    }
+    Ok(value)
+}
+
+/// Prefer go-keyring UTF-8, then keyring-crate UTF-16LE (same CM target can be either).
+fn decode_windows_credential_blob(secret: Vec<u8>) -> Result<String, String> {
+    match decode_windows_go_keyring_secret(secret.clone()) {
+        Ok(value) => Ok(value),
+        Err(utf8_err) => decode_windows_keyring_utf16le_secret(&secret)
+            .map_err(|utf16_err| format!("{utf8_err}; then UTF-16LE: {utf16_err}")),
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
     let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
@@ -876,13 +906,24 @@ fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result
     if !user.is_empty() {
         let go_target = windows_go_keyring_target(service, user);
         match keyring::Entry::new_with_target(&go_target, service, user) {
-            Ok(entry) => match entry.get_secret() {
-                Ok(secret) => match decode_windows_go_keyring_secret(secret) {
-                    Ok(password) => return Ok(password),
-                    Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
-                },
-                Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
-            },
+            Ok(entry) => {
+                // Prefer raw bytes: agy stores UTF-8; CrossUsage refresh may have stored UTF-16LE.
+                match entry.get_secret() {
+                    Ok(secret) => match decode_windows_credential_blob(secret) {
+                        Ok(password) => return Ok(password),
+                        Err(e) => errors.push(format!("go-keyring target {go_target} get_secret: {e}")),
+                    },
+                    Err(e) => errors.push(format!("go-keyring target {go_target} get_secret: {e}")),
+                }
+                // Same target via get_password (UTF-16LE path inside the crate).
+                match entry.get_password() {
+                    Ok(password) if !password.trim().is_empty() => return Ok(password),
+                    Ok(_) => errors.push(format!(
+                        "go-keyring target {go_target} get_password: empty"
+                    )),
+                    Err(e) => errors.push(format!("go-keyring target {go_target} get_password: {e}")),
+                }
+            }
             Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
         }
     }
@@ -908,6 +949,10 @@ fn write_windows_keyring_password(
     if !user.is_empty() {
         let go_target = windows_go_keyring_target(service, user);
         if let Ok(entry) = keyring::Entry::new_with_target(&go_target, service, user) {
+            // Write raw UTF-8 so `agy` / go-keyring can still read the same target.
+            if entry.set_secret(value.as_bytes()).is_ok() {
+                return Ok(());
+            }
             if entry.set_password(value).is_ok() {
                 return Ok(());
             }
@@ -4133,7 +4178,6 @@ mod tests {
         assert!(paths[2].contains("AppData/Roaming/Kiro/"));
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn windows_go_keyring_secret_decodes_raw_utf8() {
         let raw = br#"{"token":{"access_token":"test-token"}}"#.to_vec();
@@ -4143,11 +4187,39 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn windows_go_keyring_secret_rejects_utf16_password_bytes() {
         let utf16le = vec![b'{', 0, b'}', 0];
         assert!(decode_windows_go_keyring_secret(utf16le).is_err());
+    }
+
+    #[test]
+    fn windows_credential_blob_prefers_utf8_then_utf16le() {
+        let utf8 = br#"{"token":{"access_token":"from-agy"}}"#.to_vec();
+        assert_eq!(
+            decode_windows_credential_blob(utf8).expect("utf8"),
+            r#"{"token":{"access_token":"from-agy"}}"#
+        );
+
+        // `{` `}` as UTF-16LE → "{}"
+        let utf16le = vec![b'{', 0, b'}', 0];
+        assert_eq!(
+            decode_windows_credential_blob(utf16le).expect("utf16"),
+            "{}"
+        );
+    }
+
+    #[test]
+    fn windows_utf16le_secret_decodes_json_payload() {
+        let json = r#"{"token":{"access_token":"refreshed"}}"#;
+        let mut utf16le = Vec::new();
+        for unit in json.encode_utf16() {
+            utf16le.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(
+            decode_windows_keyring_utf16le_secret(&utf16le).expect("utf16 json"),
+            json
+        );
     }
 
     #[test]
