@@ -52,6 +52,8 @@ import {
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
+import { setProductPollsEnabled } from "@/hooks/app/use-product-polls";
+import { useProductPollsStore } from "@/stores/product-polls-store";
 import { DEFAULT_LOG_LEVEL, isLogLevel, LOG_LEVEL_OPTIONS, type LogLevel } from "@/lib/log-level";
 import { formatLogTailClipboard } from "@/lib/support-issue-paste";
 import type { UsageHistoryRow } from "@/lib/usage-history";
@@ -719,11 +721,42 @@ function InsightsSection() {
   );
 }
 
+function ProductPollsSection() {
+  const enabled = useProductPollsStore((s) => s.enabled);
+  const hydrated = useProductPollsStore((s) => s.hydrated);
+
+  const onChange = async (checked: boolean) => {
+    try {
+      await setProductPollsEnabled(checked);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">Product polls</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        Occasional in-app questions from the CrossUsage team. Votes are anonymous (opaque install id + your choice).
+        Off = never fetch or send votes. See the Polls page.
+      </p>
+      <label className="flex items-center gap-2 text-sm select-none text-foreground">
+        <Checkbox
+          checked={enabled}
+          disabled={!hydrated}
+          onCheckedChange={(checked) => void onChange(checked === true)}
+        />
+        Allow product polls
+      </label>
+    </section>
+  );
+}
+
 const LOCAL_API_BASE = "http://127.0.0.1:6736";
 
 function LocalApiSection() {
   const [message, setMessage] = useState<string | null>(null);
-  const endpoints = ["/v1/usage", "/v1/insights", "/v1/history/quota", "/v1/history/daily"] as const;
+  const endpoints = ["/v1/usage", "/v1/limits", "/v1/insights", "/v1/history/quota", "/v1/history/daily"] as const;
 
   const copy = async (path: string) => {
     setMessage(null);
@@ -1754,6 +1787,7 @@ export function SettingsPage({
         ) : null}
       </section>
       <InsightsSection />
+      <ProductPollsSection />
       <LocalApiSection />
       <UsageHistorySection />
       <section>

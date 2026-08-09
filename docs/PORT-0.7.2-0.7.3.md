@@ -73,7 +73,7 @@ git show v0.7.2:Sources/OpenUsage/Providers/Codex/CodexUsageMapper.swift
 |----------|---------|------|
 | Full ccusage removal (Amp/Kimi/Copilot/OpenCode) | Still on `host.ccusage.query` | 1.4.0+ when native scanners expand |
 | GitHub Pages pricing-supplement CI | Upstream release infra | Optional fork infra |
-| New providers on app update (#838) | Install-detection + settings migration on Tauri | 1.4.0 fork feature |
+| New providers on app update (#838) | Install-detection + settings migration on Tauri | **done in 1.4.0** (append+disable already; notify-once on update) |
 | Reset All re-detects tools (#853) | Customize UX rewrite | 1.4.0+ |
 | Customize undo / provider list in customize (#603, #797) | React customize stack rewrite | 1.4.0+ |
 

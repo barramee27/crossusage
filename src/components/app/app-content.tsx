@@ -1,6 +1,7 @@
 import { useShallow } from "zustand/react/shallow"
 import { OverviewPage } from "@/pages/overview"
 import { ProviderDetailPage } from "@/pages/provider-detail"
+import { PollsPage } from "@/pages/polls"
 import { SettingsPage, type ProviderAccountCredentialInput } from "@/pages/settings"
 import type { DisplayPluginState } from "@/hooks/app/use-app-plugin-views"
 import type { SettingsPluginState } from "@/hooks/app/use-settings-plugin-list"
@@ -8,6 +9,7 @@ import type { TraySettingsPreview } from "@/hooks/app/use-tray-icon"
 import { useAppPluginStore } from "@/stores/app-plugin-store"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
+import { useProductPollsStore } from "@/stores/product-polls-store"
 import type {
   AutoUpdateIntervalMinutes,
   DisplayMode,
@@ -73,7 +75,7 @@ export type AppContentActionProps = {
 
 export type AppContentProps = AppContentDerivedProps &
   AppContentActionProps & {
-    viewOverride?: "home" | "settings"
+    viewOverride?: "home" | "settings" | "polls"
   }
 
 export function AppContent({
@@ -123,6 +125,7 @@ export function AppContent({
     }))
   )
   const resolvedView = viewOverride ?? activeView
+  const pollsVisitNonce = useProductPollsStore((state) => state.pollsVisitNonce)
 
   const pluginSettings = useAppPluginStore((state) => state.pluginSettings)
 
@@ -190,6 +193,10 @@ export function AppContent({
         showAccountIdentity={showAccountIdentity}
       />
     )
+  }
+
+  if (resolvedView === "polls") {
+    return <PollsPage key={pollsVisitNonce} />
   }
 
   if (resolvedView === "settings") {

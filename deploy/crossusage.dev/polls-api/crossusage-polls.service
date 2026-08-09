@@ -1,0 +1,24 @@
+[Unit]
+Description=CrossUsage product polls API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/crossusage-polls-api
+Environment=POLLS_PORT=6740
+Environment=POLLS_DIR=/opt/crossusage-polls-api/polls
+Environment=POLLS_DB=/var/lib/crossusage-polls/votes.sqlite
+# Set via: systemctl edit crossusage-polls → Environment=POLLS_ADMIN_TOKEN=…
+# Environment=POLLS_ADMIN_TOKEN=
+ExecStart=/usr/local/bin/bun run /opt/crossusage-polls-api/server.ts
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crossusage-polls /opt/crossusage-polls-api/polls
+
+[Install]
+WantedBy=multi-user.target

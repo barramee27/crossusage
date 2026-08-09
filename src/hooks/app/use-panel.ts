@@ -130,7 +130,7 @@ export function usePanel({
 
       let nextView: ActiveView | undefined
 
-      if (activeView === "settings") {
+      if (activeView === "settings" || activeView === "polls") {
         nextView = event.key === "ArrowUp" ? views[views.length - 1] : views[0]
       } else {
         const currentIndex = views.indexOf(activeView)

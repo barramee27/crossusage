@@ -98,6 +98,11 @@ enum Commands {
         #[arg(long)]
         human: bool,
     },
+    /// Machine-readable limits JSON (`crossusage.limits.v1`) from a live probe
+    Limits {
+        /// Plugin ids (e.g. cursor, claude). If empty, probes all.
+        plugin_ids: Vec<String>,
+    },
     /// Full-screen btop-style dashboard (default if no subcommand)
     #[command(visible_alias = "tui")]
     Dashboard {
@@ -303,6 +308,17 @@ fn sort_list_rows_by_id(rows: &mut Vec<ListUsageRow>) {
                 run_probe_cmd(
                     plugin_ids,
                     human,
+                    &app_data,
+                    &version,
+                    &plugins,
+                    plain,
+                    cli.verbose,
+                    &resource_resolution,
+                )?;
+            }
+            Some(Commands::Limits { ref plugin_ids }) => {
+                run_limits_cmd(
+                    plugin_ids,
                     &app_data,
                     &version,
                     &plugins,
@@ -664,6 +680,65 @@ fn run_probe_cmd(
     } else {
         println!("{}", serde_json::to_string_pretty(&outputs)?);
     }
+    Ok(())
+}
+
+fn run_limits_cmd(
+    plugin_ids: &[String],
+    app_data: &PathBuf,
+    version: &str,
+    plugins: &Arc<Vec<LoadedPlugin>>,
+    plain: bool,
+    verbose: bool,
+    resource_resolution: &ResourceDirResolution,
+) -> Result<()> {
+    let _ = plain;
+    apply_cli_log_policy(verbose);
+
+    let selected: Vec<&LoadedPlugin> = if plugin_ids.is_empty() {
+        plugins.iter().collect()
+    } else {
+        let mut out = Vec::new();
+        for id in plugin_ids {
+            let p = plugins
+                .iter()
+                .find(|x| x.manifest.id == *id)
+                .with_context(|| format!("Unknown plugin id: {id}"))?;
+            out.push(p);
+        }
+        out
+    };
+
+    if selected.is_empty() {
+        eprintln!(
+            "No plugins to probe.\n{}",
+            cu_paths::plugins_empty_diagnostic(resource_resolution)
+        );
+        return Ok(());
+    }
+
+    let interrupt = register_batch_interrupt_flag()?;
+    let n = selected.len();
+    let tmax = batch_probe::probe_timeout_secs();
+    eprintln!(
+        "crossusage-cli: probing {n} provider(s) for limits…  (up to {tmax}s each — CROSSUSAGE_PROBE_TIMEOUT_SEC)"
+    );
+
+    let mut outputs: Vec<PluginOutput> = Vec::new();
+    for (i, plugin) in selected.into_iter().enumerate() {
+        exit_if_batch_interrupted(&interrupt);
+        eprintln!(
+            "crossusage-cli:   [{}/{}] {}…",
+            i + 1,
+            n,
+            plugin.manifest.id
+        );
+        let out = batch_probe::run_probe_with_timeout(plugin, app_data, version, Some(&interrupt));
+        outputs.push(out);
+    }
+
+    let doc = crossusage_core::limits_export::limits_from_plugin_outputs(&outputs);
+    println!("{}", serde_json::to_string_pretty(&doc)?);
     Ok(())
 }
 

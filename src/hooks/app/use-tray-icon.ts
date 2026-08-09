@@ -275,7 +275,11 @@ export function useTrayIcon({
       const sizePx = getTrayIconSizePx(window.devicePixelRatio)
       const nextActiveView = activeViewRef.current
       const activeProviderId =
-        nextActiveView !== "home" && nextActiveView !== "settings" ? nextActiveView : null
+        nextActiveView !== "home" &&
+        nextActiveView !== "settings" &&
+        nextActiveView !== "polls"
+          ? nextActiveView
+          : null
 
       const pinnedIds = pinnedMetricIdsRef.current
       const firstPinnedProviderId = (() => {

@@ -14,6 +14,7 @@ import { useSettingsSystemActions } from "@/hooks/app/use-settings-system-action
 import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
+import { useProductPolls } from "@/hooks/app/use-product-polls"
 import { useUsageAlert } from "@/hooks/app/use-usage-alert"
 import { useNotificationFocus } from "@/hooks/app/use-notification-focus"
 import { useAppUpdate } from "@/hooks/use-app-update"
@@ -232,6 +233,7 @@ function App() {
 
   useSettingsTheme(themeMode)
   useSettingsUIScale(uiScale)
+  useProductPolls({ onboardingComplete })
 
   const {
     handleThemeModeChange,

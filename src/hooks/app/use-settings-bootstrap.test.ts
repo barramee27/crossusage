@@ -148,8 +148,15 @@ vi.mock("@/lib/settings", () => ({
   migrateWindsurfToDevin: migrateWindsurfToDevinMock,
   mergeStoredProviderAccounts: mergeStoredProviderAccountsMock,
   normalizePluginSettings: normalizePluginSettingsMock,
+  listNewlyBundledPluginIds: vi.fn().mockReturnValue([]),
+  loadNotifiedNewProviders: vi.fn().mockResolvedValue([]),
+  saveNotifiedNewProviders: vi.fn().mockResolvedValue(undefined),
   savePluginSettings: savePluginSettingsMock,
   resolveOnboardingComplete: resolveOnboardingCompleteMock,
+}))
+
+vi.mock("@/lib/notification", () => ({
+  sendNotificationAsync: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@/stores/modern-layout-store", () => ({

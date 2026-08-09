@@ -38,6 +38,22 @@ Returns a single cached usage snapshot for the given provider.
 - **204 No Content** — Provider is known but has no cached snapshot yet.
 - **404 Not Found** — Provider ID is unknown.
 
+### `GET /v1/limits`
+
+Machine-readable limits envelope (`schema: "crossusage.limits.v1"`) derived from **cached** progress lines for enabled providers. Prefer this for automation; `/v1/usage` stays UI-shaped.
+
+- **200 OK** — JSON object with `schema`, `providers`, `errors`.
+
+### `GET /v1/limits/:providerId`
+
+Same envelope scoped to one provider (still under `providers.{id}`).
+
+- **200 OK** — limits document with one provider entry.
+- **204 No Content** — Provider known but uncached.
+- **404 Not Found** — Unknown provider.
+
+CLI equivalent (live probe, not cache): `crossusage-cli limits [ids…]`.
+
 ### `GET /v1/history/quota`
 
 Returns quota snapshot history from local SQLite when **Settings → Save usage snapshots** is enabled.

@@ -60,7 +60,7 @@ export function useAppPluginViews({
   }, [pluginSettings, pluginsMeta])
 
   useEffect(() => {
-    if (activeView === "home" || activeView === "settings") return
+    if (activeView === "home" || activeView === "settings" || activeView === "polls") return
     if (!pluginSettings) return
     const isKnownPlugin = Boolean(getProviderInstanceMeta(activeView, pluginSettings, pluginsMeta))
     if (!isKnownPlugin) return
@@ -71,7 +71,7 @@ export function useAppPluginViews({
   }, [activeView, navPlugins, pluginSettings, pluginsMeta, setActiveView])
 
   const selectedPlugin = useMemo(() => {
-    if (activeView === "home" || activeView === "settings") return null
+    if (activeView === "home" || activeView === "settings" || activeView === "polls") return null
     return displayPlugins.find((plugin) => plugin.meta.id === activeView) ?? null
   }, [activeView, displayPlugins])
 

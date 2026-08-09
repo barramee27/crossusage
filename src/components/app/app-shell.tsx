@@ -16,6 +16,8 @@ import { useTrayRestartBridge } from "@/hooks/app/use-tray-restart-bridge"
 import type { UpdateStatus } from "@/hooks/use-app-update"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
+import { useProductPollsBadge } from "@/hooks/app/use-product-polls"
+import { useProductPollsStore } from "@/stores/product-polls-store"
 
 type AppShellProps = {
   onRefreshAll: () => void
@@ -87,9 +89,16 @@ export function AppShell({
   })
 
   const appVersion = useAppVersion()
+  const pollsBadge = useProductPollsBadge(appVersion)
+  const bumpPollsVisit = useProductPollsStore((s) => s.bumpPollsVisit)
   useTrayRestartBridge(updateStatus, onUpdateInstall)
   const platform = usePlatform()
   const macPopoverChrome = isTauri() && platform === "macos"
+
+  const onViewChange = (view: Parameters<typeof setActiveView>[0]) => {
+    if (view === "polls") bumpPollsVisit()
+    setActiveView(view)
+  }
 
   return (
     <div ref={containerRef} className="app-popover-shell w-full bg-transparent">
@@ -107,11 +116,12 @@ export function AppShell({
         <div className="flex flex-1 min-h-0 flex-row">
           <SideNav
             activeView={activeView}
-            onViewChange={setActiveView}
+            onViewChange={onViewChange}
             plugins={navPlugins}
             onPluginContextAction={onPluginContextAction}
             isPluginRefreshAvailable={isPluginRefreshAvailable}
             onReorder={onNavReorder}
+            pollsBadge={pollsBadge}
           />
           <div className="app-main-pane relative flex-1 flex flex-col px-3 pt-2 pb-1.5 min-w-0">
             {macPopoverChrome ? (

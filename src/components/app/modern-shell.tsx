@@ -39,8 +39,11 @@ import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
 import { useModernLayoutStore } from "@/stores/modern-layout-store"
 import type { UILayout } from "@/lib/settings"
+import { useProductPollsBadge } from "@/hooks/app/use-product-polls"
+import { useProductPollsStore } from "@/stores/product-polls-store"
+import { PollsPage } from "@/pages/polls"
 
-type ModernScreen = "dashboard" | "customize" | "settings"
+type ModernScreen = "dashboard" | "customize" | "polls" | "settings"
 
 type ModernShellProps = {
   onRefreshAll: () => void
@@ -73,6 +76,9 @@ export function ModernShell({
 }: ModernShellProps) {
   const [screen, setScreen] = useState<ModernScreen>("dashboard")
   const appVersion = useAppVersion()
+  const pollsBadge = useProductPollsBadge(appVersion)
+  const bumpPollsVisit = useProductPollsStore((s) => s.bumpPollsVisit)
+  const pollsVisitNonce = useProductPollsStore((s) => s.pollsVisitNonce)
   useTrayRestartBridge(updateStatus, onUpdateInstall)
 
   const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision, showTotalSpend } =
@@ -265,6 +271,7 @@ export function ModernShell({
             [
               ["dashboard", "Dashboard"],
               ["customize", "Customize"],
+              ["polls", "Polls"],
               ["settings", "Settings"],
             ] as const
           ).map(([id, label]) => (
@@ -273,14 +280,27 @@ export function ModernShell({
               type="button"
               size="sm"
               variant={screen === id ? "default" : "ghost"}
-              className="flex-1"
+              className="relative flex-1"
               onClick={() => {
                 if (id === "settings") setActiveView("settings")
-                else setActiveView("home")
+                else if (id === "polls") {
+                  bumpPollsVisit()
+                  setActiveView("polls")
+                } else setActiveView("home")
                 setScreen(id)
               }}
             >
               {label}
+              {id === "polls" && pollsBadge ? (
+                <span
+                  className={
+                    screen === id
+                      ? "absolute top-1 right-1 size-1.5 rounded-full bg-primary-foreground"
+                      : "absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+                  }
+                  aria-hidden
+                />
+              ) : null}
             </Button>
           ))}
         </nav>
@@ -351,6 +371,8 @@ export function ModernShell({
                 compact={compact}
               />
             ) : null}
+
+            {screen === "polls" ? <PollsPage key={pollsVisitNonce} /> : null}
 
             {screen === "settings" ? (
               <AppContent

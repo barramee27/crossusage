@@ -95,6 +95,17 @@ The second command only works if the forced command allows it (see script) and s
 
 See [files/README.md](files/README.md). Nginx `location /files/` is already in `nginx/crossusage.dev.conf`. Populate `/var/www/crossusage.dev/files/vX.Y.Z/` with artifacts and checksums; **no** `autoindex`.
 
+## 8. Product polls API
+
+See [polls-api/README.md](polls-api/README.md). Install Bun service + systemd unit, then ensure nginx has `location ^~ /api/polls/` (in `nginx/crossusage.dev.conf`) proxying to `127.0.0.1:6740`. Publish polls by dropping JSON into the service `polls/` dir with `"active": true`.
+
+Verify:
+
+```bash
+curl -si https://crossusage.dev/api/polls/active
+# 204 when none active; 200 + JSON when a poll is published
+```
+
 ## Verification
 
 - [SSL Labs](https://www.ssllabs.com/ssltest/) for `crossusage.dev`

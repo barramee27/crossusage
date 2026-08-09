@@ -25,6 +25,7 @@ import {
   getProviderDisplayName,
   getProviderInstanceMeta,
   insertProviderInstanceInOrder,
+  listNewlyBundledPluginIds,
   mergeStoredProviderAccounts,
   isUsageAlertThreshold,
   loadAutoUpdateInterval,
@@ -287,6 +288,35 @@ describe("settings", () => {
     const result = normalizePluginSettings({ order: [], disabled: [] }, plugins)
     expect(result.order).toEqual(["claude", "copilot", "windsurf"])
     expect(result.disabled).toEqual(["copilot", "windsurf"])
+  })
+
+  it("appends new bundled plugins after update and keeps them disabled", () => {
+    const plugins: PluginMeta[] = [
+      { id: "claude", name: "Claude", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "codex", name: "Codex", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "cursor", name: "Cursor", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "grok", name: "Grok", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+    ]
+    const stored = {
+      order: ["claude", "codex", "cursor"],
+      disabled: [] as string[],
+    }
+    const result = normalizePluginSettings(stored, plugins)
+    expect(result.order).toContain("grok")
+    expect(result.disabled).toContain("grok")
+    expect(result.disabled).not.toContain("claude")
+    // Re-normalize does not clear user-disabled / auto-disabled
+    const again = normalizePluginSettings(result, plugins)
+    expect(again.disabled).toContain("grok")
+  })
+
+  it("lists newly bundled plugin ids missing from stored order", () => {
+    const plugins: PluginMeta[] = [
+      { id: "claude", name: "Claude", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+      { id: "grok", name: "Grok", iconUrl: "", iconFilePath: "", lines: [], primaryCandidates: [] },
+    ]
+    expect(listNewlyBundledPluginIds(["claude"], plugins)).toEqual(["grok"])
+    expect(listNewlyBundledPluginIds(["claude", "grok"], plugins)).toEqual([])
   })
 
   it("compares settings equality", () => {

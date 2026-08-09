@@ -6,6 +6,7 @@ mod provider_accounts_crypto;
 pub mod provider_accounts;
 pub mod proxy_config;
 pub mod usage_metrics;
+pub mod limits_export;
 pub mod cursor_paths;
 pub mod cursor_usage_export;
 pub mod cursor_usage_logs;
