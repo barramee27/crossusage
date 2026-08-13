@@ -153,7 +153,7 @@ export async function fetchActiveProductPoll(args: {
   try {
     const res = await fetchWithTimeout(
       url,
-      { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" },
+      { method: "GET", headers: { Accept: "application/json" } },
       args.timeoutMs ?? PRODUCT_POLLS_FETCH_TIMEOUT_MS,
     )
     if (res.status === 204) return { ok: true, poll: null }
