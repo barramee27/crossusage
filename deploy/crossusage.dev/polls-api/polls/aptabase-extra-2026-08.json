@@ -1,0 +1,16 @@
+{
+  "id": "aptabase-extra-2026-08",
+  "version": 2,
+  "title": "OK to send a bit more anonymous product data?",
+  "body": "Today Aptabase only sees that CrossUsage opened (about once per day). With your OK, we'd also send: UI mode (Classic / Modern) and which providers you have enabled — never credentials, never usage totals or spend, never account email. Used only to decide what to build next. You can still turn all product polls off in Settings. This poll closes Saturday, 15 August 2026, 23:59 UTC.",
+  "options": [
+    { "id": "yes_ui_providers", "label": "Yes — UI + enabled providers is fine" },
+    { "id": "providers_only", "label": "Enabled providers only (not UI)" },
+    { "id": "no", "label": "No — keep app_started only" }
+  ],
+  "allowDismiss": true,
+  "minAppVersion": "1.4.0",
+  "expiresAt": "2026-08-15T23:59:59.000Z",
+  "active": true,
+  "ended": false
+}

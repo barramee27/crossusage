@@ -28,8 +28,8 @@ const VOTE_BURST_WINDOW_MS = Math.max(1000, Number(process.env.POLLS_VOTE_BURST_
 const DISMISS_REASONS = ["not_now", "dont_ask"] as const
 export type DismissReason = (typeof DISMISS_REASONS)[number]
 
-type PollOption = { id: string; label: string }
-type PollDef = {
+export type PollOption = { id: string; label: string }
+export type PollDef = {
   id: string
   version?: number
   title: string
@@ -154,7 +154,7 @@ export function versionSatisfies(appVersion: string | null, minVersion: string |
   return true
 }
 
-function isExpired(expiresAt: string | undefined, now = Date.now()): boolean {
+export function isExpired(expiresAt: string | undefined, now = Date.now()): boolean {
   if (!expiresAt) return false
   const t = Date.parse(expiresAt)
   return Number.isFinite(t) && t <= now
@@ -178,16 +178,25 @@ function loadPollDefs(): PollDef[] {
   return out
 }
 
-function getActivePoll(appVersion: string | null): PollDef | null {
-  const now = Date.now()
-  const candidates = loadPollDefs().filter(
-    (p) =>
-      p.active === true &&
-      !p.ended &&
-      !isExpired(p.expiresAt, now) &&
-      versionSatisfies(appVersion, p.minAppVersion),
+/**
+ * Published poll for GET /active.
+ * Open polls win; if none, keep the published ended/expired poll so results + winner stay visible.
+ * Set `"active": false` to hide it. `expiresAt` / `ended` stop new votes (410).
+ */
+export function selectActivePoll(
+  polls: PollDef[],
+  appVersion: string | null,
+  now = Date.now(),
+): PollDef | null {
+  const published = polls.filter(
+    (p) => p.active === true && versionSatisfies(appVersion, p.minAppVersion),
   )
-  return candidates[0] ?? null
+  const open = published.filter((p) => !p.ended && !isExpired(p.expiresAt, now))
+  return open[0] ?? published[0] ?? null
+}
+
+function getActivePoll(appVersion: string | null): PollDef | null {
+  return selectActivePoll(loadPollDefs(), appVersion)
 }
 
 function getPollById(id: string): PollDef | null {
@@ -352,7 +361,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const poll = getActivePoll(appVersion)
     if (!poll) return empty(204)
     return json(publicPoll(poll), 200, {
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=60",
     })
   }
 
