@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-08-13
+
+- **Aptabase poll close:** Saturday **15 Aug 2026, 23:59 UTC** (`expiresAt`). Same sentence in `body`. After expiry, `/active` still returns the poll (`ended: true`) so a winner can show; set `active: false` to hide. Open poll preferred if several are published.
+
 ## 2026-08-09
 
 - **Polls dismiss telemetry:** app POSTs `not_now` / `dont_ask`; admin-only `GET …/stats` via `X-Polls-Admin`. Public results stay vote-only.

@@ -19,7 +19,7 @@ Client IP from nginx `X-Real-IP` (hashed before store). VPNs still bypass IP cap
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/polls/active?appVersion=1.4.0` | Active poll JSON, or **204** if none |
+| GET | `/api/polls/active?appVersion=1.4.0` | Published poll JSON (`active: true`), or **204** if none. Expired/`ended` polls still return so results stay visible until you set `active: false`. New votes after `expiresAt` → **410**. |
 | POST | `/api/polls/:id/vote` | `{ installId, optionId }` → `{ ok, results }` or `429` |
 | POST | `/api/polls/:id/dismiss` | `{ installId, reason: "not_now" \| "dont_ask" }` → `{ ok }` |
 | GET | `/api/polls/:id/results?installId=` | **Vote counts only** (after vote, or poll ended). No dismissals. |
@@ -46,7 +46,7 @@ POLLS_ADMIN_TOKEN=dev-secret bun run server.ts
 # → http://127.0.0.1:6740/api/polls/active
 ```
 
-Flip `"active": true` on a file in `polls/` to publish.
+Flip `"active": true` on a file in `polls/` to publish. Set `"expiresAt": "2026-08-15T23:59:59.000Z"` (ISO UTC) so the poll closes; put the same date in `body` so the app description shows it. After expiry the poll stays on `/active` with `ended: true` (winner/results) until `"active": false`.
 
 ## VPS install
 
