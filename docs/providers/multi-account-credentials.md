@@ -267,7 +267,7 @@ No credentials — dev/testing only.
 | Ollama | API key (if any) | — | `OLLAMA_API_KEY` |
 | OpenCode Go | API key | — | plugin config |
 | OpenRouter | API key | — | `OPENROUTER_API_KEY` |
-| Perplexity | Bearer token | — | macOS app cache |
+| Perplexity | Bearer token (macOS) / session cookie (Windows, Linux) | — | macOS app cache / pasted `next-auth` cookie |
 | Synthetic | API key | — | `SYNTHETIC_API_KEY` |
 | Z.ai | API key | — | `ZAI_API_KEY` / `GLM_API_KEY` |
 

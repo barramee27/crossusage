@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### New features
+
+- **Perplexity (Windows/Linux)** — paste a perplexity.ai `next-auth` session cookie in **Settings → Providers → Perplexity → Set credentials**; the plugin now reads API credits, per-mode availability and plan from the same REST API the website uses. macOS auto-detect is unchanged. The credentials dialog names the cookie option for Perplexity.
+
 ## 1.6.1
 
 **Theme:** OpenUsage **v0.7.14 + v0.7.15** upstream ports + build speed, dependency, and app size optimizations (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Trackers: [docs/PORT-0.7.14.md](docs/PORT-0.7.14.md), [docs/PORT-0.7.15.md](docs/PORT-0.7.15.md).

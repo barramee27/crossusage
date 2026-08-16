@@ -1,5 +1,12 @@
 # Choices
 
+## 2026-11-01
+
+- **Perplexity Windows/Linux auth:** cookie, not Bearer. No CFNetwork-equivalent cache and no plaintext token on disk (checked live app data and a HAR from the web client: only `next-auth` JWE cookies, 5 segments, exist). Send as a `Cookie` header to the same REST paths the account page uses (`rate-limit/status`, `billing/credits`, `api/auth/session`), not `Authorization: Bearer`.
+- **Credential-shape detection:** the `readProviderCredential()` value routes to cookie auth when it contains `=` or looks like `eyJ...` with 3+ dots (JWE, not the 3-part Bearer JWT); otherwise it falls through to the existing macOS cache path. No new plugin API surface.
+- **Line shape for cookie mode:** `text` lines, not `progress`. `rate-limit/status` returns exact remaining counts only for some modes (`kind: "exact"`); most report `kind: "not_provided"`, rendered as `available` / `not available` instead of a made-up bar.
+- **Not reusing `chromiumCookies.read`:** it explicitly does not support Windows yet (DPAPI / v20) and reads browser profiles, not Electron app dirs. Revisit if it gains Windows support.
+
 ## 2026-10-19
 
 - **1.6.1 (PATCH):** OpenUsage **v0.7.14 + v0.7.15** ports + build/size optimization pass ([VERSIONING.md](./VERSIONING.md)).
