@@ -17,6 +17,9 @@
     { "type": "progress", "label": "Cursor Models", "scope": "detail" },
     { "type": "progress", "label": "Other Models", "scope": "detail" },
     { "type": "progress", "label": "Grok Bot usage", "scope": "detail" },
-    { "type": "progress", "label": "On-demand", "scope": "detail" }
+    { "type": "progress", "label": "On-demand", "scope": "detail" },
+    { "type": "text", "label": "Today", "scope": "detail" },
+    { "type": "text", "label": "Yesterday", "scope": "detail" },
+    { "type": "text", "label": "Last 30 Days", "scope": "detail" }
   ]
 }

@@ -2461,7 +2461,7 @@ describe("cursor plugin", () => {
     })
     ctx.host.cursorUsageExport.queryMtd = vi.fn(() => ({
       status: "ok",
-      data: { totalTokens: 1_200_000, inputTokens: 800_000, outputTokens: 400_000, costUsd: 4.8 },
+      data: { totalTokens: 1_200_000, inputTokens: 800_000, outputTokens: 400_000, costUsd: 4.8, source: "csv" },
     }))
 
     const plugin = await loadPlugin()
@@ -2473,7 +2473,201 @@ describe("cursor plugin", () => {
     expect(mtd.value).toContain("800.0K tokens in")
     expect(mtd.value).toContain("400.0K tokens out")
     expect(mtd.value).toContain("$4.80")
-    expect(mtd.subtitle).toContain("Estimated spend")
+    expect(mtd.value).not.toContain("≈")
+    expect(mtd.subtitle).toBe("On-demand usage billed by Cursor")
+  })
+
+  describe("MTD usage line: billed vs estimated", () => {
+    async function probeWithMtd(mtdData) {
+      const ctx = makeCtx()
+      const accessToken = makeJwt({ exp: 9999999999 })
+      ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+      ctx.host.http.request.mockReturnValue({
+        status: 200,
+        bodyText: JSON.stringify({ enabled: true, planUsage: { totalPercentUsed: 42 } }),
+      })
+      ctx.host.cursorUsageExport.queryMtd = vi.fn(() => ({ status: "ok", data: mtdData }))
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+      return result.lines.find((line) => line.type === "text" && line.label === "MTD usage")
+    }
+
+    const base = { totalTokens: 1_200_000, inputTokens: 800_000, outputTokens: 400_000, costUsd: 4.8 }
+
+    it("marks events-sourced cost as an estimate", async () => {
+      const mtd = await probeWithMtd({ ...base, source: "events" })
+      expect(mtd.value).toContain("≈$4.80")
+      expect(mtd.subtitle).toBe("Estimated at API rates · not billed")
+    })
+
+    it("claims neither when the host reports no source", async () => {
+      const mtd = await probeWithMtd(base)
+      expect(mtd.value).toContain("$4.80")
+      expect(mtd.value).not.toContain("≈")
+      expect(mtd.subtitle).toBe("From Cursor usage export")
+    })
+
+    it("keeps the plain subtitle when there is no cost", async () => {
+      const mtd = await probeWithMtd({ ...base, costUsd: 0, source: "csv" })
+      expect(mtd.subtitle).toBe("From Cursor dashboard export (billing data)")
+    })
+  })
+
+  // Today/Yesterday/Last 30 Days: feeds CrossUsage's Total Spend card, which the
+  // Claude/Codex plugins already populate from local session logs. Cursor has no
+  // such logs, but queryDaily's billing export gives the same per-day series that
+  // already feeds the activity chart.
+  describe("daily cost lines (Today/Yesterday/Last 30 Days)", () => {
+    function ymd(offsetDays) {
+      const d = new Date()
+      d.setDate(d.getDate() + offsetDays)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, "0")
+      const day = String(d.getDate()).padStart(2, "0")
+      return `${y}${m}${day}`
+    }
+
+    // `source` mirrors what the host reports: "csv" (billed), "events" (estimate),
+    // or undefined for a host that predates the field.
+    function setupProbe(ctx, dailyRows, source) {
+      const accessToken = makeJwt({ exp: 9999999999 })
+      ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+      ctx.host.http.request.mockReturnValue({
+        status: 200,
+        bodyText: JSON.stringify({ enabled: true, planUsage: { totalPercentUsed: 10 } }),
+      })
+      const data = { daily: dailyRows }
+      if (source !== undefined) data.source = source
+      ctx.host.cursorUsageExport.queryDaily = vi.fn(() => ({ status: "ok", data }))
+    }
+
+    const threeDays = () => [
+      { date: ymd(0), totalTokens: 1000, inputTokens: 900, outputTokens: 100, costUsd: 12.5 },
+      { date: ymd(-1), totalTokens: 2000, inputTokens: 1800, outputTokens: 200, costUsd: 8.25 },
+      { date: ymd(-10), totalTokens: 500, inputTokens: 400, outputTokens: 100, costUsd: 3.0 },
+    ]
+
+    it("adds Today/Yesterday/Last 30 Days cost lines from the billing export", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, threeDays(), "csv")
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const byLabel = Object.fromEntries(result.lines.map((l) => [l.label, l]))
+      expect(byLabel.Today.value).toBe("$12.50")
+      expect(byLabel.Yesterday.value).toBe("$8.25")
+      expect(byLabel["Last 30 Days"].value).toBe("$23.75")
+      expect(byLabel.Today.subtitle).toBe("On-demand usage billed by Cursor")
+    })
+
+    it("labels events-sourced cost as an estimate, so it is not mistaken for a charge", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, threeDays(), "events")
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const byLabel = Object.fromEntries(result.lines.map((l) => [l.label, l]))
+      expect(byLabel.Today.value).toBe("≈$12.50")
+      expect(byLabel["Last 30 Days"].value).toBe("≈$23.75")
+      for (const label of ["Today", "Yesterday", "Last 30 Days"]) {
+        expect(byLabel[label].subtitle).toBe("Estimated at API rates · not billed")
+      }
+    })
+
+    it("stays estimate-labeled even when the estimated cost is zero", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, [{ date: ymd(-10), totalTokens: 5, inputTokens: 4, outputTokens: 1, costUsd: 0 }], "events")
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const today = result.lines.find((l) => l.label === "Today")
+      expect(today.value).toBe("≈$0.00")
+      expect(today.subtitle).toBe("Estimated at API rates · not billed")
+    })
+
+    it("claims neither billed nor estimated when the host reports no source", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, threeDays())
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const today = result.lines.find((l) => l.label === "Today")
+      expect(today.value).toBe("$12.50")
+      expect(today.subtitle).toBe("From Cursor usage export")
+    })
+
+    it("sums multiple rows on the same date instead of overwriting", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, [
+        { date: ymd(0), totalTokens: 100, inputTokens: 90, outputTokens: 10, costUsd: 1.5 },
+        { date: ymd(0), totalTokens: 200, inputTokens: 180, outputTokens: 20, costUsd: 2.5 },
+      ])
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const today = result.lines.find((l) => l.label === "Today")
+      expect(today.value).toBe("$4.00")
+    })
+
+    it("shows $0.00, not a missing line, for a day absent from the export", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, [{ date: ymd(-10), totalTokens: 500, inputTokens: 400, outputTokens: 100, costUsd: 3.0 }], "csv")
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      const byLabel = Object.fromEntries(result.lines.map((l) => [l.label, l]))
+      expect(byLabel.Today.value).toBe("$0.00")
+      expect(byLabel.Yesterday.value).toBe("$0.00")
+      expect(byLabel["Last 30 Days"].value).toBe("$3.00")
+      // No cost yet today/yesterday, but the export overall is real billing data — still labeled billed, not estimated.
+      expect(byLabel.Today.subtitle).toBe("On-demand usage billed by Cursor")
+    })
+
+    it("omits the cost lines entirely when the export has no rows", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, [])
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      expect(result.lines.some((l) => l.label === "Today")).toBe(false)
+      expect(result.lines.some((l) => l.label === "Yesterday")).toBe(false)
+      expect(result.lines.some((l) => l.label === "Last 30 Days")).toBe(false)
+    })
+
+    it("still ingests into usageDaily for the activity chart alongside the new cost lines", async () => {
+      const ctx = makeCtx()
+      setupProbe(ctx, [{ date: ymd(0), totalTokens: 100, inputTokens: 90, outputTokens: 10, costUsd: 1.5 }])
+
+      const plugin = await loadPlugin()
+      plugin.probe(ctx)
+
+      expect(ctx.host.usageDaily.ingest).toHaveBeenCalledWith(
+        expect.objectContaining({ source: "cursor_billing" })
+      )
+    })
+
+    it("does not add cost lines when cursorUsageExport.queryDaily is unavailable", async () => {
+      const ctx = makeCtx()
+      const accessToken = makeJwt({ exp: 9999999999 })
+      ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: accessToken }]))
+      ctx.host.http.request.mockReturnValue({
+        status: 200,
+        bodyText: JSON.stringify({ enabled: true, planUsage: { totalPercentUsed: 10 } }),
+      })
+      delete ctx.host.cursorUsageExport.queryDaily
+
+      const plugin = await loadPlugin()
+      const result = plugin.probe(ctx)
+
+      expect(result.lines.some((l) => l.label === "Today")).toBe(false)
+    })
   })
 
   it("keeps Connect usage when usage export MTD throws", async () => {
