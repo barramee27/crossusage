@@ -40,6 +40,7 @@ import {
   saveShowTotalSpend,
   saveReduceAnimations,
   resetAllUserPreferences,
+  DEFAULT_GLOBAL_SHORTCUT,
   DEFAULT_START_ON_LOGIN,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
@@ -792,7 +793,7 @@ function ReduceAnimationsSection() {
   );
 }
 
-function ResetAllSettingsSection() {
+function ResetAllSettingsSection({ onResetComplete }: { onResetComplete: () => void }) {
   const { t } = useTranslation();
   const resetState = useAppPreferencesStore((s) => s.resetState);
   const [busy, setBusy] = useState(false);
@@ -803,6 +804,14 @@ function ResetAllSettingsSection() {
     try {
       await resetAllUserPreferences();
       resetState();
+      onResetComplete();
+      if (isTauri()) {
+        try {
+          await invoke("update_global_shortcut", { shortcut: DEFAULT_GLOBAL_SHORTCUT });
+        } catch (e) {
+          console.error("update global shortcut after reset:", e);
+        }
+      }
       await hydrateModernLayoutStore();
       await setProductPollsEnabled(true);
       if (isTauri() && !DEFAULT_START_ON_LOGIN) {
@@ -1338,6 +1347,7 @@ export function SettingsPage({
     nextStyle: MenubarIconStyle;
     selectedLine: string;
   } | null>(null);
+  const [usageHistorySectionKey, setUsageHistorySectionKey] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -1877,7 +1887,7 @@ export function SettingsPage({
       <InsightsSection />
       <ProductPollsSection />
       <LocalApiSection />
-      <UsageHistorySection />
+      <UsageHistorySection key={usageHistorySectionKey} />
       <section>
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
         <p className="text-sm text-muted-foreground mb-2">
@@ -2014,7 +2024,7 @@ export function SettingsPage({
           ) : null}
         </div>
       </section>
-      <ResetAllSettingsSection />
+      <ResetAllSettingsSection onResetComplete={() => setUsageHistorySectionKey((k) => k + 1)} />
       <section>
         <h3 className="text-lg font-semibold mb-0">Account Identity</h3>
         <p className="text-sm text-muted-foreground mb-2">

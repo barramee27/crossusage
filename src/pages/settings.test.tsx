@@ -1,7 +1,22 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const tauriMocks = vi.hoisted(() => ({
+  invoke: vi.fn(() => Promise.resolve()),
+  isTauri: vi.fn(() => false),
+}))
+
+const settingsMocks = vi.hoisted(() => ({
+  resetAllUserPreferences: vi.fn(() => Promise.resolve()),
+  loadPersistUsageHistory: vi.fn(() => Promise.resolve(false)),
+  loadUsageHistoryRetentionDays: vi.fn(() => Promise.resolve(90)),
+}))
+
+const autostartMocks = vi.hoisted(() => ({
+  disable: vi.fn(() => Promise.resolve()),
+}))
 
 let latestOnDragEnd: ((event: any) => void) | undefined
 
@@ -44,6 +59,25 @@ vi.mock("@dnd-kit/utilities", () => ({
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(() => Promise.resolve()),
 }))
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: tauriMocks.invoke,
+  isTauri: tauriMocks.isTauri,
+}))
+
+vi.mock("@tauri-apps/plugin-autostart", () => ({
+  disable: autostartMocks.disable,
+}))
+
+vi.mock("@/lib/settings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/settings")>()
+  return {
+    ...actual,
+    resetAllUserPreferences: settingsMocks.resetAllUserPreferences,
+    loadPersistUsageHistory: settingsMocks.loadPersistUsageHistory,
+    loadUsageHistoryRetentionDays: settingsMocks.loadUsageHistoryRetentionDays,
+  }
+})
 
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { SettingsPage } from "@/pages/settings"
@@ -123,6 +157,15 @@ const defaultProps = {
 
 afterEach(() => {
   cleanup()
+})
+
+beforeEach(() => {
+  tauriMocks.invoke.mockResolvedValue(undefined)
+  tauriMocks.isTauri.mockReturnValue(false)
+  settingsMocks.resetAllUserPreferences.mockResolvedValue(undefined)
+  settingsMocks.loadPersistUsageHistory.mockResolvedValue(false)
+  settingsMocks.loadUsageHistoryRetentionDays.mockResolvedValue(90)
+  autostartMocks.disable.mockResolvedValue(undefined)
 })
 
 describe("SettingsPage", () => {
@@ -445,5 +488,46 @@ describe("SettingsPage", () => {
     })
     await userEvent.click(screen.getByText("Show account identity"))
     expect(onShowAccountIdentityChange).toHaveBeenCalledWith(true)
+  })
+
+  it("clears the OS global shortcut when resetting all settings", async () => {
+    tauriMocks.isTauri.mockReturnValue(true)
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    renderSettings({ ...defaultProps })
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset all settings" }))
+
+    await waitFor(() => {
+      expect(settingsMocks.resetAllUserPreferences).toHaveBeenCalled()
+      expect(tauriMocks.invoke).toHaveBeenCalledWith("update_global_shortcut", {
+        shortcut: null,
+      })
+    })
+  })
+
+  it("reloads usage-history controls after reset so persist matches defaults", async () => {
+    settingsMocks.loadPersistUsageHistory.mockResolvedValue(true)
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    renderSettings({ ...defaultProps })
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Save usage snapshots after successful refreshes",
+        }),
+      ).toBeChecked()
+    })
+
+    settingsMocks.loadPersistUsageHistory.mockResolvedValue(false)
+    await userEvent.click(screen.getByRole("button", { name: "Reset all settings" }))
+
+    await waitFor(() => {
+      expect(settingsMocks.resetAllUserPreferences).toHaveBeenCalled()
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Save usage snapshots after successful refreshes",
+        }),
+      ).not.toBeChecked()
+    })
   })
 })
