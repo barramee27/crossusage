@@ -8,6 +8,7 @@ import type { PaceStatus } from "@/lib/pace-status"
 import { getPaceStatusText } from "@/lib/pace-tooltip"
 import { formatMoney } from "@/lib/locale-format"
 import { cn } from "@/lib/utils"
+import { MotionNumber } from "@/components/motion-number"
 
 const PACE_DOT: Record<PaceStatus, string> = {
   ahead: "bg-green-500",
@@ -46,7 +47,7 @@ function PaceDot({ data }: { data: WidgetData }) {
         render={(props) => (
           <span
             {...props}
-            className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0", !dotColor && PACE_DOT[status])}
+            className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0 motion-dot", !dotColor && PACE_DOT[status])}
             style={dotColor ? { backgroundColor: dotColor } : undefined}
             aria-label={data.isLimitReached ? "Limit reached" : getPaceStatusText(status)}
           />
@@ -211,16 +212,23 @@ export function WidgetRow({ data, compact, className, onRefreshPlugin }: WidgetR
       <div className={cn("flex items-center gap-1.5 mb-1", compact ? "text-xs" : "text-sm")}>
         <PaceDot data={data} />
         <span className="font-medium truncate flex-1">{data.label}</span>
-        <span className="tabular-nums shrink-0">{data.textValue}</span>
+        <span className="tabular-nums shrink-0">
+          {data.textValue ? <MotionNumber value={data.textValue} className="motion-number" /> : null}
+        </span>
       </div>
-      <div className={cn("rounded-full bg-muted overflow-hidden", compact ? "h-1" : "h-1.5")}>
+      <div className={cn("relative rounded-full bg-muted overflow-hidden", compact ? "h-1" : "h-1.5")}>
         <div
-          className={cn("h-full rounded-full transition-all", !fillColor && fillClass)}
+          className={cn(
+            "h-full rounded-full motion-bar-fill",
+            !fillColor && fillClass,
+            fraction >= 0.85 && "motion-bar-hot",
+          )}
           style={{
             width: `${Math.round(fraction * 100)}%`,
             ...(fillColor ? { backgroundColor: fillColor } : {}),
           }}
         />
+        {fraction >= 0.85 ? <span className="motion-sparks" aria-hidden="true" /> : null}
       </div>
       {data.textSecondary ? (
         <p className={cn("text-muted-foreground mt-0.5", compact ? "text-[10px]" : "text-xs")}>

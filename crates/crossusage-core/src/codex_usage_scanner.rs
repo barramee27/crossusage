@@ -3,7 +3,7 @@
 use crate::claude_usage_scanner;
 use crate::codex_pricing::{self, CodexCostInput};
 use crate::log_usage_types::{
-    DailyUsageRow, LogScanStatus, ModelDayUsage, TokenBreakdown, cap_log_files_by_mtime,
+    DailyUsageRow, LogScanStatus, ModelDayUsage, cap_log_files_by_mtime,
     expand_tilde, host_query_response, local_day_key_from_offset, merge_daily_rows,
     since_local_midnight, warn_unreadable_usage_file,
 };
@@ -28,6 +28,8 @@ struct CachedFile {
 struct CodexEvent {
     timestamp: OffsetDateTime,
     model: String,
+    /// Dated Codex model used only to price `codex-auto-review` rows (#1085).
+    pricing_model: Option<String>,
     input: i32,
     cached: i32,
     output: i32,
@@ -505,10 +507,16 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
         }
         let parsed_model = model_name_in_map(p).or_else(|| info.and_then(model_name_in_map));
         let model = resolve_model(parsed_model, &mut current_model);
+        let pricing_model = if model == AUTO_REVIEW_MODEL {
+            Some(auto_review_fallback(&event_day_key(&timestamp)))
+        } else {
+            None
+        };
         let cached = usage.cached.min(usage.input);
         events.push(CodexEvent {
             timestamp,
             model,
+            pricing_model,
             input: usage.input,
             cached,
             output: usage.output,
@@ -540,9 +548,6 @@ fn model_name_in_map(json: &serde_json::Map<String, Value>) -> Option<String> {
 fn resolve_model(parsed: Option<String>, current_model: &mut Option<String>) -> String {
     if let Some(parsed) = parsed {
         *current_model = Some(parsed.clone());
-        if parsed == "codex-auto-review" {
-            return "gpt-5.3-codex".to_string();
-        }
         return parsed;
     }
     current_model.clone().unwrap_or_else(|| {
@@ -552,13 +557,54 @@ fn resolve_model(parsed: Option<String>, current_model: &mut Option<String>) -> 
     })
 }
 
+const AUTO_REVIEW_MODEL: &str = "codex-auto-review";
+
+/// `codex-auto-review` release timeline (newest first). A line dated on/after a
+/// release prices as that Codex model; the usage slug stays `codex-auto-review`.
+const AUTO_REVIEW_FALLBACKS: &[(&str, &str)] = &[
+    ("2026-04-23", "gpt-5.5"),
+    ("2026-03-05", "gpt-5.4"),
+    ("2026-02-05", "gpt-5.3-codex"),
+    ("2025-12-11", "gpt-5.2-codex"),
+    ("2025-11-13", "gpt-5.1-codex"),
+    ("2025-09-15", "gpt-5-codex"),
+    ("2025-08-07", "gpt-5"),
+];
+
+fn event_day_key(ts: &OffsetDateTime) -> String {
+    format!(
+        "{:04}-{:02}-{:02}",
+        ts.year(),
+        u8::from(ts.month()),
+        ts.day()
+    )
+}
+
+fn auto_review_fallback(date: &str) -> String {
+    if date.len() != 10 || !date.as_bytes().iter().enumerate().all(|(i, b)| {
+        if i == 4 || i == 7 {
+            *b == b'-'
+        } else {
+            b.is_ascii_digit()
+        }
+    }) {
+        return "gpt-5".to_string();
+    }
+    AUTO_REVIEW_FALLBACKS
+        .iter()
+        .find(|(released, _)| date >= *released)
+        .map(|(_, model)| (*model).to_string())
+        .unwrap_or_else(|| "gpt-5".to_string())
+}
+
 fn dedup_events(events: Vec<CodexEvent>) -> Vec<CodexEvent> {
-    let mut seen: HashSet<(i128, String, i32, i32, i32, i32)> = HashSet::new();
+    let mut seen: HashSet<(i128, String, Option<String>, i32, i32, i32, i32)> = HashSet::new();
     let mut out = Vec::new();
     for e in events {
         let key = (
             e.timestamp.unix_timestamp_nanos(),
             e.model.clone(),
+            e.pricing_model.clone(),
             e.input,
             e.cached,
             e.output,
@@ -584,10 +630,11 @@ fn aggregate(events: &[CodexEvent], since: OffsetDateTime, pricing: &ModelPricin
             continue;
         }
         let day = local_day_key_from_offset(&event.timestamp);
+        let pricing_model = event.pricing_model.as_deref().unwrap_or(&event.model);
         let Some(cost) = codex_pricing::estimated_cost_dollars(
             pricing,
             &CodexCostInput {
-                model: &event.model,
+                model: pricing_model,
                 input: event.input,
                 cached: event.cached,
                 output: event.output,
@@ -727,5 +774,39 @@ mod tests {
         assert!(names.contains("b.jsonl"));
         assert_eq!(files.len(), 2, "archived duplicate of sessions/a.jsonl skipped");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn auto_review_keeps_slug_and_uses_dated_pricing_model() {
+        let mut current = None;
+        assert_eq!(
+            resolve_model(Some("codex-auto-review".into()), &mut current),
+            "codex-auto-review"
+        );
+        assert_eq!(auto_review_fallback("2026-04-23"), "gpt-5.5");
+        assert_eq!(auto_review_fallback("2026-02-05"), "gpt-5.3-codex");
+        assert_eq!(auto_review_fallback("2025-08-01"), "gpt-5");
+        assert_eq!(auto_review_fallback("bogus"), "gpt-5");
+
+        let ts = OffsetDateTime::from_unix_timestamp(1_774_947_200).expect("ts");
+        let rows = aggregate(
+            &[CodexEvent {
+                timestamp: ts,
+                model: AUTO_REVIEW_MODEL.into(),
+                pricing_model: Some("gpt-5.5".into()),
+                input: 1000,
+                cached: 0,
+                output: 100,
+                reasoning: 0,
+                total: 1100,
+                is_fast: false,
+            }],
+            ts,
+            &ModelPricing::from_bundled(),
+        );
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].models.contains_key("codex-auto-review"));
+        assert!(!rows[0].models.contains_key("gpt-5.5"));
+        assert!(rows[0].total_cost.unwrap_or(0.0) > 0.0);
     }
 }

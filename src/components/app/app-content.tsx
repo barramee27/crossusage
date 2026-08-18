@@ -181,6 +181,7 @@ export function AppContent({
 
   if (resolvedView === "home") {
     return (
+      <div key="home" className="motion-view">
       <OverviewPage
         plugins={displayPlugins}
         pluginSettings={pluginSettings}
@@ -192,15 +193,21 @@ export function AppContent({
         onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
         showAccountIdentity={showAccountIdentity}
       />
+      </div>
     )
   }
 
   if (resolvedView === "polls") {
-    return <PollsPage key={pollsVisitNonce} />
+    return (
+      <div key={`polls-${pollsVisitNonce}`} className="motion-view">
+        <PollsPage />
+      </div>
+    )
   }
 
   if (resolvedView === "settings") {
     return (
+      <div key="settings" className="motion-view">
       <SettingsPage
         plugins={settingsPlugins}
         onReorder={onReorder}
@@ -260,6 +267,7 @@ export function AppContent({
         cursorRequestsLineAvailable={cursorRequestsLineAvailable}
         presentation={uiLayout === "modern" ? "modern" : "classic"}
       />
+      </div>
     )
   }
 
@@ -268,6 +276,7 @@ export function AppContent({
     : /* v8 ignore next */ undefined
 
   return (
+    <div key={selectedPlugin?.meta.id ?? "detail"} className="motion-view">
     <ProviderDetailPage
       plugin={selectedPlugin}
       onRetry={handleRetry}
@@ -277,5 +286,6 @@ export function AppContent({
       onResetTimerDisplayModeToggle={onResetTimerDisplayModeToggle}
       showAccountIdentity={showAccountIdentity}
     />
+    </div>
   )
 }

@@ -1,0 +1,473 @@
+/* Extra FX layered on motion.css. Kill: html.reduce-animations + prefers-reduced-motion. */
+
+.app-panel-surface > .motion-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.motion-aurora {
+  position: absolute;
+  inset: -45%;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--primary) 35%, transparent),
+    color-mix(in srgb, var(--page-accent, var(--primary)) 18%, transparent),
+    transparent 42%,
+    color-mix(in srgb, var(--destructive) 16%, transparent),
+    transparent 70%,
+    color-mix(in srgb, var(--primary) 28%, transparent)
+  );
+  animation: motion-aurora-spin 14s linear infinite;
+  opacity: 0.16;
+  filter: blur(28px);
+}
+
+.motion-aurora-alt {
+  inset: -55%;
+  animation-direction: reverse;
+  animation-duration: 22s;
+  opacity: 0.1;
+  filter: blur(42px);
+}
+
+.motion-grid {
+  position: absolute;
+  inset: -14%;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--primary) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.18;
+  transform: translate(
+    calc((var(--mx, 0.5) - 0.5) * 16px),
+    calc((var(--my, 0.5) - 0.5) * 16px)
+  );
+  transition: transform 0.16s ease-out;
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 78%);
+}
+
+.motion-dust {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.4;
+}
+
+.motion-dust::before,
+.motion-dust::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 80%, var(--primary));
+  box-shadow:
+    8vw 12vh 0 0 color-mix(in srgb, white 70%, transparent),
+    22vw 28vh 0 0.5px color-mix(in srgb, var(--primary) 80%, white),
+    41vw 9vh 0 0 color-mix(in srgb, white 60%, transparent),
+    63vw 44vh 0 0.5px color-mix(in srgb, white 75%, transparent),
+    81vw 18vh 0 0 color-mix(in srgb, var(--primary) 70%, white),
+    14vw 62vh 0 0 color-mix(in srgb, white 55%, transparent),
+    36vw 78vh 0 0.5px color-mix(in srgb, white 70%, transparent),
+    58vw 71vh 0 0 color-mix(in srgb, var(--primary) 65%, white),
+    74vw 88vh 0 0 color-mix(in srgb, white 50%, transparent),
+    91vw 55vh 0 0.5px color-mix(in srgb, white 65%, transparent),
+    5vw 91vh 0 0 color-mix(in srgb, var(--primary) 60%, white),
+    48vw 36vh 0 0 color-mix(in srgb, white 60%, transparent);
+  animation: motion-dust-drift 16s linear infinite;
+}
+
+.motion-dust::after {
+  animation-duration: 22s;
+  animation-direction: reverse;
+  opacity: 0.55;
+}
+
+.motion-orb {
+  position: absolute;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 55%, white);
+  filter: blur(10px);
+  opacity: 0.28;
+  animation: motion-orb-fly var(--orb-t, 9s) ease-in-out infinite;
+  animation-delay: var(--orb-d, 0s);
+  width: var(--orb-s, 42px);
+  height: var(--orb-s, 42px);
+  left: var(--orb-x, 20%);
+  top: var(--orb-y, 30%);
+}
+
+.motion-shock-ring {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 999px;
+  border: 2px solid var(--primary);
+  animation: motion-shockwave 0.75s ease-out forwards;
+}
+
+.motion-sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.motion-sparks::before,
+.motion-sparks::after {
+  content: "";
+  position: absolute;
+  top: 15%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    12px 2px 0 0 color-mix(in srgb, white 80%, transparent),
+    28px -3px 0 0 color-mix(in srgb, white 70%, transparent),
+    44px 4px 0 0 color-mix(in srgb, white 60%, transparent);
+  animation: motion-spark-run 1.1s linear infinite;
+}
+
+.motion-sparks::after {
+  animation-delay: 0.45s;
+  top: 55%;
+  opacity: 0.7;
+}
+
+.motion-bar-fill::after {
+  animation: motion-sheen 1.6s ease-in-out infinite;
+}
+
+.motion-card {
+  animation: motion-card-float 4.6s ease-in-out infinite;
+}
+
+.motion-stagger > .motion-card {
+  animation:
+    motion-rise 0.72s var(--motion-spring) both,
+    motion-card-float 4.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 70ms), calc(0.75s + var(--i, 0) * 70ms);
+}
+
+.app-main-pane {
+  animation: motion-pane-in 0.7s var(--motion-out) 0.08s backwards;
+}
+
+.motion-view {
+  animation: motion-view-flip 0.45s var(--motion-out) both;
+}
+
+.motion-nav-btn:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 55%, transparent));
+}
+
+.motion-tab[data-active="true"] {
+  animation: motion-tab-pop 0.55s var(--motion-spring) both;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.motion-tick:active {
+  transform: scale(0.88) rotate(-18deg);
+}
+
+.motion-number {
+  display: inline-block;
+  animation: motion-number-pop 0.45s var(--motion-spring);
+}
+
+.motion-cursor,
+.motion-cursor-lag {
+  position: absolute;
+  left: calc(var(--mx, 0.5) * 100%);
+  top: calc(var(--my, 0.5) * 100%);
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--primary) 55%, white) 0%,
+    transparent 70%
+  );
+  filter: blur(6px);
+  opacity: 0.55;
+  transition: left 0.07s linear, top 0.07s linear;
+}
+
+.motion-cursor-lag {
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+  opacity: 0.22;
+  transition: left 0.32s ease-out, top 0.32s ease-out;
+}
+
+.motion-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--primary) 28%, transparent),
+    transparent
+  );
+  animation: motion-scan-y 2.8s linear infinite;
+  opacity: 0.55;
+}
+
+.motion-scan-slow {
+  height: 9%;
+  opacity: 0.28;
+  animation-duration: 5.4s;
+  animation-delay: 1.6s;
+}
+
+.motion-cursor-spark {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  opacity: 0.85;
+  filter: blur(1px);
+  transition: left 0.04s linear, top 0.04s linear;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, white 90%, var(--primary)) 0%,
+    transparent 72%
+  );
+}
+
+.motion-edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+  animation: motion-edge-pulse 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.motion-title {
+  animation: motion-title-glow 2.8s ease-in-out infinite;
+}
+
+.motion-press {
+  transition: transform 0.2s var(--motion-spring);
+}
+
+.motion-press:hover {
+  transform: scale(1.03);
+}
+
+.motion-press:active {
+  transform: scale(0.97);
+}
+
+.motion-nav-btn[data-active="true"] {
+  animation: motion-nav-glow 2.4s ease-in-out infinite;
+}
+
+.motion-bar-fill {
+  animation: motion-bar-glow 2.4s ease-in-out infinite;
+}
+
+.motion-shock-late {
+  animation-delay: 90ms;
+  border-color: color-mix(in srgb, var(--primary) 50%, white);
+}
+.motion-shock-later {
+  animation-delay: 180ms;
+  opacity: 0.6;
+}
+
+@keyframes motion-aurora-spin {
+  to {
+    transform: rotate(360deg) scale(1.08);
+  }
+}
+
+@keyframes motion-dust-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-28%);
+  }
+}
+
+@keyframes motion-orb-fly {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  35% {
+    transform: translate(42px, -28px) scale(1.35);
+  }
+  70% {
+    transform: translate(-24px, 36px) scale(0.82);
+  }
+}
+
+@keyframes motion-shockwave {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(28);
+    opacity: 0;
+  }
+}
+
+@keyframes motion-spark-run {
+  from {
+    transform: translateX(-20%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(220%);
+    opacity: 0;
+  }
+}
+
+@keyframes motion-card-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes motion-view-flip {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-number-pop {
+  0% {
+    transform: scale(1.18) translateY(-2px);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes motion-scan-y {
+  from {
+    transform: translateY(-40%);
+  }
+  to {
+    transform: translateY(420%);
+  }
+}
+
+@keyframes motion-edge-pulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--primary) 70%, transparent),
+      inset 0 0 24px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+}
+
+@keyframes motion-title-glow {
+  0%,
+  100% {
+    text-shadow: none;
+  }
+  50% {
+    text-shadow: 0 0 14px color-mix(in srgb, var(--primary) 55%, transparent);
+  }
+}
+
+@keyframes motion-nav-glow {
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 55%, transparent));
+  }
+}
+
+@keyframes motion-bar-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-field,
+  .motion-aurora,
+  .motion-sparks,
+  .motion-shock-ring,
+  .motion-cursor,
+  .motion-cursor-lag,
+  .motion-scan,
+  .motion-orb,
+  .motion-edge,
+  .motion-grid,
+  .motion-dust {
+    display: none !important;
+    animation: none !important;
+  }
+}
+
+html.reduce-animations .motion-field,
+html.reduce-animations .motion-aurora,
+html.reduce-animations .motion-sparks,
+html.reduce-animations .motion-shock-ring,
+html.reduce-animations .motion-cursor,
+html.reduce-animations .motion-cursor-lag,
+html.reduce-animations .motion-scan,
+html.reduce-animations .motion-orb,
+html.reduce-animations .motion-edge,
+html.reduce-animations .motion-grid,
+html.reduce-animations .motion-dust {
+  display: none !important;
+  animation: none !important;
+}
+
+html.reduce-animations .motion-title {
+  animation: none !important;
+  text-shadow: none !important;
+}
+
+html.reduce-animations .app-main-pane,
+html.reduce-animations .motion-card,
+html.reduce-animations .motion-stagger > .motion-card,
+html.reduce-animations .motion-view {
+  animation: none !important;
+  translate: none !important;
+  transform: none !important;
+}

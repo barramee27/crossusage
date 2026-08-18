@@ -6,6 +6,7 @@ import {
   DEFAULT_MENUBAR_ICON_STYLE,
   DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT,
   DEFAULT_PLUGIN_SETTINGS,
+  DEFAULT_REDUCE_ANIMATIONS,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_START_ON_LOGIN,
@@ -44,7 +45,12 @@ import {
   loadUsageAlertThreshold,
   migrateLegacyTraySettings,
   loadThemeMode,
+  loadReduceAnimations,
+  loadProductPollsAnswered,
+  loadProductPollsEnabled,
+  loadProductPollsInstallId,
   normalizePluginSettings,
+  resetAllUserPreferences,
   resolveOnboardingComplete,
   saveAutoUpdateInterval,
   saveDisplayMode,
@@ -52,6 +58,10 @@ import {
   saveMenubarIconStyle,
   savePreferMenubarWeeklyLimit,
   savePluginSettings,
+  saveProductPollsAnswered,
+  saveProductPollsEnabled,
+  saveProductPollsInstallId,
+  saveReduceAnimations,
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
   saveStartOnLogin,
@@ -734,6 +744,43 @@ describe("settings", () => {
     it("returns true when stored version matches app version", async () => {
       storeState.set("dualUiOnboardingVersion", "1.1.0")
       await expect(resolveOnboardingComplete(pluginSettings, "1.1.0")).resolves.toBe(true)
+    })
+  })
+
+  describe("loadReduceAnimations / saveReduceAnimations", () => {
+    it("loads default when missing", async () => {
+      await expect(loadReduceAnimations()).resolves.toBe(DEFAULT_REDUCE_ANIMATIONS)
+    })
+
+    it("round-trips", async () => {
+      await saveReduceAnimations(true)
+      await expect(loadReduceAnimations()).resolves.toBe(true)
+    })
+  })
+
+  describe("resetAllUserPreferences", () => {
+    it("restores UI prefs and keeps plugins plus poll identity", async () => {
+      const plugins = {
+        order: ["cursor"],
+        disabled: ["mock"],
+        trayLines: { cursor: ["Requests"] },
+        providerInstances: {},
+      }
+      await savePluginSettings(plugins)
+      await saveThemeMode("dark")
+      await saveReduceAnimations(true)
+      await saveProductPollsEnabled(false)
+      await saveProductPollsInstallId("install-keep")
+      await saveProductPollsAnswered({ "poll-1": "opt-a" })
+
+      await resetAllUserPreferences()
+
+      await expect(loadThemeMode()).resolves.toBe(DEFAULT_THEME_MODE)
+      await expect(loadReduceAnimations()).resolves.toBe(DEFAULT_REDUCE_ANIMATIONS)
+      await expect(loadProductPollsEnabled()).resolves.toBe(true)
+      await expect(loadPluginSettings()).resolves.toEqual(plugins)
+      await expect(loadProductPollsInstallId()).resolves.toBe("install-keep")
+      await expect(loadProductPollsAnswered()).resolves.toEqual({ "poll-1": "opt-a" })
     })
   })
 })

@@ -70,17 +70,18 @@ function NavButton({
       onContextMenu={onContextMenu}
       aria-label={ariaLabel}
       className={cn(
-        "relative flex items-center justify-center w-[calc(100%-1px)] p-2 transition-colors",
+        "relative flex items-center justify-center w-[calc(100%-1px)] p-2 transition-colors motion-nav-btn",
         "hover:bg-accent",
         isActive
           ? "text-foreground before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-primary dark:before:bg-page-accent before:rounded-full"
           : "text-muted-foreground"
       )}
+      data-active={isActive}
     >
       {children}
       {badge ? (
         <span
-          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary"
+          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary motion-ping"
           aria-hidden
         />
       ) : null}

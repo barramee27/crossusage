@@ -1,10 +1,11 @@
 //! Bundled model pricing (supplement + LiteLLM compact snapshot).
-//! Ports upstream OpenUsage v0.7.3+ aliases; v0.7.4 #909 refreshes price lists hourly
-//! upstream via gh-pages. This fork ships the bundled supplement (`updated_at` in JSON)
+//! Ports upstream OpenUsage v0.7.3+ aliases; v0.7.8/0.7.9 add Kimi K3, Opus 5, Grok 4.6,
+//! Daybreak Blue, and Cursor Router prose labels. Upstream #909 refreshes price lists hourly
+//! via gh-pages. This fork ships the bundled supplement (`updated_at` in JSON)
 //! and does not fetch over the network — optional follow-up if live refresh is needed.
 
 use crate::log_usage_types::TokenBreakdown;
-use regex_lite::Regex;
+use regex_lite::{Regex, RegexBuilder};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -321,18 +322,30 @@ fn load_supplement(json: &str) -> PricingSupplement {
         .alias_rules
         .into_iter()
         .filter_map(|rule| {
-            Regex::new(&rule.pattern)
-                .ok()
-                .map(|pattern| AliasRule {
-                    pattern,
-                    canonical: rule.canonical,
-                })
+            compile_alias_pattern(&rule.pattern).map(|pattern| AliasRule {
+                pattern,
+                canonical: rule.canonical,
+            })
         })
         .collect();
     PricingSupplement {
         pricing,
         fast_multipliers: file.fast_multipliers,
         alias_rules,
+    }
+}
+
+/// Upstream Swift NSRegularExpression accepts `(?i)` inline flags. regex-lite does not;
+/// strip a leading `(?i)` and compile case-insensitively instead (Cursor Router labels).
+fn compile_alias_pattern(pattern: &str) -> Option<Regex> {
+    let (body, case_insensitive) = match pattern.strip_prefix("(?i)") {
+        Some(rest) => (rest, true),
+        None => (pattern, false),
+    };
+    if case_insensitive {
+        RegexBuilder::new(body).case_insensitive(true).build().ok()
+    } else {
+        Regex::new(body).ok()
     }
 }
 
@@ -414,9 +427,24 @@ mod tests {
         let grok = p.resolve("grok-4.5-fast-high").expect("grok fast high");
         let grok_fast = p.resolve("grok-4.5-fast").expect("grok fast");
         assert!((grok.input_per_million - grok_fast.input_per_million).abs() < 0.01);
+        assert!((grok_fast.output_per_million - 12.0).abs() < 0.01);
         assert!(p.can_price("cursor-grok-4.5-fast-xhigh"));
         assert!(p.can_price("kimi-k2.7-code"));
         assert!(p.can_price("kimi-k2p7"));
+    }
+
+    #[test]
+    fn v078_v079_pricing_aliases() {
+        let p = ModelPricing::from_bundled();
+        let k3 = p.resolve("kimi-k3").expect("kimi k3");
+        assert!((k3.input_per_million - 3.0).abs() < 0.01);
+        let grok46 = p.resolve("cursor-grok-4.6-fast-high").expect("grok 4.6");
+        assert!((grok46.input_per_million - 4.0).abs() < 0.01);
+        let opus5 = p.resolve("claude-opus-5").expect("opus 5");
+        assert!((opus5.input_per_million - 5.0).abs() < 0.01);
+        assert!(p.can_price("daybreak-blue-latest"));
+        let router = p.resolve("Opus 5 (Auto Balanced)").expect("cursor router");
+        assert!((router.input_per_million - 5.0).abs() < 0.01);
     }
 
     #[test]

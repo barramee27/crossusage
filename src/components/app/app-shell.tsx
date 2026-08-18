@@ -18,6 +18,8 @@ import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 import { useAppUiStore } from "@/stores/app-ui-store"
 import { useProductPollsBadge } from "@/hooks/app/use-product-polls"
 import { useProductPollsStore } from "@/stores/product-polls-store"
+import { useMotionPointer } from "@/hooks/app/use-motion-pointer"
+import { MotionField } from "@/components/motion-field"
 
 type AppShellProps = {
   onRefreshAll: () => void
@@ -57,8 +59,8 @@ export function AppShell({
   onOnboardingComplete,
   onOnboardingSkip,
 }: AppShellProps) {
-  const { themeMode } = useAppPreferencesStore(
-    useShallow((state) => ({ themeMode: state.themeMode }))
+  const { themeMode, reduceAnimations } = useAppPreferencesStore(
+    useShallow((state) => ({ themeMode: state.themeMode, reduceAnimations: state.reduceAnimations }))
   )
 
   const {
@@ -94,6 +96,7 @@ export function AppShell({
   useTrayRestartBridge(updateStatus, onUpdateInstall)
   const platform = usePlatform()
   const macPopoverChrome = isTauri() && platform === "macos"
+  const panelMotionRef = useMotionPointer(!reduceAnimations)
 
   const onViewChange = (view: Parameters<typeof setActiveView>[0]) => {
     if (view === "polls") bumpPollsVisit()
@@ -106,6 +109,7 @@ export function AppShell({
       <LiquidGlassFilter active={themeMode === "glass"} />
       {macPopoverChrome ? <div className="tray-arrow" aria-hidden="true" /> : null}
       <div
+        ref={panelMotionRef}
         className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col"
         style={
           macPopoverChrome && maxPanelHeightPx
@@ -113,6 +117,7 @@ export function AppShell({
             : undefined
         }
       >
+        <MotionField />
         <div className="flex flex-1 min-h-0 flex-row">
           <SideNav
             activeView={activeView}

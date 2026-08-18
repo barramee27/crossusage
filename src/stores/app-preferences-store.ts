@@ -26,6 +26,7 @@ import {
   DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
   DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
   DEFAULT_USAGE_ALERT_THRESHOLD,
+  DEFAULT_REDUCE_ANIMATIONS,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type UIScale,
@@ -70,6 +71,7 @@ type AppPreferencesStore = {
   usagePaceAlertEnabled: boolean
   usageSpikeAlertEnabled: boolean
   usageSpikeAlertThresholdPct: UsageSpikeAlertThresholdPct
+  reduceAnimations: boolean
   onboardingComplete: boolean | null
   exchangeRatesRevision: number
 
@@ -99,6 +101,7 @@ type AppPreferencesStore = {
   setUsagePaceAlertEnabled: (value: boolean) => void
   setUsageSpikeAlertEnabled: (value: boolean) => void
   setUsageSpikeAlertThresholdPct: (value: UsageSpikeAlertThresholdPct) => void
+  setReduceAnimations: (value: boolean) => void
   setOnboardingComplete: (value: boolean) => void
   bumpExchangeRatesRevision: () => void
   resetState: () => void
@@ -131,6 +134,7 @@ const initialState = {
   usagePaceAlertEnabled: DEFAULT_USAGE_PACE_ALERT_ENABLED,
   usageSpikeAlertEnabled: DEFAULT_USAGE_SPIKE_ALERT_ENABLED,
   usageSpikeAlertThresholdPct: DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT,
+  reduceAnimations: DEFAULT_REDUCE_ANIMATIONS,
   onboardingComplete: null as boolean | null,
   exchangeRatesRevision: 0,
 }
@@ -163,6 +167,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setUsagePaceAlertEnabled: (value) => set({ usagePaceAlertEnabled: value }),
   setUsageSpikeAlertEnabled: (value) => set({ usageSpikeAlertEnabled: value }),
   setUsageSpikeAlertThresholdPct: (value) => set({ usageSpikeAlertThresholdPct: value }),
+  setReduceAnimations: (value) => set({ reduceAnimations: value }),
   setOnboardingComplete: (value) => set({ onboardingComplete: value }),
   bumpExchangeRatesRevision: () =>
     set((state) => ({ exchangeRatesRevision: state.exchangeRatesRevision + 1 })),

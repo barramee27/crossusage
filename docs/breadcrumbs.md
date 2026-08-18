@@ -1,7 +1,13 @@
 # Breadcrumbs
 
+## 2026-08-18
+
+- 1.4.1 motion pass 6: removed **concentric grain rings** (the “100 circles”). Restored orbs. Click ripples still off.
+- 1.4.1 motion pass 4: still **no panel tilt/zoom**. Extra overlay FX: dual aurora, parallax grid, dust, slow scan, spark cursor. Reduce animations still kills all FX.
+
 ## 2026-08-13
 
+- Port OpenUsage **v0.7.8 + v0.7.9** → CrossUsage **1.4.1** on `feat/port-openusage-0.7.8-0.7.9` (not pushed). Public **v0.7.7** skipped upstream (`v0.7.6...v0.7.8`). Pricing supplement 2026-08-13; Codex auto-review slug; OpenCode Go official usage API; Reduce animations; Reset all settings. Tracker: [PORT-0.7.8-0.7.9.md](./PORT-0.7.8-0.7.9.md).
 - Live poll `aptabase-extra-2026-08`: `expiresAt` 2026-08-15T23:59:59Z + close date in body. `selectActivePoll` keeps expired/ended published polls on `/active` for results. `/active` cache 60s. Server-only — 1.4.0 clients already render `body` + `ended`.
 
 ## 2026-08-09

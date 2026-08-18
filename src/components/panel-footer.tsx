@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
+import { fireMotionShock } from "@/components/motion-field";
 import type { UpdateStatus } from "@/hooks/use-app-update";
 import { useNowTicker } from "@/hooks/use-now-ticker";
 
@@ -127,9 +128,10 @@ export function PanelFooter({
             type="button"
             onClick={(event) => {
               event.currentTarget.blur()
+              fireMotionShock()
               onRefreshAll()
             }}
-            className="text-xs text-muted-foreground tabular-nums hover:text-foreground transition-colors cursor-pointer"
+            className="text-xs text-muted-foreground tabular-nums hover:text-foreground transition-colors cursor-pointer motion-tick"
             title="Refresh now"
           >
             {countdownLabel}

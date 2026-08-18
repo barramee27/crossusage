@@ -31,13 +31,14 @@ export function WidgetGroupedList({ groups, compact, className, onRefreshPlugin 
   }
 
   return (
-    <div className={cn("space-y-2", className)}>
-      {groups.map((group) => (
+    <div className={cn("space-y-2 motion-stagger", className)}>
+      {groups.map((group, index) => (
         <ProviderCard
           key={group.pluginId}
           group={group}
           compact={compact}
           onRefreshPlugin={onRefreshPlugin}
+          index={index}
         />
       ))}
     </div>
@@ -48,10 +49,12 @@ function ProviderCard({
   group,
   compact,
   onRefreshPlugin,
+  index = 0,
 }: {
   group: ProviderWidgetGroup
   compact?: boolean
   onRefreshPlugin?: (pluginId: string) => void
+  index?: number
 }) {
   const bounded = group.metrics.filter((m) => m.bounded && m.kind === "progress")
   const charts = group.metrics.filter((m) => m.kind === "barChart")
@@ -59,8 +62,11 @@ function ProviderCard({
 
   return (
     <section
-      className="rounded-lg border bg-card/80 overflow-hidden"
-      style={group.brandColor ? { borderColor: `${group.brandColor}33` } : undefined}
+      className="rounded-lg border bg-card/80 overflow-hidden motion-card"
+      style={{
+        ["--i" as string]: index,
+        ...(group.brandColor ? { borderColor: `${group.brandColor}33` } : {}),
+      }}
     >
       <header
         className={cn(
@@ -76,7 +82,7 @@ function ProviderCard({
             style={group.brandColor ? { backgroundColor: group.brandColor } : undefined}
           />
         )}
-        <h3 className={cn("font-semibold truncate", compact ? "text-sm" : "text-base")}>
+        <h3 className={cn("font-semibold truncate motion-title", compact ? "text-sm" : "text-base")}>
           {group.name}
         </h3>
       </header>

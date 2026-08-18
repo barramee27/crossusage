@@ -2,8 +2,10 @@
   const PROVIDER_ID = "opencode-go";
   const AUTH_PATH = "~/.local/share/opencode/auth.json";
   const DB_PATH = "~/.local/share/opencode/opencode.db";
+  const USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
   const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
   const LIMITS = {
     session: 12,
     weekly: 30,
@@ -264,51 +266,95 @@
     ];
   }
 
-  function buildUnreadableSourceLines(ctx, detail) {
-    return {
-      plan: "Go",
-      warning: detail,
-      lines: [
-        ctx.line.badge({
-          label: "Status",
-          text: "Usage database unreadable",
-          color: "#f59e0b",
+  function clampReportedPercent(value) {
+    const n = readNumber(value);
+    if (n === null) return null;
+    return Math.round(Math.max(0, Math.min(100, n)) * 10) / 10;
+  }
+
+  function fetchGoMeters(ctx, apiKey) {
+    let resp;
+    try {
+      resp = ctx.host.http.request({
+        method: "GET",
+        url: USAGE_URL,
+        headers: {
+          Authorization: "Bearer " + apiKey,
+          Accept: "application/json",
+        },
+        timeoutMs: 15000,
+      });
+    } catch (e) {
+      ctx.host.log.error("Go usage API unreachable: " + String(e));
+      throw "OpenCode Go usage API unreachable. Check your connection.";
+    }
+
+    const status = readNumber(resp && resp.status);
+    const bodyText = resp && typeof resp.bodyText === "string" ? resp.bodyText : "";
+    const parsed = ctx.util.tryParseJson(bodyText);
+    const errorType =
+      parsed && parsed.error && typeof parsed.error.type === "string"
+        ? parsed.error.type.trim()
+        : "";
+
+    if (status === 401) {
+      throw "OpenCode Go key was rejected. Log into OpenCode Go again.";
+    }
+    if (status === 403 && errorType === "EntitlementError") {
+      throw "No OpenCode Go subscription on this key.";
+    }
+    if (status === null || status < 200 || status >= 300) {
+      throw "OpenCode Go usage API failed (HTTP " + String(status) + ").";
+    }
+    if (!parsed || typeof parsed !== "object" || !parsed.usage || typeof parsed.usage !== "object") {
+      throw "OpenCode Go usage API returned an invalid response.";
+    }
+
+    const windows = [
+      { key: "rolling", label: "Session", periodMs: FIVE_HOURS_MS },
+      { key: "weekly", label: "Weekly", periodMs: WEEK_MS },
+      { key: "monthly", label: "Monthly", periodMs: MONTH_MS },
+    ];
+    const lines = [];
+    for (let i = 0; i < windows.length; i += 1) {
+      const spec = windows[i];
+      const raw = parsed.usage[spec.key];
+      if (!raw || typeof raw !== "object") {
+        throw "OpenCode Go usage API returned an invalid response.";
+      }
+      const percent = clampReportedPercent(raw.percent);
+      if (percent === null) {
+        throw "OpenCode Go usage API returned an invalid response.";
+      }
+      const resetsAt =
+        typeof raw.resetsAt === "string" && raw.resetsAt.trim() ? raw.resetsAt.trim() : null;
+      lines.push(
+        ctx.line.progress({
+          label: spec.label,
+          used: percent,
+          limit: 100,
+          format: { kind: "percent" },
+          resetsAt,
+          periodDurationMs: spec.periodMs,
         }),
-      ],
-    };
+      );
+    }
+    return lines;
   }
 
   function probe(ctx) {
     const authKey = loadAuthKey(ctx);
+    if (authKey) {
+      return { plan: "Go", lines: fetchGoMeters(ctx, authKey) };
+    }
+
     const history = hasHistory(ctx);
-    const detected = !!authKey || (history.ok && history.present);
-
-    if (!detected) {
+    if (!history.ok || !history.present) {
       throw "OpenCode Go not detected. Log in with OpenCode Go or use it locally first.";
-    }
-
-    // Auth present but SQLite unreadable — fail loudly (#969), not a silent empty badge.
-    if (authKey && !history.ok) {
-      ctx.host.log.warn("opencode sqlite unreadable while auth exists");
-      return buildUnreadableSourceLines(
-        ctx,
-        "Couldn't read OpenCode's usage database. Check file permissions or repair opencode.db.",
-      );
-    }
-
-    if (!history.ok) {
-      return { plan: "Go", lines: buildSoftEmptyLines(ctx) };
     }
 
     const rowsResult = loadHistory(ctx);
     if (!rowsResult.ok) {
-      if (authKey) {
-        ctx.host.log.warn("opencode sqlite history query failed while auth exists");
-        return buildUnreadableSourceLines(
-          ctx,
-          "Couldn't read OpenCode's usage database. Check file permissions or repair opencode.db.",
-        );
-      }
       return { plan: "Go", lines: buildSoftEmptyLines(ctx) };
     }
 

@@ -81,7 +81,7 @@ export function TotalSpendCard({ providers, outputs, compact, className }: Total
   const info = `Only includes ${capable.map((p) => p.displayName).join(", ")}.`
 
   return (
-    <section className={cn("space-y-1.5", className)}>
+    <section className={cn("space-y-1.5 motion-card", className)}>
       <header className="flex items-center gap-1.5 px-1">
         <div className="relative">
           <Button
