@@ -46,7 +46,10 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         {...props}
       >
         <div
-          className="h-full transition-all bg-primary"
+          className={cn(
+            "h-full bg-primary motion-bar-fill",
+            clamped >= 85 && "motion-bar-hot",
+          )}
           style={{ width: `${clamped}%`, ...indicatorStyle }}
         />
         {showMarker && (
@@ -66,6 +69,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
             <div className="h-full w-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           </div>
         )}
+        {clamped >= 85 ? <span className="motion-sparks" aria-hidden="true" /> : null}
       </div>
     )
   }

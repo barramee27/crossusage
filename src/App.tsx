@@ -12,6 +12,7 @@ import { useSettingsPluginActions } from "@/hooks/app/use-settings-plugin-action
 import { useSettingsPluginList } from "@/hooks/app/use-settings-plugin-list"
 import { useSettingsSystemActions } from "@/hooks/app/use-settings-system-actions"
 import { useSettingsTheme } from "@/hooks/app/use-settings-theme"
+import { useReduceAnimations } from "@/hooks/app/use-reduce-animations"
 import { useSettingsUIScale } from "@/hooks/app/use-settings-ui-scale"
 import { useTrayIcon } from "@/hooks/app/use-tray-icon"
 import { useProductPolls } from "@/hooks/app/use-product-polls"
@@ -233,6 +234,7 @@ function App() {
 
   useSettingsTheme(themeMode)
   useSettingsUIScale(uiScale)
+  useReduceAnimations()
   useProductPolls({ onboardingComplete })
 
   const {

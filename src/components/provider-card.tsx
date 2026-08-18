@@ -21,6 +21,7 @@ import { buildPaceDetailText, formatDeficitText, formatRunsOutText, getPaceStatu
 import { formatResetAbsoluteLabel, formatResetRelativeLabel, formatResetTooltipText } from "@/lib/reset-tooltip"
 import { formatMoney } from "@/lib/locale-format"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
+import { MotionNumber } from "@/components/motion-number"
 
 interface ProviderCardProps {
   name: string
@@ -73,7 +74,7 @@ function PaceIndicator({
         render={(props) => (
           <span
             {...props}
-            className={`inline-block w-2 h-2 rounded-full ${colorClass}`}
+            className={`inline-block w-2 h-2 rounded-full motion-dot ${colorClass}`}
             aria-label={isLimitReached ? "Limit reached" : statusText}
           />
         )}
@@ -254,7 +255,7 @@ export function ProviderCard({
         <div className="mb-2 flex min-w-0 items-center gap-2">
           <div className="relative flex min-w-0 flex-1 items-center">
             <h2
-              className="min-w-0 truncate text-lg font-semibold"
+              className="min-w-0 truncate text-lg font-semibold motion-title"
               style={{ transform: "translateZ(0)" }}
             >
               {name}
@@ -268,7 +269,7 @@ export function ProviderCard({
                   style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
                   tabIndex={-1}
                 >
-                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <RefreshCw className="h-3 w-3 motion-spin-boost animate-spin" />
                 </Button>
               ) : inCooldown ? (
                 <Tooltip>
@@ -777,7 +778,7 @@ function MetricLineRenderer({
         />
         <div className="flex justify-between items-center mt-1.5">
           <span className="text-xs text-muted-foreground tabular-nums">
-            {primaryText}
+            <MotionNumber value={primaryText} className="motion-number" />
           </span>
           {secondaryText && (
             resetTooltipText ? (

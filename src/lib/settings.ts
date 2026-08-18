@@ -1,6 +1,6 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
-import { normalizeModernLayout, type ModernLayoutState } from "@/lib/modern-layout";
+import { normalizeModernLayout, EMPTY_MODERN_LAYOUT, type ModernLayoutState } from "@/lib/modern-layout";
 import { migrateAntigravityLineLabel } from "@/lib/antigravity-label-migration";
 import {
   DEFAULT_APP_LOCALE,
@@ -98,6 +98,7 @@ export const USAGE_SPIKE_ALERT_ENABLED_KEY = "usageSpikeAlertEnabled";
 export const USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY = "usageSpikeAlertThresholdPct";
 
 const UI_SCALE_KEY = "uiScale";
+const REDUCE_ANIMATIONS_KEY = "reduceAnimations";
 const SHOW_TRAY_ICON_KEY = "showTrayIcon";
 const SHOW_TRAY_INSIGHT_KEY = "showTrayInsight";
 const SHOW_TOTAL_SPEND_KEY = "showTotalSpend";
@@ -133,6 +134,7 @@ export const DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT: UsageSpikeAlertThresholdPc
 
 export type UIScale = "normal" | "small" | "compact";
 export const DEFAULT_UI_SCALE: UIScale = "normal";
+export const DEFAULT_REDUCE_ANIMATIONS = false;
 const UI_SCALE_VALUES: UIScale[] = ["normal", "small", "compact"];
 export const UI_SCALE_OPTIONS: { value: UIScale; label: string }[] = [
   { value: "normal", label: "Normal" },
@@ -1015,6 +1017,16 @@ export async function saveUIScale(value: UIScale): Promise<void> {
   await store.save();
 }
 
+export async function loadReduceAnimations(): Promise<boolean> {
+  const stored = await store.get<unknown>(REDUCE_ANIMATIONS_KEY);
+  return typeof stored === "boolean" ? stored : DEFAULT_REDUCE_ANIMATIONS;
+}
+
+export async function saveReduceAnimations(value: boolean): Promise<void> {
+  await store.set(REDUCE_ANIMATIONS_KEY, value);
+  await store.save();
+}
+
 export async function loadShowTrayIcon(): Promise<boolean> {
   const stored = await store.get<unknown>(SHOW_TRAY_ICON_KEY);
   if (typeof stored === "boolean") return stored;
@@ -1250,5 +1262,41 @@ export async function loadNotifiedNewProviders(): Promise<string[]> {
 export async function saveNotifiedNewProviders(ids: string[]): Promise<void> {
   const unique = [...new Set(ids.filter(Boolean))];
   await store.set(NOTIFIED_NEW_PROVIDERS_KEY, unique);
+  await store.save();
+}
+
+/** Restore UI preferences to defaults. Does not wipe plugin enablement, credentials, or poll identity. */
+export async function resetAllUserPreferences(): Promise<void> {
+  await store.set(AUTO_UPDATE_SETTINGS_KEY, DEFAULT_AUTO_UPDATE_INTERVAL);
+  await store.set(THEME_MODE_KEY, DEFAULT_THEME_MODE);
+  await store.set(DISPLAY_MODE_KEY, DEFAULT_DISPLAY_MODE);
+  await store.set(RESET_TIMER_DISPLAY_MODE_KEY, DEFAULT_RESET_TIMER_DISPLAY_MODE);
+  await store.set(TIME_FORMAT_MODE_KEY, DEFAULT_TIME_FORMAT_MODE);
+  await store.set(APP_LOCALE_KEY, DEFAULT_APP_LOCALE);
+  await store.set(DISPLAY_CURRENCY_KEY, DEFAULT_DISPLAY_CURRENCY);
+  await store.set(MENUBAR_ICON_STYLE_KEY, DEFAULT_MENUBAR_ICON_STYLE);
+  await store.set(PREFER_MENUBAR_WEEKLY_LIMIT_KEY, DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT);
+  await store.set(GLOBAL_SHORTCUT_KEY, DEFAULT_GLOBAL_SHORTCUT);
+  await store.set(START_ON_LOGIN_KEY, DEFAULT_START_ON_LOGIN);
+  await store.set(USAGE_ALERT_ENABLED_KEY, DEFAULT_USAGE_ALERT_ENABLED);
+  await store.set(USAGE_ALERT_THRESHOLD_KEY, DEFAULT_USAGE_ALERT_THRESHOLD);
+  await store.set(USAGE_ALERT_CUSTOM_THRESHOLD_KEY, DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD);
+  await store.set(USAGE_ALERT_SOUND_KEY, DEFAULT_USAGE_ALERT_SOUND);
+  await store.set(USAGE_PACE_ALERT_ENABLED_KEY, DEFAULT_USAGE_PACE_ALERT_ENABLED);
+  await store.set(USAGE_SPIKE_ALERT_ENABLED_KEY, DEFAULT_USAGE_SPIKE_ALERT_ENABLED);
+  await store.set(USAGE_SPIKE_ALERT_THRESHOLD_PCT_KEY, DEFAULT_USAGE_SPIKE_ALERT_THRESHOLD_PCT);
+  await store.set(UI_SCALE_KEY, DEFAULT_UI_SCALE);
+  await store.set(REDUCE_ANIMATIONS_KEY, DEFAULT_REDUCE_ANIMATIONS);
+  await store.set(SHOW_TRAY_ICON_KEY, DEFAULT_SHOW_TRAY_ICON);
+  await store.set(SHOW_TRAY_INSIGHT_KEY, DEFAULT_SHOW_TRAY_INSIGHT);
+  await store.set(SHOW_TOTAL_SPEND_KEY, DEFAULT_SHOW_TOTAL_SPEND);
+  await store.set(TOTAL_SPEND_METRIC_KEY, DEFAULT_TOTAL_SPEND_METRIC);
+  await store.set(SHOW_ACCOUNT_IDENTITY_KEY, DEFAULT_SHOW_ACCOUNT_IDENTITY);
+  await store.set(UI_LAYOUT_KEY, DEFAULT_UI_LAYOUT);
+  await store.set(MODERN_DENSITY_KEY, DEFAULT_MODERN_DENSITY);
+  await store.set(MODERN_LAYOUT_KEY, EMPTY_MODERN_LAYOUT);
+  await store.set(PERSIST_USAGE_HISTORY_KEY, false);
+  await store.set(USAGE_HISTORY_RETENTION_DAYS_KEY, DEFAULT_USAGE_HISTORY_RETENTION_DAYS);
+  await store.set(PRODUCT_POLLS_ENABLED_KEY, DEFAULT_PRODUCT_POLLS_ENABLED);
   await store.save();
 }

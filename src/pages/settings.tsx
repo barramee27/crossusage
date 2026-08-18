@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { GripVertical } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,10 @@ import {
   saveUsageHistoryRetentionDays,
   saveShowTrayInsight,
   saveShowTotalSpend,
+  saveReduceAnimations,
+  resetAllUserPreferences,
+  DEFAULT_GLOBAL_SHORTCUT,
+  DEFAULT_START_ON_LOGIN,
   type AutoUpdateIntervalMinutes,
   type DisplayMode,
   type GlobalShortcut,
@@ -52,6 +57,7 @@ import {
   type UsageAlertSound,
   type UsageAlertThreshold,
 } from "@/lib/settings";
+import { hydrateModernLayoutStore } from "@/stores/modern-layout-store";
 import { setProductPollsEnabled } from "@/hooks/app/use-product-polls";
 import { useProductPollsStore } from "@/stores/product-polls-store";
 import { DEFAULT_LOG_LEVEL, isLogLevel, LOG_LEVEL_OPTIONS, type LogLevel } from "@/lib/log-level";
@@ -73,6 +79,7 @@ import { formatOsDiagnosticsLine, type OsDiagnosticsPayload } from "@/lib/os-dia
 import { cn } from "@/lib/utils";
 import { LayoutPreviewClassic, LayoutPreviewModern } from "@/components/ui-layout-preview";
 import { useAppPreferencesStore } from "@/stores/app-preferences-store";
+import { fireMotionShock } from "@/components/motion-field";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { multiAccountCredentialsGuideUrl } from "@/lib/docs-links";
 import { FORK_REPO_URL } from "@/lib/fork-meta";
@@ -752,6 +759,95 @@ function ProductPollsSection() {
   );
 }
 
+function ReduceAnimationsSection() {
+  const { t } = useTranslation();
+  const reduceAnimations = useAppPreferencesStore((s) => s.reduceAnimations);
+  const setReduceAnimations = useAppPreferencesStore((s) => s.setReduceAnimations);
+
+  const onChange = async (checked: boolean) => {
+    const prev = reduceAnimations;
+    setReduceAnimations(checked);
+    if (!checked) fireMotionShock();
+    try {
+      await saveReduceAnimations(checked);
+    } catch (e) {
+      console.error(e);
+      setReduceAnimations(prev);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">{t("settings.reduceAnimations.title")}</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        {t("settings.reduceAnimations.description")}
+      </p>
+      <label className="flex items-center gap-2 text-sm select-none text-foreground">
+        <Checkbox
+          checked={reduceAnimations}
+          onCheckedChange={(checked) => void onChange(checked === true)}
+        />
+        {t("settings.reduceAnimations.checkbox")}
+      </label>
+    </section>
+  );
+}
+
+function ResetAllSettingsSection({ onResetComplete }: { onResetComplete: () => void }) {
+  const { t } = useTranslation();
+  const resetState = useAppPreferencesStore((s) => s.resetState);
+  const [busy, setBusy] = useState(false);
+
+  const onReset = async () => {
+    if (!window.confirm(t("settings.resetAll.confirm"))) return;
+    setBusy(true);
+    try {
+      await resetAllUserPreferences();
+      resetState();
+      onResetComplete();
+      if (isTauri()) {
+        try {
+          await invoke("update_global_shortcut", { shortcut: DEFAULT_GLOBAL_SHORTCUT });
+        } catch (e) {
+          console.error("update global shortcut after reset:", e);
+        }
+      }
+      await hydrateModernLayoutStore();
+      await setProductPollsEnabled(true);
+      if (isTauri() && !DEFAULT_START_ON_LOGIN) {
+        try {
+          await disableAutostart();
+        } catch (e) {
+          console.error("disable autostart after reset:", e);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-lg font-semibold mb-0">{t("settings.resetAll.title")}</h3>
+      <p className="text-sm text-muted-foreground mb-2">
+        {t("settings.resetAll.description")}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="text-destructive border-destructive/50 hover:bg-destructive/10"
+        disabled={busy}
+        onClick={() => void onReset()}
+      >
+        {t("settings.resetAll.button")}
+      </Button>
+    </section>
+  );
+}
+
 const LOCAL_API_BASE = "http://127.0.0.1:6736";
 
 function LocalApiSection() {
@@ -1251,6 +1347,7 @@ export function SettingsPage({
     nextStyle: MenubarIconStyle;
     selectedLine: string;
   } | null>(null);
+  const [usageHistorySectionKey, setUsageHistorySectionKey] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -1759,6 +1856,7 @@ export function SettingsPage({
           </div>
         </div>
       </section>
+      <ReduceAnimationsSection />
       </>
       ) : null}
       {showModernSection("advanced") ? (
@@ -1789,7 +1887,7 @@ export function SettingsPage({
       <InsightsSection />
       <ProductPollsSection />
       <LocalApiSection />
-      <UsageHistorySection />
+      <UsageHistorySection key={usageHistorySectionKey} />
       <section>
         <h3 className="text-lg font-semibold mb-0">Troubleshooting</h3>
         <p className="text-sm text-muted-foreground mb-2">
@@ -1926,6 +2024,7 @@ export function SettingsPage({
           ) : null}
         </div>
       </section>
+      <ResetAllSettingsSection onResetComplete={() => setUsageHistorySectionKey((k) => k + 1)} />
       <section>
         <h3 className="text-lg font-semibold mb-0">Account Identity</h3>
         <p className="text-sm text-muted-foreground mb-2">

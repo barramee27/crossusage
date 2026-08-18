@@ -57,6 +57,26 @@ function setHistoryQuery(ctx, rows, options = {}) {
   });
 }
 
+function setUsageApi(ctx, { status = 200, body } = {}) {
+  ctx.host.http.request.mockImplementation((opts) => {
+    expect(opts.method).toBe("GET");
+    expect(opts.url).toBe("https://opencode.ai/zen/go/v1/usage");
+    expect(opts.headers.Authorization).toBe("Bearer go-key");
+    return {
+      status,
+      bodyText: typeof body === "string" ? body : JSON.stringify(body),
+    };
+  });
+}
+
+const API_USAGE = {
+  usage: {
+    rolling: { percent: 12.5, resetsAt: "2026-03-06T17:00:00.000Z" },
+    weekly: { percent: 40, resetsAt: "2026-03-09T00:00:00.000Z" },
+    monthly: { percent: 8, resetsAt: "2026-04-01T00:00:00.000Z" },
+  },
+};
+
 describe("opencode-go plugin", () => {
   beforeEach(() => {
     delete globalThis.__openusage_plugin;
@@ -97,13 +117,10 @@ describe("opencode-go plugin", () => {
     );
   });
 
-  it("enables with auth only and returns zeroed bars", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-06T12:00:00.000Z"));
-
+  it("enables with auth only and uses the official usage API", async () => {
     const ctx = makeCtx();
     setAuth(ctx);
-    setHistoryQuery(ctx, []);
+    setUsageApi(ctx, { body: API_USAGE });
 
     const plugin = await loadPlugin();
     const result = plugin.probe(ctx);
@@ -114,10 +131,11 @@ describe("opencode-go plugin", () => {
       "Weekly",
       "Monthly",
     ]);
-    expect(result.lines.every((line) => line.used === 0)).toBe(true);
+    expect(result.lines[0].used).toBe(12.5);
+    expect(result.lines[1].used).toBe(40);
+    expect(result.lines[2].used).toBe(8);
     expect(result.lines[0].resetsAt).toBe("2026-03-06T17:00:00.000Z");
-    expect(result.lines[1].resetsAt).toBe("2026-03-09T00:00:00.000Z");
-    expect(result.lines[2].resetsAt).toBe("2026-04-01T00:00:00.000Z");
+    expect(ctx.host.sqlite.query).not.toHaveBeenCalled();
   });
 
   it("enables with history only when auth is absent", async () => {
@@ -224,36 +242,23 @@ describe("opencode-go plugin", () => {
     expect(result.lines[0].used).toBe(100);
   });
 
-  it("returns a loud warning when sqlite is unreadable but auth exists", async () => {
+  it("throws when the Go key is rejected", async () => {
     const ctx = makeCtx();
     setAuth(ctx);
-    ctx.host.sqlite.query.mockImplementation(() => {
-      throw new Error("disk I/O error");
-    });
+    setUsageApi(ctx, { status: 401, body: { error: { type: "AuthError" } } });
 
     const plugin = await loadPlugin();
-    const result = plugin.probe(ctx);
-    expect(result.plan).toBe("Go");
-    expect(result.warning).toContain("usage database");
-    expect(result.lines).toEqual([
-      {
-        type: "badge",
-        label: "Status",
-        text: "Usage database unreadable",
-        color: "#f59e0b",
-      },
-    ]);
+    expect(() => plugin.probe(ctx)).toThrow(
+      "OpenCode Go key was rejected. Log into OpenCode Go again.",
+    );
   });
 
-  it("returns a loud warning when sqlite returns malformed JSON and auth exists", async () => {
+  it("throws when the key has no Go subscription", async () => {
     const ctx = makeCtx();
     setAuth(ctx);
-    ctx.host.sqlite.query.mockReturnValue("not-json");
+    setUsageApi(ctx, { status: 403, body: { error: { type: "EntitlementError" } } });
 
     const plugin = await loadPlugin();
-    const result = plugin.probe(ctx);
-    expect(result.warning).toContain("usage database");
-    expect(result.lines[0].text).toBe("Usage database unreadable");
-    expect(result.lines[0].color).toBe("#f59e0b");
+    expect(() => plugin.probe(ctx)).toThrow("No OpenCode Go subscription on this key.");
   });
 });

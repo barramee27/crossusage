@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./motion.css";
+@import "./motion-fx.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -679,3 +681,4 @@ html.tauri-popover body {
     opacity: 0.35;
   }
 }
+

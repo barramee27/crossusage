@@ -148,6 +148,17 @@
       "title": "Interface scale",
       "description": "Text and spacing density in the main window"
     },
+    "reduceAnimations": {
+      "title": "Reduce animations",
+      "description": "Nuke every panel effect: aurora, orbs, 3D tilt, card float, bar sparks, click ripples, counting meters. Same idea as system reduce-motion.",
+      "checkbox": "Reduce animations"
+    },
+    "resetAll": {
+      "title": "Reset all settings",
+      "description": "Restore appearance, alerts, layout, shortcut, and tray prefs to defaults. Does not delete provider credentials or poll votes.",
+      "button": "Reset all settings",
+      "confirm": "Reset all settings to defaults? Provider accounts and poll answers stay."
+    },
     "startOnLogin": {
       "title": "Start on Login",
       "description": "Launch when you sign in"

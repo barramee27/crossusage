@@ -75,7 +75,8 @@ export function OverviewPage({
   }
 
   return (
-    <div>
+    <div className="motion-stagger">
+      <div className="motion-card" style={{ ["--i" as string]: 0 }}>
       <UsageInsightsBanner
         insights={insights}
         historyTightest={historyInsights?.tightest}
@@ -86,9 +87,14 @@ export function OverviewPage({
         nowMs={nowMs}
         onSelectProvider={setActiveView}
       />
+      </div>
       {plugins.map((plugin, index) => (
-        <ProviderCard
+        <div
           key={plugin.meta.id}
+          className="motion-card"
+          style={{ ["--i" as string]: index + 1 }}
+        >
+        <ProviderCard
           name={plugin.meta.name}
           plan={plugin.data?.plan}
           showSeparator={index < plugins.length - 1}
@@ -108,6 +114,7 @@ export function OverviewPage({
           timeFormatMode={timeFormatMode}
           showAccountIdentity={showAccountIdentity}
         />
+        </div>
       ))}
     </div>
   )

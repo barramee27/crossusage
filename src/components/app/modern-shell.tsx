@@ -42,6 +42,8 @@ import type { UILayout } from "@/lib/settings"
 import { useProductPollsBadge } from "@/hooks/app/use-product-polls"
 import { useProductPollsStore } from "@/stores/product-polls-store"
 import { PollsPage } from "@/pages/polls"
+import { useMotionPointer } from "@/hooks/app/use-motion-pointer"
+import { MotionField } from "@/components/motion-field"
 
 type ModernScreen = "dashboard" | "customize" | "polls" | "settings"
 
@@ -81,7 +83,7 @@ export function ModernShell({
   const pollsVisitNonce = useProductPollsStore((s) => s.pollsVisitNonce)
   useTrayRestartBridge(updateStatus, onUpdateInstall)
 
-  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision, showTotalSpend } =
+  const { themeMode, displayMode, resetTimerDisplayMode, modernDensity, displayCurrency, exchangeRatesRevision, showTotalSpend, reduceAnimations } =
     useAppPreferencesStore(
     useShallow((s) => ({
       themeMode: s.themeMode,
@@ -91,6 +93,7 @@ export function ModernShell({
       displayCurrency: s.displayCurrency,
       exchangeRatesRevision: s.exchangeRatesRevision,
       showTotalSpend: s.showTotalSpend,
+      reduceAnimations: s.reduceAnimations,
     })),
   )
 
@@ -255,6 +258,7 @@ export function ModernShell({
       }),
     [displayPlugins, pluginSettings, preferWeeklyLimit, nowMs],
   )
+  const panelMotionRef = useMotionPointer(!reduceAnimations)
 
   return (
     <div
@@ -262,7 +266,11 @@ export function ModernShell({
       data-density={modernDensity}
     >
       <LiquidGlassFilter active={themeMode === "glass"} />
-      <div className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col min-h-[320px]">
+      <div
+        ref={panelMotionRef}
+        className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col min-h-[320px]"
+      >
+        <MotionField />
         <nav
           className="flex gap-1 px-3 pt-2 pb-1 border-b border-border/50"
           aria-label="Modern navigation"
@@ -280,7 +288,8 @@ export function ModernShell({
               type="button"
               size="sm"
               variant={screen === id ? "default" : "ghost"}
-              className="relative flex-1"
+              className={cn("relative flex-1 motion-tab")}
+              data-active={screen === id}
               onClick={() => {
                 if (id === "settings") setActiveView("settings")
                 else if (id === "polls") {
@@ -295,8 +304,8 @@ export function ModernShell({
                 <span
                   className={
                     screen === id
-                      ? "absolute top-1 right-1 size-1.5 rounded-full bg-primary-foreground"
-                      : "absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+                      ? "absolute top-1 right-1 size-1.5 rounded-full bg-primary-foreground motion-ping"
+                      : "absolute top-1 right-1 size-1.5 rounded-full bg-primary motion-ping"
                   }
                   aria-hidden
                 />
@@ -320,7 +329,7 @@ export function ModernShell({
             )}
           >
             {screen === "dashboard" ? (
-              <div className="space-y-2 pb-2">
+              <div key="dashboard" className="motion-view space-y-2 pb-2 motion-stagger">
                 <UsageInsightsBanner
                   insights={insights}
                   historyTightest={historyInsights?.tightest}
@@ -349,6 +358,7 @@ export function ModernShell({
             ) : null}
 
             {screen === "customize" ? (
+              <div key="customize" className="motion-view">
               <CustomizeView
                 descriptors={descriptors}
                 providerOrder={providerOrder}
@@ -370,11 +380,17 @@ export function ModernShell({
                 onMetricReorder={layout.setMetricOrder}
                 compact={compact}
               />
+              </div>
             ) : null}
 
-            {screen === "polls" ? <PollsPage key={pollsVisitNonce} /> : null}
+            {screen === "polls" ? (
+              <div key={`polls-${pollsVisitNonce}`} className="motion-view">
+                <PollsPage />
+              </div>
+            ) : null}
 
             {screen === "settings" ? (
+              <div key="settings" className="motion-view">
               <AppContent
                 {...appContentProps}
                 displayPlugins={displayPlugins}
@@ -382,6 +398,7 @@ export function ModernShell({
                 selectedPlugin={null}
                 viewOverride="settings"
               />
+              </div>
             ) : null}
           </div>
 

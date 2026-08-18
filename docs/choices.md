@@ -1,7 +1,14 @@
 # Choices
 
+## 2026-08-18
+
+- **Motion vs Reduce animations:** No live 3D/zoom on the whole panel. No concentric grain rings (looked like ~100 circles) and no click ripples. Orbs stay. Pointer drives spotlight/comet/grid. OS reduce-motion still hard-kills.
+
 ## 2026-08-13
 
+- **1.4.1 port scope:** OpenUsage **v0.7.8 + v0.7.9** as one PATCH. Skip public v0.7.7 (never shipped). Skip Account-first Phase 2/2b (reverted #1090), PostHog/Sparkle/stale, JSONL disk cache (#1017 later), live pricing fetch (#1089 — fork bundled-only).
+- **Reset all settings:** restore UI prefs only. Keep plugin order/disabled/credentials and poll `installId` / answers / dismissals. Polls enabled returns to default ON. Other locales fall back to English for new strings.
+- **OpenCode Go:** official `GET /zen/go/v1/usage` when a Go API key exists; SQLite leftover meters only without a key (matches #1097).
 - **Aptabase poll close:** Saturday **15 Aug 2026, 23:59 UTC** (`expiresAt`). Same sentence in `body`. After expiry, `/active` still returns the poll (`ended: true`) so a winner can show; set `active: false` to hide. Open poll preferred if several are published.
 
 ## 2026-08-09

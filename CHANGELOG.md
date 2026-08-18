@@ -2,6 +2,25 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.4.1
+
+**Theme:** OpenUsage **v0.7.8 + v0.7.9** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Robin skipped a public **v0.7.7**. Port tracker: [docs/PORT-0.7.8-0.7.9.md](docs/PORT-0.7.8-0.7.9.md).
+
+### New features
+
+- **Reduce animations** — Settings toggle hard-kills panel motion (#1019). Motion on: aurora, orbs, scanline, cursor comet, bar sparks. No live 3D/zoom, concentric grain rings, or click ripples.
+- **Reset all settings** — confirmation in Advanced; restores UI prefs without wiping credentials or poll votes (#1033).
+
+### Bug fixes
+
+- **Pricing** — Kimi K3, Cursor Router labels, Claude Opus 5, Daybreak Blue, Grok 4.6; Grok 4.5 Fast output $12/MTok (#1087, #1050, #1093, #1101). Supplement `updated_at` **2026-08-13**.
+- **Codex auto-review** — keep the `codex-auto-review` slug in breakdowns; dated fallback model is used only for cost (#1085).
+- **OpenCode Go** — Session/Weekly/Monthly from `GET /zen/go/v1/usage` when a Go key exists; local SQLite only without a key (#1097).
+
+Skipped: Account-first Phase 2/2b (reverted upstream #1090), PostHog/Sparkle/stale, JSONL disk cache (#1017 later), live pricing fetch (#1089 — fork bundled-only).
+
+---
+
 ## 1.4.0
 
 **Theme:** Fork MINOR — product polls, Windows Antigravity CLI keyring fix, new-provider-on-update notify, machine-readable limits.

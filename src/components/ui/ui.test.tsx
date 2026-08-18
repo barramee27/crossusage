@@ -110,6 +110,15 @@ describe("ui components", () => {
     expect(container.querySelector('[data-slot="progress-refreshing"]')).toBeNull()
   })
 
+  it("marks high usage bars as hot for motion", () => {
+    const { container, rerender } = render(<Progress value={90} />)
+    expect(container.querySelector(".motion-bar-hot")).toBeTruthy()
+    expect(container.querySelector(".motion-sparks")).toBeTruthy()
+    rerender(<Progress value={40} />)
+    expect(container.querySelector(".motion-bar-hot")).toBeNull()
+    expect(container.querySelector(".motion-sparks")).toBeNull()
+  })
+
   it("renders separator orientations", () => {
     const { rerender } = render(<Separator />)
     expect(screen.getByRole("separator")).toBeInTheDocument()
