@@ -471,3 +471,23 @@ html.reduce-animations .motion-view {
   translate: none !important;
   transform: none !important;
 }
+
+/* Modern dashboard: many bars at once — looping sheen/sparks/card bob is noisy. Classic keeps them. */
+[data-ui-layout="modern"] .motion-bar-fill,
+[data-ui-layout="modern"] .motion-bar-fill::after,
+[data-ui-layout="modern"] .motion-sparks,
+[data-ui-layout="modern"] .motion-bar-hot {
+  animation: none !important;
+  filter: none !important;
+}
+
+[data-ui-layout="modern"] .motion-sparks,
+[data-ui-layout="modern"] .motion-bar-fill::after {
+  display: none !important;
+}
+
+[data-ui-layout="modern"] .motion-card,
+[data-ui-layout="modern"] .motion-stagger > .motion-card {
+  animation: none !important;
+  translate: none !important;
+}
