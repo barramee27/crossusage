@@ -2,6 +2,16 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.4.2
+
+**Theme:** Quiet Modern dashboard motion. Classic bar sheen/sparks unchanged.
+
+### Bug fixes
+
+- **Modern UI** — drop looping bar sheen/sparks, card float, and the overlay field. Classic layout keeps bar lights and bubbles. Reduce animations still kills remaining FX.
+
+---
+
 ## 1.4.1
 
 **Theme:** OpenUsage **v0.7.8 + v0.7.9** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Robin skipped a public **v0.7.7**. Port tracker: [docs/PORT-0.7.8-0.7.9.md](docs/PORT-0.7.8-0.7.9.md).

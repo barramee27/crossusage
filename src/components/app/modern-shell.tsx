@@ -43,7 +43,6 @@ import { useProductPollsBadge } from "@/hooks/app/use-product-polls"
 import { useProductPollsStore } from "@/stores/product-polls-store"
 import { PollsPage } from "@/pages/polls"
 import { useMotionPointer } from "@/hooks/app/use-motion-pointer"
-import { MotionField } from "@/components/motion-field"
 
 type ModernScreen = "dashboard" | "customize" | "polls" | "settings"
 
@@ -269,8 +268,8 @@ export function ModernShell({
       <div
         ref={panelMotionRef}
         className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col min-h-[320px]"
+        data-ui-layout="modern"
       >
-        <MotionField />
         <nav
           className="flex gap-1 px-3 pt-2 pb-1 border-b border-border/50"
           aria-label="Modern navigation"

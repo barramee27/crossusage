@@ -218,17 +218,12 @@ export function WidgetRow({ data, compact, className, onRefreshPlugin }: WidgetR
       </div>
       <div className={cn("relative rounded-full bg-muted overflow-hidden", compact ? "h-1" : "h-1.5")}>
         <div
-          className={cn(
-            "h-full rounded-full motion-bar-fill",
-            !fillColor && fillClass,
-            fraction >= 0.85 && "motion-bar-hot",
-          )}
+          className={cn("h-full rounded-full", !fillColor && fillClass)}
           style={{
             width: `${Math.round(fraction * 100)}%`,
             ...(fillColor ? { backgroundColor: fillColor } : {}),
           }}
         />
-        {fraction >= 0.85 ? <span className="motion-sparks" aria-hidden="true" /> : null}
       </div>
       {data.textSecondary ? (
         <p className={cn("text-muted-foreground mt-0.5", compact ? "text-[10px]" : "text-xs")}>

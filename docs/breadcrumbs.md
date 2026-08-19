@@ -1,5 +1,9 @@
 # Breadcrumbs
 
+## 2026-08-19
+
+- Quiet **Modern** motion: no bar sheen/sparks, no overlay field, no card float. Classic unchanged.
+
 ## 2026-08-18
 
 - 1.4.1 motion pass 6: removed **concentric grain rings** (the “100 circles”). Restored orbs. Click ripples still off.

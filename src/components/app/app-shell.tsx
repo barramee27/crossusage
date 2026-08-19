@@ -111,6 +111,7 @@ export function AppShell({
       <div
         ref={panelMotionRef}
         className="app-panel-surface relative w-full overflow-hidden rounded-[18px] select-none flex flex-col"
+        data-ui-layout="classic"
         style={
           macPopoverChrome && maxPanelHeightPx
             ? { maxHeight: `${maxPanelHeightPx}px` }

@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-08-19
+
+- **Modern vs Classic motion:** Classic keeps bar sheen/sparks (one provider at a time). Modern dashboard drops looping bar lights, card bob, and MotionField overlay — too many meters at once.
+
 ## 2026-08-18
 
 - **Motion vs Reduce animations:** No live 3D/zoom on the whole panel. No concentric grain rings (looked like ~100 circles) and no click ripples. Orbs stay. Pointer drives spotlight/comet/grid. OS reduce-motion still hard-kills.
