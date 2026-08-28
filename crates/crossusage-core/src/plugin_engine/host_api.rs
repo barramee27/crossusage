@@ -708,6 +708,8 @@ pub(crate) fn inject_host_api_with_deadline<'js>(
     inject_cursor_logs(ctx, &host, base_plugin_id, deadline)?;
     inject_claude_logs(ctx, &host, deadline)?;
     inject_codex_logs(ctx, &host, deadline)?;
+    inject_antigravity_logs(ctx, &host, deadline)?;
+    inject_grok_logs(ctx, &host, deadline)?;
     inject_cursor_usage_export(ctx, &host, deadline)?;
     inject_fireworks(ctx, &host, base_plugin_id)?;
 
@@ -1480,6 +1482,7 @@ pub fn inject_utils(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
                     if (opts.resetsAt) line.resetsAt = opts.resetsAt;
                     if (opts.periodDurationMs) line.periodDurationMs = opts.periodDurationMs;
                     if (opts.color) line.color = opts.color;
+                    if (opts.sessionStartSignal) line.sessionStartSignal = opts.sessionStartSignal;
                     return line;
                 },
                 badge: function(opts) {
@@ -3160,6 +3163,40 @@ fn inject_codex_logs<'js>(ctx: &Ctx<'js>, host: &Object<'js>, deadline: ProbeDea
     Ok(())
 }
 
+fn inject_antigravity_logs<'js>(ctx: &Ctx<'js>, host: &Object<'js>, deadline: ProbeDeadline) -> rquickjs::Result<()> {
+    let obj = Object::new(ctx.clone())?;
+    obj.set(
+        "_queryRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(
+                    serde_json::json!({ "status": "no_data", "data": { "daily": [] } }).to_string(),
+                );
+            }
+            Ok(crate::antigravity_db_usage_scanner::query_daily_host_json(&opts_json))
+        })?,
+    )?;
+    host.set("antigravityLogs", obj)?;
+    Ok(())
+}
+
+fn inject_grok_logs<'js>(ctx: &Ctx<'js>, host: &Object<'js>, deadline: ProbeDeadline) -> rquickjs::Result<()> {
+    let obj = Object::new(ctx.clone())?;
+    obj.set(
+        "_queryRaw",
+        Function::new(ctx.clone(), move |_ctx_inner: Ctx<'_>, opts_json: String| -> rquickjs::Result<String> {
+            if deadline.has_elapsed() {
+                return Ok(
+                    serde_json::json!({ "status": "no_data", "data": { "daily": [] } }).to_string(),
+                );
+            }
+            Ok(crate::grok_usage_scanner::query_daily_host_json(&opts_json))
+        })?,
+    )?;
+    host.set("grokLogs", obj)?;
+    Ok(())
+}
+
 fn inject_cursor_usage_export<'js>(
     ctx: &Ctx<'js>,
     host: &Object<'js>,
@@ -3307,6 +3344,48 @@ pub fn patch_codex_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()>
         (function() {
             var rawFn = __openusage_ctx.host.codexLogs._queryRaw;
             __openusage_ctx.host.codexLogs.queryDaily = function(opts) {
+                var result = rawFn(JSON.stringify(opts || {}));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "no_data", data: { daily: [] } };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
+pub fn patch_antigravity_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.antigravityLogs._queryRaw;
+            __openusage_ctx.host.antigravityLogs.queryDaily = function(opts) {
+                var result = rawFn(JSON.stringify(opts || {}));
+                try {
+                    var parsed = JSON.parse(result);
+                    if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
+                        return parsed;
+                    }
+                } catch (e) {}
+                return { status: "no_data", data: { daily: [] } };
+            };
+        })();
+        "#
+        .as_bytes(),
+    )
+}
+
+pub fn patch_grok_logs_wrapper(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<()> {
+    ctx.eval::<(), _>(
+        r#"
+        (function() {
+            var rawFn = __openusage_ctx.host.grokLogs._queryRaw;
+            __openusage_ctx.host.grokLogs.queryDaily = function(opts) {
                 var result = rawFn(JSON.stringify(opts || {}));
                 try {
                     var parsed = JSON.parse(result);
@@ -4486,6 +4565,44 @@ mod tests {
             let _wrapped: Function = fireworks
                 .get("exportBillingMetrics")
                 .expect("exportBillingMetrics");
+        });
+    }
+
+    #[test]
+    fn antigravity_logs_query_daily_returns_status() {
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
+            patch_antigravity_logs_wrapper(&ctx).expect("patch antigravity logs wrapper");
+            let json: String = ctx
+                .eval(r#"JSON.stringify(__openusage_ctx.host.antigravityLogs.queryDaily({}))"#)
+                .expect("queryDaily");
+            let v: serde_json::Value = serde_json::from_str(&json).expect("json");
+            let status = v.get("status").and_then(|s| s.as_str()).unwrap_or("");
+            assert!(status == "ok" || status == "no_data", "got {status}");
+            assert!(v.get("data").and_then(|d| d.get("daily")).and_then(|d| d.as_array()).is_some());
+        });
+    }
+
+    #[test]
+    fn grok_logs_query_daily_returns_status() {
+        let rt = Runtime::new().expect("runtime");
+        let ctx = Context::full(&rt).expect("context");
+        ctx.with(|ctx| {
+            let app_data = std::env::temp_dir();
+            inject_host_api(&ctx, "test", "test", None, &app_data, "0.0.0")
+                .expect("inject host api");
+            patch_grok_logs_wrapper(&ctx).expect("patch grok logs wrapper");
+            let json: String = ctx
+                .eval(r#"JSON.stringify(__openusage_ctx.host.grokLogs.queryDaily({}))"#)
+                .expect("queryDaily");
+            let v: serde_json::Value = serde_json::from_str(&json).expect("json");
+            let status = v.get("status").and_then(|s| s.as_str()).unwrap_or("");
+            assert!(status == "ok" || status == "no_data", "got {status}");
+            assert!(v.get("data").and_then(|d| d.get("daily")).and_then(|d| d.as_array()).is_some());
         });
     }
 

@@ -3,6 +3,8 @@
   const KEYCHAIN_REFRESH_TOKEN_SERVICE = "cursor-refresh-token"
   const BASE_URL = "https://api2.cursor.sh"
   const USAGE_URL = BASE_URL + "/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
+  const GROK_BOT_USAGE_URL = BASE_URL + "/aiserver.v1.DashboardService/GetSandUsageStatus"
+  const GROK_BOT_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
   const PLAN_URL = BASE_URL + "/aiserver.v1.DashboardService/GetPlanInfo"
   const REFRESH_URL = BASE_URL + "/oauth/token"
   const CREDITS_URL = BASE_URL + "/aiserver.v1.DashboardService/GetCreditGrantsBalance"
@@ -316,15 +318,21 @@
           format: { kind: "count", suffix: " req" },
         }),
         ctx.line.progress({
-          label: "Auto usage",
+          label: "Cursor Models",
           used: 18,
           limit: 100,
           format: { kind: "percent" },
         }),
         ctx.line.progress({
-          label: "API usage",
+          label: "Other Models",
           used: 7,
           limit: 50,
+          format: { kind: "percent" },
+        }),
+        ctx.line.progress({
+          label: "Grok Bot usage",
+          used: 4,
+          limit: 100,
           format: { kind: "percent" },
         }),
         ctx.line.progress({
@@ -806,7 +814,7 @@
 
     if (typeof pu.autoPercentUsed === "number" && Number.isFinite(pu.autoPercentUsed)) {
       lines.push(ctx.line.progress({
-        label: "Auto usage",
+        label: "Cursor Models",
         used: pu.autoPercentUsed,
         limit: 100,
         format: { kind: "percent" },
@@ -817,7 +825,7 @@
 
     if (typeof pu.apiPercentUsed === "number" && Number.isFinite(pu.apiPercentUsed)) {
       lines.push(ctx.line.progress({
-        label: "API usage",
+        label: "Other Models",
         used: pu.apiPercentUsed,
         limit: 100,
         format: { kind: "percent" },
@@ -1094,8 +1102,8 @@
       : null
     if (!plan) return
     var pairs = [
-      ["autoPercentUsed", "Auto usage"],
-      ["apiPercentUsed", "API usage"],
+      ["autoPercentUsed", "Cursor Models"],
+      ["apiPercentUsed", "Other Models"],
     ]
     for (var i = 0; i < pairs.length; i++) {
       var percent = readFiniteNumber(plan[pairs[i][0]])
@@ -1396,7 +1404,90 @@
     return result
   }
 
+  function clampGrokBotPercent(value) {
+    var n = readFiniteNumber(value)
+    if (!Number.isFinite(n)) return NaN
+    if (n < 0) return 0
+    if (n > 100) return 100
+    return n
+  }
+
+  /** Cursor "Sand" / Grok Bot weekly allowance. Pooled enterprise and zero-included skip. */
+  function mapGrokBotUsage(ctx, usage) {
+    if (!usage || typeof usage !== "object") return null
+    if (usage.usesPooledEnterpriseAllowance === true) return null
+    if (usage.hasNonZeroIncludedLimit === false) return null
+    if (usage.includedLimitZero === true) return null
+    var percent = readFiniteNumber(usage.usagePercent)
+    if (!Number.isFinite(percent) || percent < 0) return null
+
+    var resetMs = ctx.util.parseDateMs(usage.nextResetTimestampUtc)
+    var startMs = ctx.util.parseDateMs(usage.currentPeriodStart)
+    var periodDurationMs = GROK_BOT_PERIOD_MS
+    if (Number.isFinite(startMs) && Number.isFinite(resetMs) && resetMs > startMs) {
+      periodDurationMs = resetMs - startMs
+    }
+
+    return ctx.line.progress({
+      label: "Grok Bot usage",
+      used: clampGrokBotPercent(percent),
+      limit: 100,
+      format: { kind: "percent" },
+      resetsAt: Number.isFinite(resetMs) ? ctx.util.toIso(resetMs) : undefined,
+      periodDurationMs: periodDurationMs,
+    })
+  }
+
+  function fetchGrokBotUsage(ctx, accessToken) {
+    try {
+      var resp = connectPost(ctx, GROK_BOT_USAGE_URL, accessToken)
+      if (!resp || resp.status < 200 || resp.status >= 300) {
+        ctx.host.log.warn(
+          "grok bot usage returned status=" + (resp ? String(resp.status) : "none")
+        )
+        return null
+      }
+      var parsed = ctx.util.tryParseJson(resp.bodyText)
+      if (!parsed || typeof parsed !== "object") return null
+      return parsed
+    } catch (e) {
+      ctx.host.log.warn("grok bot usage fetch failed: " + String(e))
+      return null
+    }
+  }
+
+  function insertGrokBotLine(lines, grokLine) {
+    if (!grokLine || !Array.isArray(lines)) return
+    var anchors = ["Other Models", "Cursor Models", "Total usage"]
+    var insertAt = -1
+    for (var a = 0; a < anchors.length; a++) {
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i] && lines[i].label === anchors[a]) {
+          insertAt = i + 1
+          break
+        }
+      }
+      if (insertAt >= 0) break
+    }
+    if (insertAt < 0) lines.push(grokLine)
+    else lines.splice(insertAt, 0, grokLine)
+  }
+
+  function attachGrokBotUsage(ctx, result, accessToken) {
+    if (!result || !Array.isArray(result.lines) || !accessToken) return result
+    try {
+      var line = mapGrokBotUsage(ctx, fetchGrokBotUsage(ctx, accessToken))
+      if (line) insertGrokBotLine(result.lines, line)
+    } catch (e) {
+      ctx.host.log.warn("grok bot usage attach failed: " + String(e))
+    }
+    return result
+  }
+
+  var lastProbeAccessToken = null
+
   function probeImpl(ctx) {
+    lastProbeAccessToken = null
     const authState = loadAuthState(ctx)
     let accessToken = authState.accessToken
     const refreshTokenValue = authState.refreshToken
@@ -1437,6 +1528,8 @@
       }
     }
 
+    lastProbeAccessToken = accessToken
+
     let usageResp
     let didRefresh = false
     try {
@@ -1456,7 +1549,10 @@
           ctx.host.log.info("usage returned 401, attempting refresh")
           didRefresh = true
           const refreshed = refreshToken(ctx, refreshTokenValue, authSource)
-          if (refreshed) accessToken = refreshed
+          if (refreshed) {
+            accessToken = refreshed
+            lastProbeAccessToken = accessToken
+          }
           return refreshed
         },
       })
@@ -1666,6 +1762,7 @@
 
   function probe(ctx) {
     var result = probeImpl(ctx)
+    result = attachGrokBotUsage(ctx, result, lastProbeAccessToken)
     result = attachCursorTranscriptActivity(ctx, result)
     result = attachCursorBillingDaily(ctx, result)
     return attachCursorMtdUsage(ctx, result)

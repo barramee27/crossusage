@@ -2,6 +2,7 @@ import { metricId, metricIdPrefix, migrateMetricId, parseMetricId } from "@/lib/
 import type { PluginSettings } from "@/lib/settings"
 import type { MetricDescriptor } from "@/lib/metric-registry"
 import { migrateAntigravityLineLabel } from "@/lib/antigravity-label-migration"
+import { migrateCursorLineLabel } from "@/lib/cursor-label-migration"
 
 export const MAX_PINS_PER_PROVIDER = 2
 
@@ -35,8 +36,8 @@ export const DEFAULT_PLACED_METRIC_IDS: string[] = [
   metricId("grok", "Credits used"),
   metricId("cursor", "Credits"),
   metricId("cursor", "Total usage"),
-  metricId("cursor", "Auto usage"),
-  metricId("cursor", "API usage"),
+  metricId("cursor", "Cursor Models"),
+  metricId("cursor", "Other Models"),
 ]
 
 export const DEFAULT_PINNED_METRIC_IDS: string[] = [
@@ -44,8 +45,8 @@ export const DEFAULT_PINNED_METRIC_IDS: string[] = [
   metricId("claude", "Weekly"),
   metricId("codex", "Session"),
   metricId("codex", "Weekly"),
-  metricId("cursor", "Auto usage"),
-  metricId("cursor", "API usage"),
+  metricId("cursor", "Cursor Models"),
+  metricId("cursor", "Other Models"),
 ]
 
 export function countPinsForProvider(pinnedIds: string[], pluginId: string): number {
@@ -76,7 +77,10 @@ export function normalizeModernLayout(raw: unknown): ModernLayoutState {
     if (!parsed) return normalized
     return metricId(
       parsed.pluginId,
-      migrateAntigravityLineLabel(parsed.pluginId, parsed.lineLabel),
+      migrateCursorLineLabel(
+        parsed.pluginId,
+        migrateAntigravityLineLabel(parsed.pluginId, parsed.lineLabel),
+      ),
     )
   }
   const metricIdArray = (v: unknown): string[] => strArray(v).map(migrateStoredMetricId)

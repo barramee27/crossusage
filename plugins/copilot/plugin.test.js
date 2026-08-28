@@ -235,6 +235,32 @@ describe("copilot plugin", () => {
     expect(result.lines).toHaveLength(0);
   });
 
+  it("shows personal credits on org-managed seats", async () => {
+    const ctx = makePluginTestContext();
+    setKeychainToken(ctx, "tok");
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        copilot_plan: "business",
+        token_based_billing: true,
+        quota_snapshots: {
+          premium_interactions: {
+            entitlement: 0,
+            remaining: 0,
+            percent_remaining: 100,
+            credits_used: 42,
+          },
+        },
+      }),
+    });
+    const plugin = await loadPlugin();
+    const result = plugin.probe(ctx);
+    expect(result.lines.find((l) => l.label === "Credits")).toMatchObject({
+      type: "text",
+      value: "42",
+    });
+  });
+
   it("returns plan label from copilot_plan", async () => {
     const ctx = makePluginTestContext();
     setKeychainToken(ctx, "tok");

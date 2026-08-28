@@ -218,7 +218,7 @@ mod tests {
             resets_at: Some("2026-08-10T00:00:00Z".to_string()),
             period_duration_ms: None,
             color: None,
-        }];
+            session_start_signal: None,        }];
         let provider = provider_limits_from_lines("Claude", Some("Pro"), &lines, None, None);
         let session = provider.resources.get("session").expect("session");
         assert_eq!(session.used, 40.0);
@@ -238,7 +238,7 @@ mod tests {
             resets_at: None,
             period_duration_ms: None,
             color: None,
-        }];
+            session_start_signal: None,        }];
         let provider = provider_limits_from_lines("Cursor", None, &lines, None, None);
         let credits = provider.resources.get("credits").expect("credits");
         assert_eq!(credits.used, 12.5);

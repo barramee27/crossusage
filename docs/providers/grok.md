@@ -79,6 +79,7 @@ Used fields:
 |------|-------------|
 | Credits used | Percent of included monthly credits used |
 | Pay as you go | Disabled, or the configured pay-as-you-go cap |
+| Today / Yesterday / Last 30 Days / Usage Trend | Local coordinator `updates.jsonl` under `$GROK_HOME/sessions` or `~/.grok/sessions`. Shown even without CLI login when spend exists |
 
 ## Errors
 

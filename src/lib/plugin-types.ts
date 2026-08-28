@@ -40,6 +40,8 @@ export type MetricLine =
       resetsAt?: string
       periodDurationMs?: number
       color?: string
+      /** Claude Session: missingResetDate → show countdown at 0% when resetsAt is present. */
+      sessionStartSignal?: "missingResetDate" | "zeroUsage"
     }
   | { type: "badge"; label: string; text: string; color?: string; subtitle?: string }
   | { type: "barChart"; label: string; points: BarChartPoint[]; note?: string; color?: string }

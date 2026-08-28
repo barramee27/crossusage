@@ -1,7 +1,12 @@
 # Breadcrumbs
 
-## 2026-08-19
+## 2026-08-28
 
+- Port OpenUsage **v0.7.10** → CrossUsage **1.4.3** on `feat/port-openusage-0.7.10`. Pricing supplement 2026-08-26; Cursor Grok Bot; Antigravity/Grok local spend; Claude spend-without-OAuth + Fable + sub-1% countdown; Copilot org credits; OpenRouter key window. Tracker: [PORT-0.7.10.md](./PORT-0.7.10.md).
+- Antigravity local spend: `antigravity_proto.rs` + `antigravity_db_usage_scanner.rs`, `host.antigravityLogs.queryDaily` (FelixIsaac #1058/#1120).
+- Cursor Grok Bot + dashboard names: rename Auto/API labels, fetch `GetSandUsageStatus`, migrate stored Cursor tray/metric IDs.
+- Grok session-ledger spend → `grok_usage_scanner.rs` + `host.grokLogs.queryDaily`.
+- Dropped the ~400 LOC file budget (AGENTS.md). Do not split/truncate code to stay under a cap.
 - Quiet **Modern** motion: no bar sheen/sparks, no overlay field, no card float. Classic unchanged.
 
 ## 2026-08-18

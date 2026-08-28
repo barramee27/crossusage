@@ -1906,4 +1906,70 @@ describe("antigravity plugin", () => {
     expect(() => plugin.probe(ctx)).toThrow(LOGIN_MESSAGE)
     expect(refreshCalls).toBe(0)
   })
+
+  function localDayKey(date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return year + "-" + month + "-" + day
+  }
+
+  it("appends Today/Yesterday/Last 30 Days and Usage Trend from antigravityLogs", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.summary-token", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("retrieveUserQuotaSummary")) {
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+    const todayKey = localDayKey(new Date())
+    ctx.host.antigravityLogs.queryDaily = vi.fn(() => ({
+      status: "ok",
+      data: {
+        daily: [{
+          date: todayKey,
+          totalTokens: 1500,
+          totalCost: 0.12,
+          models: { "gemini-3.6-flash": { totalTokens: 1500, totalCost: 0.12 } },
+        }],
+      },
+    }))
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((l) => l.label === "Today")?.value).toContain("1.5K tokens")
+    expect(result.lines.find((l) => l.label === "Yesterday")?.value).toContain("0 tokens")
+    expect(result.lines.find((l) => l.label === "Last 30 Days")?.value).toContain("$0.12")
+    const chart = result.lines.find((l) => l.label === "Usage Trend")
+    expect(chart).toMatchObject({ type: "barChart" })
+    expect(ctx.host.usageDaily.ingest).toHaveBeenCalled()
+  })
+
+  it("does not fail probe when antigravityLogs throws or DBs are missing", async () => {
+    const ctx = makeCtx()
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600
+    setupSqliteMock(ctx, makeOAuthSentinelB64(ctx, { accessToken: "ya29.summary-token", expirySeconds: futureExpiry }))
+    ctx.host.ls.discover.mockReturnValue(null)
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("retrieveUserQuotaSummary")) {
+        return { status: 200, bodyText: JSON.stringify(makeQuotaSummaryResponse()) }
+      }
+      return { status: 500, bodyText: "" }
+    })
+    ctx.host.antigravityLogs.queryDaily = vi.fn(() => {
+      throw new Error("db missing")
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.map((l) => l.label)).toEqual([
+      "Session",
+      "Weekly",
+      "Session — Claude and GPT Models",
+      "Weekly — Claude and GPT Models",
+    ])
+  })
 })

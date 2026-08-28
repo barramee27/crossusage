@@ -144,7 +144,7 @@ fn fake_plugin_output(plugin: &LoadedPlugin, i: usize) -> PluginOutput {
             resets_at: None,
             period_duration_ms: None,
             color: None,
-        }],
+            session_start_signal: None,        }],
         icon_url: plugin.icon_data_url.clone(),
     }
 }

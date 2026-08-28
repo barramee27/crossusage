@@ -351,7 +351,7 @@ mod tests {
                 resets_at: None,
                 period_duration_ms: None,
                 color: None,
-            }],
+                session_start_signal: None,            }],
         }
     }
 

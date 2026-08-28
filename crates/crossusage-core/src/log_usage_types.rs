@@ -11,6 +11,25 @@ pub const LOG_SCAN_MAX_FILES: usize = 500;
 /// Soft byte budget for files considered in one pass (always keeps ≥1 file if any).
 pub const LOG_SCAN_MAX_BYTES: u64 = 256 * 1024 * 1024;
 
+/// Cap JSON token counts so malformed values cannot wrap `i32` (#1172).
+pub fn bounded_token_count(n: i64) -> i32 {
+    if n <= 0 {
+        0
+    } else if n > i64::from(i32::MAX) {
+        i32::MAX
+    } else {
+        n as i32
+    }
+}
+
+pub fn bounded_token_json(value: Option<&serde_json::Value>) -> i32 {
+    let Some(v) = value else { return 0 };
+    let n = v.as_i64().or_else(|| v.as_f64().and_then(|f| {
+        if f.is_finite() { Some(f as i64) } else { None }
+    }));
+    bounded_token_count(n.unwrap_or(0))
+}
+
 static WARNED_UNREADABLE: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 /// Keep the newest files by mtime, then apply a soft byte budget.
@@ -71,6 +90,15 @@ mod tests {
         // Newest ids survive.
         assert!(files.iter().any(|f| f.2 == 599));
         assert!(!files.iter().any(|f| f.2 == 0));
+    }
+
+    #[test]
+    fn bounded_token_count_clamps_overflow() {
+        assert_eq!(bounded_token_count(0), 0);
+        assert_eq!(bounded_token_count(-3), 0);
+        assert_eq!(bounded_token_count(12), 12);
+        assert_eq!(bounded_token_count(i64::from(i32::MAX) + 1), i32::MAX);
+        assert_eq!(bounded_token_json(Some(&serde_json::json!(3_000_000_000i64))), i32::MAX);
     }
 
     #[test]

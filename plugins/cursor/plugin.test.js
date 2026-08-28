@@ -702,13 +702,13 @@ describe("cursor plugin", () => {
     expect(reqLine.used).toBe(120)
     expect(reqLine.limit).toBe(500)
 
-    const autoLine = result.lines.find((l) => l.label === "Auto usage")
+    const autoLine = result.lines.find((l) => l.label === "Cursor Models")
     expect(autoLine).toBeTruthy()
     expect(autoLine.used).toBe(18.5)
     expect(autoLine.limit).toBe(100)
     expect(autoLine.format).toEqual({ kind: "percent" })
 
-    const apiLine = result.lines.find((l) => l.label === "API usage")
+    const apiLine = result.lines.find((l) => l.label === "Other Models")
     expect(apiLine).toBeTruthy()
     expect(apiLine.used).toBe(42)
     expect(apiLine.format).toEqual({ kind: "percent" })
@@ -798,9 +798,9 @@ describe("cursor plugin", () => {
     expect(totalLine.limit).toBe(600000)
     expect(result.lines.find((l) => l.label === "Requests")).toBeUndefined()
 
-    const autoLine = result.lines.find((l) => l.label === "Auto usage")
+    const autoLine = result.lines.find((l) => l.label === "Cursor Models")
     expect(autoLine.used).toBe(5)
-    const apiLine = result.lines.find((l) => l.label === "API usage")
+    const apiLine = result.lines.find((l) => l.label === "Other Models")
     expect(apiLine.used).toBe(10)
 
     const onDemand = result.lines.find((l) => l.label === "On-demand")
@@ -1430,7 +1430,7 @@ describe("cursor plugin", () => {
     expect(result.lines[0].label).toBe("Total usage")
   })
 
-  it("emits Auto usage and API usage percent lines when available", async () => {
+  it("emits Cursor Models and Other Models percent lines when available", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
     ctx.host.http.request.mockImplementation((opts) => {
@@ -1456,8 +1456,8 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     const totalLine = result.lines.find((line) => line.label === "Total usage")
-    const autoLine = result.lines.find((line) => line.label === "Auto usage")
-    const apiLine = result.lines.find((line) => line.label === "API usage")
+    const autoLine = result.lines.find((line) => line.label === "Cursor Models")
+    const apiLine = result.lines.find((line) => line.label === "Other Models")
 
     expect(totalLine).toBeTruthy()
     expect(totalLine.used).toBe(20)
@@ -1488,7 +1488,7 @@ describe("cursor plugin", () => {
     expect(totalLine.used).toBe(50)
   })
 
-  it("omits Auto usage and API usage when percent fields missing", async () => {
+  it("omits Cursor Models and Other Models when percent fields missing", async () => {
     const ctx = makeCtx()
     ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
     ctx.host.http.request.mockReturnValue({
@@ -1502,8 +1502,161 @@ describe("cursor plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
-    expect(result.lines.find((line) => line.label === "Auto usage")).toBeUndefined()
-    expect(result.lines.find((line) => line.label === "API usage")).toBeUndefined()
+    expect(result.lines.find((line) => line.label === "Cursor Models")).toBeUndefined()
+    expect(result.lines.find((line) => line.label === "Other Models")).toBeUndefined()
+  })
+
+  it("maps eligible Grok Bot usage after Other Models", async () => {
+    const ctx = makeCtx()
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetSandUsageStatus")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            usagePercent: 12.5,
+            hasNonZeroIncludedLimit: true,
+            includedLimitZero: false,
+            usesPooledEnterpriseAllowance: false,
+            currentPeriodStart: "2026-08-21T00:00:00.000Z",
+            nextResetTimestampUtc: "2026-08-28T00:00:00.000Z",
+          }),
+        }
+      }
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            enabled: true,
+            billingCycleEnd: Date.now(),
+            planUsage: {
+              limit: 40000,
+              remaining: 32000,
+              totalPercentUsed: 20,
+              autoPercentUsed: 12.5,
+              apiPercentUsed: 7.5,
+            },
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const labels = result.lines.map((line) => line.label)
+    const grokLine = result.lines.find((line) => line.label === "Grok Bot usage")
+    const sandCall = ctx.host.http.request.mock.calls.find((call) =>
+      String(call[0].url).includes("GetSandUsageStatus")
+    )
+
+    expect(sandCall[0].method).toBe("POST")
+    expect(sandCall[0].bodyText).toBe("{}")
+    expect(grokLine).toBeTruthy()
+    expect(grokLine.used).toBe(12.5)
+    expect(grokLine.limit).toBe(100)
+    expect(grokLine.format).toEqual({ kind: "percent" })
+    expect(grokLine.resetsAt).toBe("2026-08-28T00:00:00.000Z")
+    expect(grokLine.periodDurationMs).toBe(7 * 24 * 60 * 60 * 1000)
+    expect(labels.indexOf("Total usage")).toBeLessThan(labels.indexOf("Cursor Models"))
+    expect(labels.indexOf("Cursor Models")).toBeLessThan(labels.indexOf("Other Models"))
+    expect(labels.indexOf("Other Models")).toBeLessThan(labels.indexOf("Grok Bot usage"))
+  })
+
+  it("inserts Grok Bot usage after Total when model lines are missing", async () => {
+    const ctx = makeCtx()
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetSandUsageStatus")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            usagePercent: 40,
+            nextResetTimestampUtc: "2026-08-28T00:00:00.000Z",
+          }),
+        }
+      }
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            enabled: true,
+            planUsage: { limit: 40000, remaining: 32000, totalPercentUsed: 20 },
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const labels = result.lines.map((line) => line.label)
+    expect(labels.indexOf("Total usage")).toBeLessThan(labels.indexOf("Grok Bot usage"))
+    expect(labels).not.toContain("Cursor Models")
+    expect(labels).not.toContain("Other Models")
+  })
+
+  it("skips Grok Bot usage for pooled enterprise allowance", async () => {
+    const ctx = makeCtx()
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetSandUsageStatus")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            usagePercent: 30,
+            usesPooledEnterpriseAllowance: true,
+            hasNonZeroIncludedLimit: true,
+          }),
+        }
+      }
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            enabled: true,
+            planUsage: { limit: 40000, remaining: 32000, totalPercentUsed: 20 },
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Grok Bot usage")).toBeUndefined()
+  })
+
+  it("keeps primary Cursor usage when Grok Bot fetch fails", async () => {
+    const ctx = makeCtx()
+    ctx.host.sqlite.query.mockReturnValue(JSON.stringify([{ value: "token" }]))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("GetSandUsageStatus")) {
+        throw new Error("sand down")
+      }
+      if (String(opts.url).includes("GetCurrentPeriodUsage")) {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            enabled: true,
+            planUsage: {
+              limit: 40000,
+              remaining: 32000,
+              totalPercentUsed: 20,
+              autoPercentUsed: 8,
+            },
+          }),
+        }
+      }
+      return { status: 200, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((line) => line.label === "Total usage")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Cursor Models")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Grok Bot usage")).toBeUndefined()
   })
 
   it("team account uses dollars format for Total usage", async () => {

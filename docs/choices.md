@@ -1,5 +1,14 @@
 # Choices
 
+## 2026-08-28
+
+- **No file line-count budget** (AGENTS.md). Do not split or drop code to stay under a LOC cap.
+- **1.4.3 port scope:** OpenUsage **v0.7.10** as one PATCH. Skip Swift UI / PostHog / Sparkle / macOS status-item / Claude Desktop Safe Storage. Codex fallback-model picker (#1177) **later** (fork has no Customize → Codex UI; `fallback_models` is in the bundled supplement).
+- **Antigravity local spend (0.7.10):** simple re-scan of `~/.gemini/antigravity-cli/conversations/*.db` (no WAL fingerprint cache). Unpriced models skipped (no `unknownModels` on `DailyUsageRow`). Spend tiles on both `antigravity` and `antigravity-cli` (shared CLI conversation DBs); not `antigravity-ide`. Missing DBs are `no_data` — quota probe still succeeds.
+- **Cursor dashboard names:** `Auto usage` → **Cursor Models**, `API usage` → **Other Models**. Widget IDs stay `autoPercentUsed` / `apiPercentUsed`. Migrate stored trayLines + Modern metric IDs for `cursor`, `cursor-nightly`, and `cursor:` / `cursor-nightly:` instances.
+- **Grok Bot:** optional `GetSandUsageStatus` Connect RPC; skip pooled/zero-included; failures never drop primary Cursor usage. Insert after Other Models (else after Total).
+- **Grok session spend:** native `host.grokLogs.queryDaily` from coordinator `updates.jsonl` (OpenUsage 0.7.10). No disk JSONL cache. Token cap **1e9** (i32 `DailyUsageRow`; Swift 1e12). Unknown models without carried cost skipped. No-auth + local spend still shows Today/Yesterday/30d/trend; no-auth + no spend keeps login error. Empty logs do not fail the probe.
+
 ## 2026-08-19
 
 - **Modern vs Classic motion:** Classic keeps bar sheen/sparks (one provider at a time). Modern dashboard drops looping bar lights, card bob, and MotionField overlay — too many meters at once.
@@ -34,7 +43,7 @@
 - **#962 Claude Desktop Safe Storage:** **later** for 1.3.3 — macOS-centric decrypt; Linux/Windows has no equivalent store path worth shipping half-baked.
 - **Phase 3 UI/CLI (#989, #982):** stay **later**; fork already has CLI/HTTP.
 - **Pi fold-in at `query_daily_since`:** Claude/Codex merge pi rows even when the native scan returns no files/empty, so pi-only usage still shows on those cards (matches upstream `DailyUsageAccumulator.merged`).
-- **Pi scanner:** no incremental file cache (simpler; ~350 LOC budget). Re-parse session files each query.
+- **Pi scanner:** no incremental file cache. Re-parse session files each query.
 - **Unknown pi models:** skipped from totals (no `unknownModelsByDay` on `DailyUsageRow`); same as existing Claude/Codex Rust aggregate.
 - **Cursor enterprise on-demand without limit:** CrossUsage has no `values` MetricLine; emit `text` (`$X.XX`) when usage-summary has used>0 but no positive limit (Swift uses `.values`).
 

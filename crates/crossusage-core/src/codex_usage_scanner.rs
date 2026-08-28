@@ -242,8 +242,8 @@ impl RawUsage {
     fn from_json(json: &serde_json::Map<String, Value>) -> Self {
         fn int(json: &serde_json::Map<String, Value>, keys: &[&str]) -> i32 {
             for key in keys {
-                if let Some(n) = json.get(*key).and_then(|v| v.as_i64()) {
-                    return n as i32;
+                if let Some(v) = json.get(*key) {
+                    return crate::log_usage_types::bounded_token_json(Some(v));
                 }
             }
             0
@@ -562,6 +562,7 @@ const AUTO_REVIEW_MODEL: &str = "codex-auto-review";
 /// `codex-auto-review` release timeline (newest first). A line dated on/after a
 /// release prices as that Codex model; the usage slug stays `codex-auto-review`.
 const AUTO_REVIEW_FALLBACKS: &[(&str, &str)] = &[
+    ("2026-07-09", "gpt-5.6-luna"),
     ("2026-04-23", "gpt-5.5"),
     ("2026-03-05", "gpt-5.4"),
     ("2026-02-05", "gpt-5.3-codex"),
@@ -783,6 +784,7 @@ mod tests {
             resolve_model(Some("codex-auto-review".into()), &mut current),
             "codex-auto-review"
         );
+        assert_eq!(auto_review_fallback("2026-07-09"), "gpt-5.6-luna");
         assert_eq!(auto_review_fallback("2026-04-23"), "gpt-5.5");
         assert_eq!(auto_review_fallback("2026-02-05"), "gpt-5.3-codex");
         assert_eq!(auto_review_fallback("2025-08-01"), "gpt-5");

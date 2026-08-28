@@ -693,6 +693,7 @@ function MetricLineRenderer({
       used: line.used,
       periodDurationMs,
       label: line.label,
+      sessionStartSignal: line.sessionStartSignal,
     }
 
     const resetLabel = line.resetsAt
