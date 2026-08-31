@@ -18,8 +18,9 @@
 |---|---|---|---|---|
 | Credits | `GetCreditGrantsBalance` + `/api/auth/stripe.customerBalance` | overview | dollars | Combined total: active grant total + Stripe prepaid balance (negative `customerBalance`). Used stays based on grant usage. |
 | Total usage | `planUsage.totalPercentUsed` | overview | percent (individual) / dollars (team) | Falls back to computed `(limit - remaining) / limit * 100` when `totalPercentUsed` is not finite. Free/individual payloads observed on 2026-03-06 may omit `limit`; plugin uses `totalPercentUsed` directly in that case. Team accounts use dollars format and still require `limit`. |
-| Auto usage | `planUsage.autoPercentUsed` | detail | percent | Omitted when field is missing or non-finite |
-| API usage | `planUsage.apiPercentUsed` | detail | percent | Omitted when field is missing or non-finite |
+| Cursor Models | `planUsage.autoPercentUsed` | detail | percent | Label was **Auto usage**. Omitted when field is missing or non-finite |
+| Other Models | `planUsage.apiPercentUsed` | detail | percent | Label was **API usage**. Omitted when field is missing or non-finite |
+| Grok Bot | `GetSandUsageStatus` | detail | percent | Optional weekly allowance. Skipped when pooled or included is 0. Fetch failure never drops primary usage |
 | Requests | `/api/usage` (enterprise) | overview | count | Enterprise accounts only; unchanged from previous behavior |
 | MTD usage | `GET /api/dashboard/export-usage-events-csv` | overview | text | Month-to-date tokens and cost from Cursor dashboard billing export (cached ~45 min). Complements transcript-based **Activity trend**. |
 | On-demand | `spendLimitUsage` | detail | dollars | Only when individual or pooled limit > 0 |
@@ -120,6 +121,10 @@ Returns whether user is in slow pool, feature gates, and allowed models. Respons
 Returns limit policy status plus any active credit grants. Response undocumented.
 
 **CrossUsage fallback:** When **`GetCurrentPeriodUsage`** returns **HTTP 400** with detail **`Usage summary is not enabled`** (Cursor gates that RPC for some accounts), the plugin calls this endpoint **next** and **heuristically maps** the JSON toward the same `planUsage` / billing shape as `GetCurrentPeriodUsage` (unwrap `data` / `usage` / `limitStatus`, coerce numeric strings). If mapping yields usable limits or percents, the usual **Total usage** / credits lines are shown. If not, the plugin falls back to **`GET cursor.com/api/usage`**, then to a minimal **`Account`** text line from **`GET /api/auth/stripe`** (`membershipType` / `subscriptionStatus`) when present.
+
+### POST /aiserver.v1.DashboardService/GetSandUsageStatus
+
+Optional Grok Bot weekly allowance. Same Connect headers as `GetCurrentPeriodUsage`. Failures are ignored so primary Cursor usage still shows. Pooled or zero-included buckets are skipped.
 
 ### GET /api/auth/stripe
 

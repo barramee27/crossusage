@@ -302,6 +302,18 @@
     return []
   }
 
+  function personalCreditsLines(ctx, snapshot) {
+    if (!snapshot || typeof snapshot !== "object") return [];
+    const creditsUsed = readNumber(snapshot.credits_used);
+    if (creditsUsed === null || creditsUsed <= 0) return [];
+    return [
+      ctx.line.text({
+        label: "Credits",
+        value: String(Math.floor(creditsUsed)),
+      }),
+    ];
+  }
+
   function mapUsage(ctx, data, token) {
     const lines = [];
     const resetDate = data.quota_reset_date || data.limited_user_reset_date;
@@ -332,11 +344,10 @@
 
     if (lines.length === 0) {
       if (readBool(data.token_based_billing) === true) {
-        const orgLines = token ? probeOrgBilling(ctx, token) : []
-        if (orgLines.length > 0) {
-          return { lines: orgLines }
-        }
-        return { lines: [], tokenBasedBilling: true }
+        const premium = snapshots && typeof snapshots === "object" ? snapshots.premium_interactions : null;
+        const personal = personalCreditsLines(ctx, premium);
+        const orgLines = token ? probeOrgBilling(ctx, token) : [];
+        return { lines: personal.concat(orgLines) };
       }
       throw "Copilot usage data is unavailable for this account.";
     }

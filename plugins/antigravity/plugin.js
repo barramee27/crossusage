@@ -817,9 +817,161 @@
     return probeDiscovery(ctx, discoverAgyLs(ctx))
   }
 
+  // --- Local conversation spend (SQLite protobuf via host.antigravityLogs) ---
+
+  function fmtSpendTokens(n) {
+    var abs = Math.abs(n)
+    var sign = n < 0 ? "-" : ""
+    if (abs >= 1e9) return sign + (abs / 1e9 >= 10 ? Math.round(abs / 1e9) : (abs / 1e9).toFixed(1).replace(/\.0$/, "")) + "B"
+    if (abs >= 1e6) return sign + (abs / 1e6 >= 10 ? Math.round(abs / 1e6) : (abs / 1e6).toFixed(1).replace(/\.0$/, "")) + "M"
+    if (abs >= 1e3) return sign + (abs / 1e3 >= 10 ? Math.round(abs / 1e3) : (abs / 1e3).toFixed(1).replace(/\.0$/, "")) + "K"
+    return sign + Math.round(abs).toString()
+  }
+
+  function spendDayKey(date) {
+    var y = date.getFullYear()
+    var m = date.getMonth() + 1
+    var d = date.getDate()
+    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d
+  }
+
+  function spendUsageDayKey(raw) {
+    if (typeof raw !== "string") return null
+    var v = raw.trim()
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    return m ? m[1] + "-" + m[2] + "-" + m[3] : null
+  }
+
+  function spendCostUsd(day) {
+    if (!day || typeof day !== "object") return null
+    if (day.totalCost != null && Number.isFinite(Number(day.totalCost))) return Number(day.totalCost)
+    if (day.costUSD != null && Number.isFinite(Number(day.costUSD))) return Number(day.costUSD)
+    return null
+  }
+
+  function spendLabel(tokens, cost, includeZero) {
+    var parts = []
+    if (cost != null && Number.isFinite(cost)) parts.push("$" + cost.toFixed(2))
+    if (tokens > 0 || (includeZero && tokens === 0)) parts.push(fmtSpendTokens(tokens) + " tokens")
+    return parts.join(" \u00b7 ")
+  }
+
+  function spendModelBreakdown(day) {
+    if (!day || !day.models || typeof day.models !== "object") return undefined
+    var names = Object.keys(day.models)
+    var rows = []
+    var total = 0
+    for (var i = 0; i < names.length; i++) {
+      var usage = day.models[names[i]]
+      var tokens = Number(usage && usage.totalTokens) || 0
+      if (tokens <= 0) continue
+      total += tokens
+      var cost = usage && usage.totalCost != null ? Number(usage.totalCost) : undefined
+      rows.push({ model: names[i], tokens: tokens, costUsd: Number.isFinite(cost) ? cost : undefined })
+    }
+    if (total <= 0 || rows.length === 0) return undefined
+    var sumPct = 0
+    rows.sort(function (a, b) { return b.tokens - a.tokens || a.model.localeCompare(b.model) })
+    for (var j = 0; j < rows.length; j++) {
+      var pct = (rows[j].tokens / total) * 100
+      rows[j].percent = j === rows.length - 1 ? Math.max(0, 100 - sumPct) : Math.round(pct * 10) / 10
+      sumPct += rows[j].percent
+    }
+    return rows
+  }
+
+  function attachLocalSpend(ctx, result, displayName) {
+    if (!result || !Array.isArray(result.lines)) return result
+    if (!ctx.host.antigravityLogs || typeof ctx.host.antigravityLogs.queryDaily !== "function") return result
+    try {
+      var since = new Date()
+      since.setDate(since.getDate() - 30)
+      var sinceStr = "" + since.getFullYear()
+        + (since.getMonth() + 1 < 10 ? "0" : "") + (since.getMonth() + 1)
+        + (since.getDate() < 10 ? "0" : "") + since.getDate()
+      var resp = ctx.host.antigravityLogs.queryDaily({ since: sinceStr })
+      if (!resp || resp.status !== "ok" || !resp.data || !Array.isArray(resp.data.daily)) return result
+      var daily = resp.data.daily
+      var now = new Date()
+      var todayKey = spendDayKey(now)
+      var yest = new Date(now.getTime())
+      yest.setDate(yest.getDate() - 1)
+      var yestKey = spendDayKey(yest)
+      var todayEntry = null
+      var yestEntry = null
+      var totalTokens = 0
+      var totalCostNanos = 0
+      var hasCost = false
+      var points = []
+      for (var i = 0; i < daily.length; i++) {
+        var day = daily[i]
+        var key = spendUsageDayKey(day && day.date)
+        var tokens = Number(day && day.totalTokens)
+        if (!Number.isFinite(tokens) || tokens < 0) tokens = 0
+        if (key === todayKey) todayEntry = day
+        else if (key === yestKey) yestEntry = day
+        totalTokens += tokens
+        var dayCost = spendCostUsd(day)
+        if (dayCost != null) {
+          totalCostNanos += Math.round(dayCost * 1e9)
+          hasCost = true
+        }
+        if (key && tokens >= 0) {
+          var month = Number(key.slice(5, 7))
+          var dom = Number(key.slice(8, 10))
+          points.push({
+            key: key,
+            label: month + "/" + dom,
+            value: tokens,
+            valueLabel: fmtSpendTokens(tokens) + " tokens",
+          })
+        }
+      }
+      function pushDay(label, entry) {
+        var tokens = Number(entry && entry.totalTokens) || 0
+        var cost = spendCostUsd(entry)
+        result.lines.push(ctx.line.text({
+          label: label,
+          value: spendLabel(tokens, tokens > 0 ? cost : (tokens === 0 ? 0 : cost), tokens === 0),
+          modelBreakdown: spendModelBreakdown(entry),
+        }))
+      }
+      pushDay("Today", todayEntry)
+      pushDay("Yesterday", yestEntry)
+      if (totalTokens > 0) {
+        result.lines.push(ctx.line.text({
+          label: "Last 30 Days",
+          value: spendLabel(totalTokens, hasCost ? totalCostNanos / 1e9 : null, false),
+        }))
+      }
+      points.sort(function (a, b) { return a.key.localeCompare(b.key) })
+      points = points.slice(-31).map(function (p) {
+        return { label: p.label, value: p.value, valueLabel: p.valueLabel }
+      })
+      if (points.length > 0) {
+        result.lines.push(ctx.line.barChart({
+          label: "Usage Trend",
+          points: points,
+          note: "Estimated from local Antigravity conversation logs at API rates.",
+          color: "#4285F4",
+        }))
+      }
+      if (ctx.host.usageDaily && typeof ctx.host.usageDaily.ingest === "function" && daily.length) {
+        try { ctx.host.usageDaily.ingest({ displayName: displayName, daily: daily }) } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      ctx.host.log.warn("antigravityLogs spend scan failed: " + String(e))
+    }
+    return result
+  }
+
   // --- Probe ---
 
   function probe(ctx) {
+    return attachLocalSpend(ctx, probeQuota(ctx), "Antigravity")
+  }
+
+  function probeQuota(ctx) {
     var lsResult = probeLs(ctx)
     if (lsResult) return lsResult
 

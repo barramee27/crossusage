@@ -35,6 +35,19 @@ describe("reset-tooltip", () => {
     ).toBe("Not started")
   })
 
+  it("shows a countdown for Claude sub-1% sessions with a reset date", () => {
+    const nowMs = Date.parse("2026-02-03T11:00:00.000Z")
+    const resetsAtIso = "2026-02-03T16:00:00.000Z"
+    expect(
+      formatResetRelativeLabel(nowMs, resetsAtIso, {
+        used: 0,
+        periodDurationMs: 5 * 60 * 60 * 1000,
+        label: "Session",
+        sessionStartSignal: "missingResetDate",
+      }),
+    ).toBe("Resets in 5h 0m")
+  })
+
   it("formats absolute reset labels with same-day context", () => {
     const nowMs = new Date(2026, 1, 3, 0, 0, 0).getTime()
     const resetsAtIso = new Date(2026, 1, 3, 12, 34, 0).toISOString()

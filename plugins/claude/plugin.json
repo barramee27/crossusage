@@ -13,6 +13,7 @@
   "lines": [
     { "type": "progress", "label": "Session", "scope": "overview", "primaryOrder": 1 },
     { "type": "progress", "label": "Weekly", "scope": "overview", "primaryOrder": 2 },
+    { "type": "progress", "label": "Fable", "scope": "detail" },
     { "type": "progress", "label": "Sonnet", "scope": "detail" },
     { "type": "progress", "label": "Claude Design", "scope": "detail" },
     { "type": "progress", "label": "Extra usage spent", "scope": "overview", "primaryOrder": 3 },

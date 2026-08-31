@@ -68,6 +68,55 @@ describe("claude plugin", () => {
     expect(() => plugin.probe(ctx)).toThrow("Not logged in")
   })
 
+  it("shows local spend without OAuth when logs have usage", async () => {
+    const ctx = makeCtx()
+    ctx.host.claudeLogs.queryDaily = vi.fn(() => ({
+      status: "ok",
+      data: {
+        daily: [
+          { date: "2026-02-01", totalTokens: 1200, totalCost: 0.12 },
+        ],
+      },
+    }))
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.warning).toBe("Not logged in")
+    expect(result.lines.find((l) => l.label === "Last 30 Days")).toBeTruthy()
+  })
+
+  it("emits Fable directly below Weekly", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.exists = () => true
+    ctx.host.fs.readText = () =>
+      JSON.stringify({ claudeAiOauth: { accessToken: "token", subscriptionType: "pro" } })
+    ctx.host.http.request.mockReturnValue({
+      status: 200,
+      bodyText: JSON.stringify({
+        five_hour: { utilization: 0, resets_at: "2099-01-01T00:00:00.000Z" },
+        seven_day: { utilization: 10, resets_at: "2099-01-01T00:00:00.000Z" },
+        seven_day_sonnet: { utilization: 5, resets_at: "2099-01-01T00:00:00.000Z" },
+        limits: [
+          {
+            kind: "weekly_scoped",
+            percent: 3,
+            resets_at: "2099-01-01T00:00:00.000Z",
+            scope: { model: { display_name: "Fable" } },
+          },
+        ],
+      }),
+    })
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const labels = result.lines.filter((l) => l.type === "progress").map((l) => l.label)
+    const weekly = labels.indexOf("Weekly")
+    const fable = labels.indexOf("Fable")
+    const sonnet = labels.indexOf("Sonnet")
+    expect(weekly).toBeGreaterThanOrEqual(0)
+    expect(fable).toBe(weekly + 1)
+    expect(sonnet).toBe(fable + 1)
+    expect(result.lines.find((l) => l.label === "Session").sessionStartSignal).toBe("missingResetDate")
+  })
+
   it("throws when credentials are unreadable", async () => {
     const ctx = makeCtx()
     ctx.host.fs.exists = () => true

@@ -468,4 +468,49 @@ describe("antigravity-cli plugin", () => {
     expect(existsCalls).toContain("~/.gemini/antigravity-cli")
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("gemini", "antigravity")
   })
+
+  function localDayKey(date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return year + "-" + month + "-" + day
+  }
+
+  it("appends spend lines from antigravityLogs after quota", async () => {
+    const ctx = makeCtx()
+    setKeychain(ctx, "Bearer raw-token")
+    mockResponses(ctx, {
+      [RETRIEVE_QUOTA_SUMMARY_URL]: () => json(200, makeQuotaSummaryResponse()),
+    })
+    const todayKey = localDayKey(new Date())
+    ctx.host.antigravityLogs.queryDaily = vi.fn(() => ({
+      status: "ok",
+      data: {
+        daily: [{ date: todayKey, totalTokens: 1500, totalCost: 0.12 }],
+      },
+    }))
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((l) => l.label === "Today")?.value).toContain("1.5K tokens")
+    expect(result.lines.find((l) => l.label === "Last 30 Days")?.value).toContain("$0.12")
+    expect(result.lines.find((l) => l.label === "Usage Trend")).toMatchObject({ type: "barChart" })
+  })
+
+  it("keeps quota-only output when conversation DBs are missing", async () => {
+    const ctx = makeCtx()
+    setKeychain(ctx, "Bearer raw-token")
+    mockResponses(ctx, {
+      [RETRIEVE_QUOTA_SUMMARY_URL]: () => json(200, makeQuotaSummaryResponse()),
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.map((line) => line.label)).toEqual([
+      "Session",
+      "Weekly",
+      "Session — Claude and GPT Models",
+      "Weekly — Claude and GPT Models",
+    ])
+  })
 })

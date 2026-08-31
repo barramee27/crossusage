@@ -137,11 +137,11 @@
     appendSpend(ctx, data.usage_monthly, "This Month", lines);
     const limit = readNumber(data.limit);
     if (limit !== null && limit > 0) {
-      const usage = Math.max(0, readNumber(data.usage) || 0);
+      const remaining = Math.max(0, readNumber(data.limit_remaining) || 0);
       lines.push(
         ctx.line.progress({
           label: "Key Limit",
-          used: usage,
+          used: Math.max(0, limit - remaining),
           limit: limit,
           format: { kind: "dollars" },
         }),

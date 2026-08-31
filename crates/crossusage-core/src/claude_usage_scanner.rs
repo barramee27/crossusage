@@ -370,8 +370,16 @@ fn parse_entries(line: &[u8]) -> Vec<ClaudeEntry> {
 }
 
 fn token_breakdown(usage: &Value) -> Option<(TokenBreakdown, bool)> {
-    let input = usage.get("input_tokens")?.as_i64()? as i32;
-    let output = usage.get("output_tokens")?.as_i64()? as i32;
+    let input_v = usage.get("input_tokens")?;
+    let output_v = usage.get("output_tokens")?;
+    if input_v.as_i64().is_none() && input_v.as_f64().is_none() {
+        return None;
+    }
+    if output_v.as_i64().is_none() && output_v.as_f64().is_none() {
+        return None;
+    }
+    let input = crate::log_usage_types::bounded_token_json(Some(input_v));
+    let output = crate::log_usage_types::bounded_token_json(Some(output_v));
     let speed = usage.get("speed").and_then(|s| s.as_str());
     if let Some(s) = speed {
         if s != "fast" && s != "standard" {
@@ -380,21 +388,12 @@ fn token_breakdown(usage: &Value) -> Option<(TokenBreakdown, bool)> {
     }
     let (cache_write5m, cache_write1h) = if let Some(cache_creation) = usage.get("cache_creation") {
         (
-            cache_creation
-                .get("ephemeral_5m_input_tokens")
-                .and_then(|n| n.as_i64())
-                .unwrap_or(0) as i32,
-            cache_creation
-                .get("ephemeral_1h_input_tokens")
-                .and_then(|n| n.as_i64())
-                .unwrap_or(0) as i32,
+            crate::log_usage_types::bounded_token_json(cache_creation.get("ephemeral_5m_input_tokens")),
+            crate::log_usage_types::bounded_token_json(cache_creation.get("ephemeral_1h_input_tokens")),
         )
     } else {
         (
-            usage
-                .get("cache_creation_input_tokens")
-                .and_then(|n| n.as_i64())
-                .unwrap_or(0) as i32,
+            crate::log_usage_types::bounded_token_json(usage.get("cache_creation_input_tokens")),
             0,
         )
     };
@@ -403,10 +402,7 @@ fn token_breakdown(usage: &Value) -> Option<(TokenBreakdown, bool)> {
             input,
             cache_write5m,
             cache_write1h,
-            cache_read: usage
-                .get("cache_read_input_tokens")
-                .and_then(|n| n.as_i64())
-                .unwrap_or(0) as i32,
+            cache_read: crate::log_usage_types::bounded_token_json(usage.get("cache_read_input_tokens")),
             output,
             is_fast: speed == Some("fast"),
         },

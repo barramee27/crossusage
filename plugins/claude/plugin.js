@@ -959,14 +959,75 @@
     }))
   }
 
+  function appendLocalSpendLines(lines, ctx, homePath, opts) {
+    const requireUsage = !!(opts && opts.requireUsage)
+    const usageResult = queryTokenUsage(ctx, homePath)
+    if (usageResult.status !== "ok" || !usageResult.data || !Array.isArray(usageResult.data.daily)) {
+      return false
+    }
+    if (requireUsage && !dailyHasUsage(usageResult.data.daily)) {
+      return false
+    }
+    const usage = usageResult.data
+    const now = new Date()
+    const todayKey = dayKeyFromDate(now)
+    const yesterday = new Date(now.getTime())
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayKey = dayKeyFromDate(yesterday)
+
+    let todayEntry = null
+    let yesterdayEntry = null
+    for (let i = 0; i < usage.daily.length; i++) {
+      const usageDayKey = dayKeyFromUsageDate(usage.daily[i].date)
+      if (usageDayKey === todayKey) {
+        todayEntry = usage.daily[i]
+        continue
+      }
+      if (usageDayKey === yesterdayKey) {
+        yesterdayEntry = usage.daily[i]
+      }
+    }
+
+    pushDayUsageLine(lines, ctx, "Today", todayEntry)
+    pushDayUsageLine(lines, ctx, "Yesterday", yesterdayEntry)
+
+    let totalTokens = 0
+    let totalCostNanos = 0
+    let hasCost = false
+    for (let i = 0; i < usage.daily.length; i++) {
+      const day = usage.daily[i]
+      const dayTokens = Number(day.totalTokens)
+      if (Number.isFinite(dayTokens)) {
+        totalTokens += dayTokens
+      }
+      const dayCost = usageCostUsd(day)
+      if (dayCost != null) {
+        totalCostNanos += Math.round(dayCost * 1e9)
+        hasCost = true
+      }
+    }
+    if (totalTokens > 0) {
+      lines.push(ctx.line.text({
+        label: "Last 30 Days",
+        value: costAndTokensLabel({ tokens: totalTokens, costUSD: hasCost ? totalCostNanos / 1e9 : null }),
+        modelBreakdown: modelBreakdownForPeriod(usage.daily),
+      }))
+    }
+
+    pushUsageChartLine(lines, ctx, usage.daily)
+    pushModelUsageLines(lines, ctx, usage.daily)
+    persistUsageDaily(ctx, usage.daily, "Claude")
+    return true
+  }
+
   function probe(ctx) {
     const homePath = getClaudeHomeOverride(ctx)
     const creds = loadCredentials(ctx)
     if (!creds || !creds.oauth || !creds.oauth.accessToken || !creds.oauth.accessToken.trim()) {
-      const usageProbe = queryTokenUsage(ctx, homePath)
-      if (usageProbe.status === "ok" && usageProbe.data) {
-        ctx.host.log.info("no CLI credentials, but local usage logs found — CLI login needed")
-        throw "CLI login required. Claude desktop app data found — run `claude` to authenticate the CLI."
+      const lines = []
+      if (appendLocalSpendLines(lines, ctx, homePath, { requireUsage: true })) {
+        ctx.host.log.info("no OAuth credentials; showing local spend tiles")
+        return { plan: null, lines: lines, warning: "Not logged in" }
       }
       ctx.host.log.error("probe failed: not logged in")
       throw "Not logged in. Run `claude` to authenticate."
@@ -1104,7 +1165,8 @@
           limit: 100,
           format: { kind: "percent" },
           resetsAt: ctx.util.toIso(data.five_hour.resets_at),
-          periodDurationMs: 5 * 60 * 60 * 1000 // 5 hours
+          periodDurationMs: 5 * 60 * 60 * 1000, // 5 hours
+          sessionStartSignal: "missingResetDate",
         }))
       }
       if (data.seven_day && typeof data.seven_day.utilization === "number") {
@@ -1116,6 +1178,27 @@
           resetsAt: ctx.util.toIso(data.seven_day.resets_at),
           periodDurationMs: 7 * 24 * 60 * 60 * 1000 // 7 days
         }))
+      }
+      if (Array.isArray(data.limits)) {
+        for (let li = 0; li < data.limits.length; li++) {
+          const entry = data.limits[li]
+          if (!entry || typeof entry !== "object") continue
+          if (entry.kind !== "weekly_scoped") continue
+          const scope = entry.scope
+          const model = scope && scope.model
+          const displayName = model && typeof model.display_name === "string" ? model.display_name.trim() : ""
+          if (displayName !== "Fable") continue
+          if (typeof entry.percent !== "number") continue
+          lines.push(ctx.line.progress({
+            label: "Fable",
+            used: entry.percent,
+            limit: 100,
+            format: { kind: "percent" },
+            resetsAt: ctx.util.toIso(entry.resets_at),
+            periodDurationMs: 7 * 24 * 60 * 60 * 1000 // 7 days
+          }))
+          break
+        }
       }
       if (data.seven_day_sonnet && typeof data.seven_day_sonnet.utilization === "number") {
         lines.push(ctx.line.progress({
@@ -1138,28 +1221,6 @@
         }))
       }
 
-      if (Array.isArray(data.limits)) {
-        for (let li = 0; li < data.limits.length; li++) {
-          const entry = data.limits[li]
-          if (!entry || typeof entry !== "object") continue
-          if (entry.kind !== "weekly_scoped") continue
-          const scope = entry.scope
-          const model = scope && scope.model
-          const displayName = model && typeof model.display_name === "string" ? model.display_name.trim() : ""
-          if (displayName !== "Fable") continue
-          if (typeof entry.percent !== "number") continue
-          lines.push(ctx.line.progress({
-            label: "Fable",
-            used: entry.percent,
-            limit: 100,
-            format: { kind: "percent" },
-            resetsAt: ctx.util.toIso(entry.resets_at),
-            periodDurationMs: 7 * 24 * 60 * 60 * 1000 // 7 days
-          }))
-          break
-        }
-      }
-
       if (data.extra_usage && data.extra_usage.is_enabled) {
         const used = data.extra_usage.used_credits
         const limit = data.extra_usage.monthly_limit
@@ -1176,58 +1237,7 @@
       }
     }
 
-    const usageResult = queryTokenUsage(ctx, homePath)
-    if (usageResult.status === "ok") {
-      const usage = usageResult.data
-      const now = new Date()
-      const todayKey = dayKeyFromDate(now)
-      const yesterday = new Date(now.getTime())
-      yesterday.setDate(yesterday.getDate() - 1)
-      const yesterdayKey = dayKeyFromDate(yesterday)
-
-      let todayEntry = null
-      let yesterdayEntry = null
-      for (let i = 0; i < usage.daily.length; i++) {
-        const usageDayKey = dayKeyFromUsageDate(usage.daily[i].date)
-        if (usageDayKey === todayKey) {
-          todayEntry = usage.daily[i]
-          continue
-        }
-        if (usageDayKey === yesterdayKey) {
-          yesterdayEntry = usage.daily[i]
-        }
-      }
-
-      pushDayUsageLine(lines, ctx, "Today", todayEntry)
-      pushDayUsageLine(lines, ctx, "Yesterday", yesterdayEntry)
-
-      let totalTokens = 0
-      let totalCostNanos = 0
-      let hasCost = false
-      for (let i = 0; i < usage.daily.length; i++) {
-        const day = usage.daily[i]
-        const dayTokens = Number(day.totalTokens)
-        if (Number.isFinite(dayTokens)) {
-          totalTokens += dayTokens
-        }
-        const dayCost = usageCostUsd(day)
-        if (dayCost != null) {
-          totalCostNanos += Math.round(dayCost * 1e9)
-          hasCost = true
-        }
-      }
-      if (totalTokens > 0) {
-        lines.push(ctx.line.text({
-          label: "Last 30 Days",
-          value: costAndTokensLabel({ tokens: totalTokens, costUSD: hasCost ? totalCostNanos / 1e9 : null }),
-          modelBreakdown: modelBreakdownForPeriod(usage.daily),
-        }))
-      }
-
-      pushUsageChartLine(lines, ctx, usage.daily)
-      pushModelUsageLines(lines, ctx, usage.daily)
-      persistUsageDaily(ctx, usage.daily, "Claude")
-    }
+    appendLocalSpendLines(lines, ctx, homePath)
 
     if (rateLimited) {
       const retryText = retryAfterSeconds !== null

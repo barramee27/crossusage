@@ -2,6 +2,29 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.4.3
+
+**Theme:** OpenUsage **v0.7.10** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.10.md](docs/PORT-0.7.10.md).
+
+### New features
+
+- **Cursor Grok Bot** — weekly allowance from `GetSandUsageStatus`; model buckets renamed **Cursor Models** / **Other Models** (#1134).
+- **Antigravity local spend** — Today / Yesterday / Last 30 Days / Usage Trend from `~/.gemini/antigravity-cli/conversations/*.db` (#1139).
+- **Grok session spend** — the same tiles from coordinator `updates.jsonl` ledgers (#1135).
+
+### Bug fixes
+
+- **Pricing** — GLM 5.3, Gemini 3.7 Flash, dashed grok-4-6 slugs, grok-proxy → Grok Build; GPT-5.6 Luna/Terra rates (#1171, #1112, #1103, #1123). Supplement `updated_at` **2026-08-26**.
+- **Codex auto-review** — price as GPT-5.6 Luna from 2026-07-09 (#1125).
+- **Claude** — local spend without OAuth (#1138); Fable directly below Weekly (#1141); sub-1% Session shows reset countdown (#1167).
+- **Copilot** — personal `credits_used` on org-managed seats (#1108).
+- **OpenRouter** — Key Limit uses current-window spend (`limit - limit_remaining`) (#1109).
+- **Log scans** — clamp malformed token counts so they cannot wrap (#1172).
+
+Skipped: Codex fallback-model picker (#1177 later — no Customize UI), Claude Desktop multi-account (#1164), Swift/PostHog/Sparkle/menu-bar items. Codex Session was never hidden. 30s probe timeout and Z.ai quotas already shipped.
+
+---
+
 ## 1.4.2
 
 **Theme:** Quiet Modern dashboard motion. Classic bar sheen/sparks unchanged.

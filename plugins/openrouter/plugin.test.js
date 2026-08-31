@@ -45,7 +45,8 @@ describe("openrouter plugin", () => {
               usage_weekly: 3.5,
               usage_monthly: 8,
               limit: 20,
-              usage: 5,
+              limit_remaining: 15,
+              usage: 99,
             },
           }),
         };
@@ -59,7 +60,10 @@ describe("openrouter plugin", () => {
     expect(result.lines.find((l) => l.label === "Credits")).toBeTruthy();
     expect(result.lines.find((l) => l.label === "Balance")).toBeTruthy();
     expect(result.lines.find((l) => l.label === "Today")).toBeTruthy();
-    expect(result.lines.find((l) => l.label === "Key Limit")).toBeTruthy();
+    expect(result.lines.find((l) => l.label === "Key Limit")).toMatchObject({
+      used: 5,
+      limit: 20,
+    });
   });
 
   it("throws invalid key only when both endpoints reject auth", async () => {

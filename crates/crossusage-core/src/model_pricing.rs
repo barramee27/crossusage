@@ -448,6 +448,25 @@ mod tests {
     }
 
     #[test]
+    fn v0710_pricing_aliases_and_rates() {
+        let p = ModelPricing::from_bundled();
+        let glm = p.resolve("glm-5.3-high").expect("glm 5.3");
+        assert!((glm.input_per_million - 1.4).abs() < 0.01);
+        assert!((glm.output_per_million - 4.4).abs() < 0.01);
+        assert!(p.can_price("gemini-3.7-flash"));
+        assert!(p.can_price("gemini-3.6-flash"));
+        assert_eq!(p.canonical_name("grok-proxy").as_deref(), Some("grok-build-0.1"));
+        assert!(p.can_price("grok-4-6"));
+        assert!(p.can_price("cursor-grok-4-6-fast"));
+        let luna = p.resolve("gpt-5.6-luna").expect("luna");
+        assert!((luna.input_per_million - 0.2).abs() < 0.01);
+        assert!((luna.output_per_million - 1.2).abs() < 0.01);
+        let luna_fast = p.resolve("gpt-5.6-luna-fast").expect("luna fast");
+        assert!((luna_fast.input_per_million - 0.4).abs() < 0.01);
+        assert!((luna_fast.output_per_million - 2.4).abs() < 0.01);
+    }
+
+    #[test]
     fn request_wide_long_context_uses_higher_tier_for_all_fields() {
         let rates = ModelRates {
             input_per_million: 1.0,

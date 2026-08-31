@@ -236,6 +236,39 @@ describe("settings", () => {
     })
   })
 
+  it("migrates old Cursor Auto/API tray line labels for stable and nightly instances", () => {
+    const plugins: PluginMeta[] = [
+      { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },
+      { id: "cursor-nightly", name: "Cursor Nightly", iconUrl: "", lines: [], primaryCandidates: [] },
+      { id: "claude", name: "Claude", iconUrl: "", lines: [], primaryCandidates: [] },
+    ]
+    const normalized = normalizePluginSettings(
+      {
+        order: ["cursor", "cursor-nightly", "cursor:work", "cursor-nightly:dev", "claude"],
+        disabled: [],
+        trayLines: {
+          cursor: ["Auto usage", "API usage", "Total usage"],
+          "cursor-nightly": ["API usage"],
+          "cursor:work": ["Auto usage"],
+          "cursor-nightly:dev": ["API usage", "Credits"],
+          claude: ["Auto usage"],
+        },
+        providerInstances: {
+          "cursor:work": { baseProviderId: "cursor", label: "Work" },
+          "cursor-nightly:dev": { baseProviderId: "cursor-nightly", label: "Dev" },
+        },
+      },
+      plugins,
+    )
+    expect(normalized.trayLines).toEqual({
+      cursor: ["Cursor Models", "Other Models", "Total usage"],
+      "cursor-nightly": ["Other Models"],
+      "cursor:work": ["Cursor Models"],
+      "cursor-nightly:dev": ["Other Models", "Credits"],
+      claude: ["Auto usage"],
+    })
+  })
+
   it("inserts provider instances directly under their base provider", () => {
     const plugins: PluginMeta[] = [
       { id: "cursor", name: "Cursor", iconUrl: "", lines: [], primaryCandidates: [] },

@@ -11,6 +11,25 @@ pub const LOG_SCAN_MAX_FILES: usize = 500;
 /// Soft byte budget for files considered in one pass (always keeps ≥1 file if any).
 pub const LOG_SCAN_MAX_BYTES: u64 = 256 * 1024 * 1024;
 
+/// Cap JSON token counts so malformed values cannot wrap `i32` (#1172).
+pub fn bounded_token_count(n: i64) -> i32 {
+    if n <= 0 {
+        0
+    } else if n > i64::from(i32::MAX) {
+        i32::MAX
+    } else {
+        n as i32
+    }
+}
+
+pub fn bounded_token_json(value: Option<&serde_json::Value>) -> i32 {
+    let Some(v) = value else { return 0 };
+    let n = v.as_i64().or_else(|| v.as_f64().and_then(|f| {
+        if f.is_finite() { Some(f as i64) } else { None }
+    }));
+    bounded_token_count(n.unwrap_or(0))
+}
+
 static WARNED_UNREADABLE: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 /// Keep the newest files by mtime, then apply a soft byte budget.
@@ -74,6 +93,15 @@ mod tests {
     }
 
     #[test]
+    fn bounded_token_count_clamps_overflow() {
+        assert_eq!(bounded_token_count(0), 0);
+        assert_eq!(bounded_token_count(-3), 0);
+        assert_eq!(bounded_token_count(12), 12);
+        assert_eq!(bounded_token_count(i64::from(i32::MAX) + 1), i32::MAX);
+        assert_eq!(bounded_token_json(Some(&serde_json::json!(3_000_000_000i64))), i32::MAX);
+    }
+
+    #[test]
     fn merge_daily_rows_sums_by_date_and_models() {
         let a = vec![DailyUsageRow {
             date: "2026-07-12".into(),
@@ -123,6 +151,42 @@ mod tests {
         assert_eq!(merged[0].total_cost, Some(1.5));
         assert_eq!(merged[0].models["m"].total_tokens, 45);
         assert_eq!(merged[0].models["m"].total_cost, Some(1.5));
+    }
+
+    #[test]
+    fn day_key_uses_offset_calendar_not_utc() {
+        // 2026-08-29 03:00:00 UTC = 2026-08-28 20:00 PDT (west of UTC, evening).
+        let west = time::OffsetDateTime::from_unix_timestamp(1_787_972_400).unwrap();
+        assert_eq!(
+            format!(
+                "{:04}-{:02}-{:02}",
+                west.year(),
+                u8::from(west.month()),
+                west.day()
+            ),
+            "2026-08-29"
+        );
+        let pacific = time::UtcOffset::from_hms(-7, 0, 0).unwrap();
+        assert_eq!(day_key_at_offset(&west, pacific), "2026-08-28");
+        // 2026-08-28 16:00:00 UTC = 2026-08-29 01:00 JST (east of UTC, morning).
+        let east = time::OffsetDateTime::from_unix_timestamp(1_787_932_800).unwrap();
+        assert_eq!(
+            format!(
+                "{:04}-{:02}-{:02}",
+                east.year(),
+                u8::from(east.month()),
+                east.day()
+            ),
+            "2026-08-28"
+        );
+        let tokyo = time::UtcOffset::from_hms(9, 0, 0).unwrap();
+        assert_eq!(day_key_at_offset(&east, tokyo), "2026-08-29");
+        let expected = chrono::DateTime::<chrono::Utc>::from_timestamp(west.unix_timestamp(), 0)
+            .unwrap()
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d")
+            .to_string();
+        assert_eq!(local_day_key_from_offset(&west), expected);
     }
 }
 
@@ -179,13 +243,24 @@ pub enum LogScanStatus {
     NoData,
 }
 
-pub fn local_day_key_from_offset(dt: &time::OffsetDateTime) -> String {
+/// Calendar date in `offset` (`YYYY-MM-DD`). Unix/`Z` timestamps are UTC; plugins
+/// match Today/Yesterday with local `Date` keys, so callers pass the machine offset.
+fn day_key_at_offset(dt: &time::OffsetDateTime, offset: time::UtcOffset) -> String {
+    let local = dt.to_offset(offset);
     format!(
         "{:04}-{:02}-{:02}",
-        dt.year(),
-        u8::from(dt.month()),
-        dt.day()
+        local.year(),
+        u8::from(local.month()),
+        local.day()
     )
+}
+
+pub fn local_day_key_from_offset(dt: &time::OffsetDateTime) -> String {
+    let offset_secs = chrono::DateTime::<chrono::Utc>::from_timestamp(dt.unix_timestamp(), 0)
+        .map(|utc| utc.with_timezone(&chrono::Local).offset().local_minus_utc())
+        .unwrap_or(0);
+    let offset = time::UtcOffset::from_whole_seconds(offset_secs).unwrap_or(time::UtcOffset::UTC);
+    day_key_at_offset(dt, offset)
 }
 
 pub fn since_local_midnight(days_back: i32) -> time::OffsetDateTime {

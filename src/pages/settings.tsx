@@ -97,8 +97,9 @@ const MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK = new Set<MenubarIconStyle>([
 const CURSOR_TRAY_METRIC_CHOICES = [
   "Credits",
   "Total usage",
-  "Auto usage",
-  "API usage",
+  "Cursor Models",
+  "Other Models",
+  "Grok Bot usage",
   "Requests",
 ] as const;
 

@@ -31,6 +31,7 @@ export type ResetLineContext = {
   used?: number
   periodDurationMs?: number
   label?: string
+  sessionStartSignal?: "missingResetDate" | "zeroUsage"
 }
 
 export function isFreshSessionWindow(
@@ -41,6 +42,8 @@ export function isFreshSessionWindow(
   if (!lineContext || lineContext.used === undefined || lineContext.used > 0) return false
   const resetsAtMs = parseResetTimestamp(resetsAtIso)
   if (resetsAtMs === null || nowMs >= resetsAtMs) return false
+  // Claude: a reported resetsAt means the 5h window already started (API rounds <1% to 0).
+  if (lineContext.sessionStartSignal === "missingResetDate") return false
   if (lineContext.periodDurationMs === FIVE_HOURS_MS) return true
   if (lineContext.label === "Session") return true
   return false

@@ -112,6 +112,18 @@ export const makeCtx = () => {
       cursorLogs: {
         queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
       },
+      claudeLogs: {
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
+      codexLogs: {
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
+      antigravityLogs: {
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
+      grokLogs: {
+        queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
+      },
       cursorPaths: {
         resolveStateDb: vi.fn(() => null),
       },
@@ -149,6 +161,7 @@ export const makeCtx = () => {
       if (opts.resetsAt) line.resetsAt = opts.resetsAt
       if (opts.periodDurationMs) line.periodDurationMs = opts.periodDurationMs
       if (opts.color) line.color = opts.color
+      if (opts.sessionStartSignal) line.sessionStartSignal = opts.sessionStartSignal
       return line
     },
     badge: (opts) => {

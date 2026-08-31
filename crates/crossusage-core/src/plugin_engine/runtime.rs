@@ -58,6 +58,9 @@ pub enum MetricLine {
         #[serde(rename = "periodDurationMs")]
         period_duration_ms: Option<u64>,
         color: Option<String>,
+        /// Claude Session: `missingResetDate` — a reset time means the window started (0% is still in-flight).
+        #[serde(default, rename = "sessionStartSignal", skip_serializing_if = "Option::is_none")]
+        session_start_signal: Option<String>,
     },
     Badge {
         label: String,
@@ -205,6 +208,18 @@ fn run_probe_with_account_timeout(
                 return error_output(plugin, timeout_message.clone());
             }
             return error_output(plugin, "codexLogs wrapper patch failed".to_string());
+        }
+        if host_api::patch_antigravity_logs_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
+            return error_output(plugin, "antigravityLogs wrapper patch failed".to_string());
+        }
+        if host_api::patch_grok_logs_wrapper(&ctx).is_err() {
+            if deadline.has_elapsed() {
+                return error_output(plugin, timeout_message.clone());
+            }
+            return error_output(plugin, "grokLogs wrapper patch failed".to_string());
         }
         if host_api::patch_cursor_usage_export_wrapper(&ctx).is_err() {
             if deadline.has_elapsed() {
@@ -369,9 +384,7 @@ pub fn run_plugin_action(
             .unwrap_or_else(|_| Value::new_undefined(ctx.clone()));
 
         // Inject args as a global JSON literal, then read it back as a Value.
-        let inject = format!(
-            "globalThis.__openusage_action_args = ({args_json});"
-        );
+        let inject = format!("globalThis.__openusage_action_args = ({args_json});");
         ctx.eval::<(), _>(inject.as_bytes())
             .map_err(|_| "invalid action args json".to_string())?;
         let args_value: Value = globals
@@ -424,10 +437,7 @@ fn parse_model_breakdown(line: &Object) -> Option<Vec<ModelSpendBreakdown>> {
             .ok()
             .filter(|v| v.is_finite())
             .unwrap_or(0.0);
-        let cost_usd = row
-            .get::<_, f64>("costUsd")
-            .ok()
-            .filter(|v| v.is_finite());
+        let cost_usd = row.get::<_, f64>("costUsd").ok().filter(|v| v.is_finite());
         if model.trim().is_empty() {
             continue;
         }
@@ -729,6 +739,16 @@ fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
                     Err(_) => None,
                 };
 
+                let session_start_signal: Option<String> = match line.get::<_, Value>("sessionStartSignal")
+                {
+                    Ok(val) => val
+                        .as_string()
+                        .and_then(|s| s.to_string().ok())
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty()),
+                    Err(_) => None,
+                };
+
                 out.push(MetricLine::Progress {
                     label,
                     used,
@@ -737,6 +757,7 @@ fn parse_lines(result: &Object) -> Result<Vec<MetricLine>, String> {
                     resets_at,
                     period_duration_ms,
                     color,
+                    session_start_signal,
                 });
             }
             "badge" => {
@@ -882,7 +903,10 @@ fn parse_bar_chart_line<'js>(
     }
 
     if points.is_empty() {
-        errors.push(format!("barChart line at index {} has no valid points", idx));
+        errors.push(format!(
+            "barChart line at index {} has no valid points",
+            idx
+        ));
         return (None, errors);
     }
 
@@ -1018,7 +1042,12 @@ mod tests {
         }
     }
 
-    fn account(instance_id: &str, base_provider_id: &str, label: &str, token: &str) -> ProviderAccountContext {
+    fn account(
+        instance_id: &str,
+        base_provider_id: &str,
+        label: &str,
+        token: &str,
+    ) -> ProviderAccountContext {
         ProviderAccountContext {
             instance_id: instance_id.to_string(),
             base_provider_id: base_provider_id.to_string(),
@@ -1073,7 +1102,7 @@ mod tests {
             resets_at: Some("2099-01-01T00:00:00.000Z".to_string()),
             period_duration_ms: None,
             color: None,
-        };
+            session_start_signal: None,        };
 
         let json: JsonValue = serde_json::to_value(&line).expect("serialize");
         let obj = json.as_object().expect("object");
@@ -1185,7 +1214,12 @@ mod tests {
             &claude,
             &dir,
             "0.0.0",
-            Some(account("claude:work", "claude", "Work", "claude-work-token")),
+            Some(account(
+                "claude:work",
+                "claude",
+                "Work",
+                "claude-work-token",
+            )),
         );
         let out_personal = run_probe_with_account(
             &claude,
@@ -1202,7 +1236,12 @@ mod tests {
             &cursor,
             &dir,
             "0.0.0",
-            Some(account("cursor:default", "cursor", "Default", "cursor-token")),
+            Some(account(
+                "cursor:default",
+                "cursor",
+                "Default",
+                "cursor-token",
+            )),
         );
 
         assert_eq!(out_work.provider_id, "claude:work");

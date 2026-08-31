@@ -17,7 +17,6 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Use `trash` for deletes.
 - Use `mv` / `cp` to move and copy files.
 - Bugs: add regression test when it fits.
-- Keep files <~400 LOC; split/refactor as needed.
 - Simplicity first: handle only important cases; no enterprise over-engineering/fallbacks.
 - New functionality: small OR absolutely necessary.
 - NEVER delete files, folders or other data unless explicilty approved or part of a plan.
@@ -110,3 +109,4 @@ Use below list to store and recall user notes when asked to do so.
 - tauri-action `latest.json`: Parallel matrix builds are safe—action fetches existing `latest.json`, merges platform entries, re-uploads. No `max-parallel: 1` needed.
 - **sudo:** use `sudo cursor-sudo <cmd>` (not bare `sudo`) so elevated commands work in this environment.
 - **GitHub CLI:** `gh auth login` is done on the host as `barramee27`; use `gh` for releases/PRs once the keyring session exists.
+- **No file line-count budget.** Do not split, truncate, or drop code because a file is “too long.” Keep a feature in one place if that is clearer.

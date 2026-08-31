@@ -266,3 +266,5 @@ Returns 401/403 if the token is invalid or expired — triggers reactive refresh
 5. Refresh SQLite refresh tokens only after auth failure or when no access token exists.
 6. Read `agy` keychain token from service `gemini`, account `antigravity`, then call `retrieveUserQuotaSummary`.
 7. If all strategies fail: error "Start Antigravity or run `agy` and try again."
+
+Local spend tiles (Today / Yesterday / Last 30 Days / Usage Trend) come from read-only scans of `~/.gemini/antigravity-cli/conversations/*.db` via `host.antigravityLogs.queryDaily`. Missing DBs are `no_data`; quota probe still succeeds. Same tiles on **Antigravity CLI**; not **Antigravity IDE**.

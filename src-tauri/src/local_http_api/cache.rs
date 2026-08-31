@@ -591,7 +591,7 @@ mod tests {
                 resets_at: Some("2026-03-26T12:00:00Z".to_string()),
                 period_duration_ms: Some(14400000),
                 color: None,
-            }],
+                session_start_signal: None,            }],
             fetched_at: "2026-03-26T08:00:00Z".to_string(),
         };
 

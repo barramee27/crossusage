@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { makeCtx } from "../test-helpers.js"
 
 const AUTH_PATH = "~/.grok/auth.json"
@@ -412,5 +412,77 @@ describe("grok plugin", () => {
 
     const plugin = await loadPlugin()
     expect(() => plugin.probe(ctx)).toThrow("Grok billing response changed.")
+  })
+
+  function localDayKey(date) {
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    return year + "-" + (month < 10 ? "0" : "") + month + "-" + (day < 10 ? "0" : "") + day
+  }
+
+  function mockGrokLogs(ctx, daily) {
+    ctx.host.grokLogs.queryDaily = vi.fn(() => ({
+      status: "ok",
+      data: { daily: daily || [] },
+    }))
+  }
+
+  it("appends Today, Yesterday, Last 30 Days, and Usage Trend after pay as you go", async () => {
+    const todayKey = localDayKey(new Date())
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayKey = localDayKey(yesterday)
+    const ctx = makeCtx()
+    writeAuth(ctx)
+    mockGrokApi(ctx)
+    mockGrokLogs(ctx, [
+      { date: todayKey, totalTokens: 1000, totalCost: 1, models: { "grok-4.6": { totalTokens: 1000, totalCost: 1 } } },
+      { date: yesterdayKey, totalTokens: 500, totalCost: 0.5, models: { "grok-4.5": { totalTokens: 500, totalCost: 0.5 } } },
+    ])
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const labels = result.lines.map((l) => l.label)
+    const payIdx = labels.indexOf("Pay as you go")
+    expect(payIdx).toBeGreaterThanOrEqual(0)
+    expect(labels.indexOf("Today")).toBeGreaterThan(payIdx)
+    expect(labels.indexOf("Yesterday")).toBeGreaterThan(payIdx)
+    expect(labels.indexOf("Last 30 Days")).toBeGreaterThan(payIdx)
+    expect(labels.indexOf("Usage Trend")).toBeGreaterThan(payIdx)
+    expect(result.lines.find((l) => l.label === "Today").value).toContain("1K tokens")
+    expect(result.lines.find((l) => l.label === "Usage Trend").type).toBe("barChart")
+  })
+
+  it("does not throw when local grok logs are empty", async () => {
+    const ctx = makeCtx()
+    writeAuth(ctx)
+    mockGrokApi(ctx)
+    mockGrokLogs(ctx, [])
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((l) => l.label === "Pay as you go")).toBeTruthy()
+    expect(result.lines.find((l) => l.label === "Today")).toBeUndefined()
+  })
+
+  it("shows local spend when auth is missing", async () => {
+    const todayKey = localDayKey(new Date())
+    const ctx = makeCtx()
+    mockGrokLogs(ctx, [
+      { date: todayKey, totalTokens: 2000, totalCost: 2 },
+    ])
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.plan).toBe(null)
+    expect(result.lines.find((l) => l.label === "Today").value).toContain("2K tokens")
+    expect(result.lines.find((l) => l.label === "Weekly limit")).toBeUndefined()
+  })
+
+  it("still throws login error when there is no auth and no local spend", async () => {
+    const ctx = makeCtx()
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Grok not logged in. Run `grok login`.")
   })
 })

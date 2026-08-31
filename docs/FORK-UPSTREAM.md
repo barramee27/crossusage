@@ -4,7 +4,7 @@ CrossUsage is the **Tauri Linux/Windows** line. Upstream **OpenUsage 0.7+** is a
 
 **UI diff target:** compare Modern layout work against **`upstream/swift`**, not `upstream/main`. Port spec: [OPENUSAGE-0.7-UI-SPEC.md](./OPENUSAGE-0.7-UI-SPEC.md).
 
-**Release trigger:** **1.2.0** → v0.7.0 Modern UI. **1.3.0** → v0.7.1 + i18n ([PORT-0.7.1.md](./PORT-0.7.1.md)). **1.3.1** → bundled v0.7.2 + v0.7.3 ([PORT-0.7.2-0.7.3.md](./PORT-0.7.2-0.7.3.md)). **1.3.2** → bundled v0.7.4 + v0.7.5 ([PORT-0.7.4-0.7.5.md](./PORT-0.7.4-0.7.5.md)). **1.3.3** → v0.7.6 ([PORT-0.7.6.md](./PORT-0.7.6.md)). **1.4.0** → fork-only features per [VERSIONING.md](./VERSIONING.md). **1.4.1** → v0.7.8 + v0.7.9 ([PORT-0.7.8-0.7.9.md](./PORT-0.7.8-0.7.9.md); public v0.7.7 skipped upstream). **1.4.2** → Modern motion quiet (no upstream port).
+**Release trigger:** **1.2.0** → v0.7.0 Modern UI. **1.3.0** → v0.7.1 + i18n ([PORT-0.7.1.md](./PORT-0.7.1.md)). **1.3.1** → bundled v0.7.2 + v0.7.3 ([PORT-0.7.2-0.7.3.md](./PORT-0.7.2-0.7.3.md)). **1.3.2** → bundled v0.7.4 + v0.7.5 ([PORT-0.7.4-0.7.5.md](./PORT-0.7.4-0.7.5.md)). **1.3.3** → v0.7.6 ([PORT-0.7.6.md](./PORT-0.7.6.md)). **1.4.0** → fork-only features per [VERSIONING.md](./VERSIONING.md). **1.4.1** → v0.7.8 + v0.7.9 ([PORT-0.7.8-0.7.9.md](./PORT-0.7.8-0.7.9.md); public v0.7.7 skipped upstream). **1.4.2** → Modern motion quiet (no upstream port). **1.4.3** → v0.7.10 ([PORT-0.7.10.md](./PORT-0.7.10.md)).
 
 ## What to port
 

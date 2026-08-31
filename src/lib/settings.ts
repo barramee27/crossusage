@@ -2,6 +2,7 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 import type { PluginMeta, ProbeTarget } from "@/lib/plugin-types";
 import { normalizeModernLayout, EMPTY_MODERN_LAYOUT, type ModernLayoutState } from "@/lib/modern-layout";
 import { migrateAntigravityLineLabel } from "@/lib/antigravity-label-migration";
+import { migrateCursorLineLabel } from "@/lib/cursor-label-migration";
 import {
   DEFAULT_APP_LOCALE,
   DEFAULT_DISPLAY_CURRENCY,
@@ -407,7 +408,9 @@ export function normalizePluginSettings(
     if (Array.isArray(migratedLines) && migratedLines[0] !== "__NONE__") {
       trayLines[key] = [
         ...new Set(
-          migratedLines.map((l) => migrateAntigravityLineLabel(key, l))
+          migratedLines.map((l) =>
+            migrateCursorLineLabel(key, migrateAntigravityLineLabel(key, l)),
+          )
         ),
       ];
     }

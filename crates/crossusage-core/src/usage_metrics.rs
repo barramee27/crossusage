@@ -283,7 +283,7 @@ mod tests {
                     resets_at: Some("tomorrow".into()),
                     period_duration_ms: None,
                     color: None,
-                },
+                    session_start_signal: None,                },
             ],
         }
     }
@@ -315,7 +315,7 @@ mod tests {
                     resets_at: None,
                     period_duration_ms: None,
                     color: None,
-                },
+                    session_start_signal: None,                },
                 MetricLine::Progress {
                     label: "Claude Sonnet 4.6".into(),
                     used: 72.0,
@@ -324,7 +324,7 @@ mod tests {
                     resets_at: None,
                     period_duration_ms: None,
                     color: None,
-                },
+                    session_start_signal: None,                },
             ],
         };
         let m = NormalizedMetricsMapper::from_output(&out);
@@ -351,7 +351,7 @@ mod tests {
                 resets_at: None,
                 period_duration_ms: None,
                 color: None,
-            }],
+                session_start_signal: None,            }],
         };
         let m = NormalizedMetricsMapper::from_output(&out);
         assert!((m.cost.unwrap() - 108.35).abs() < 0.01);
@@ -373,7 +373,7 @@ mod tests {
                 resets_at: None,
                 period_duration_ms: None,
                 color: None,
-            }],
+                session_start_signal: None,            }],
         };
         let m = NormalizedMetricsMapper::from_output(&out);
         assert!((m.cost.unwrap() - 12.34).abs() < 0.01);
@@ -398,7 +398,7 @@ mod tests {
                     resets_at: None,
                     period_duration_ms: None,
                     color: None,
-                },
+                    session_start_signal: None,                },
                 MetricLine::Progress {
                     label: "Premium".into(),
                     used: 200.0,
@@ -409,7 +409,7 @@ mod tests {
                     resets_at: None,
                     period_duration_ms: None,
                     color: None,
-                },
+                    session_start_signal: None,                },
             ],
         };
         let m = NormalizedMetricsMapper::from_output(&out);
@@ -427,7 +427,7 @@ mod tests {
                 resets_at: None,
                 period_duration_ms: None,
                 color: None,
-            })
+                session_start_signal: None,            })
             .collect();
         let out = PluginOutput {
             provider_id: "mock".into(),

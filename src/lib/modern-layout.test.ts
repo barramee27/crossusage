@@ -16,7 +16,7 @@ import type { MetricDescriptor } from "@/lib/metric-registry"
 import type { PluginSettings } from "@/lib/settings"
 
 const cursorTotal = metricId("cursor", "Total usage")
-const cursorAuto = metricId("cursor", "Auto usage")
+const cursorAuto = metricId("cursor", "Cursor Models")
 const claudeSession = metricId("claude", "Session")
 
 function desc(pluginId: string, lineLabel: string): MetricDescriptor {
@@ -50,8 +50,8 @@ describe("modern-layout pins", () => {
   })
 
   it("allows unpinning and re-pinning", () => {
-    const a = metricId("cursor", "Auto usage")
-    const b = metricId("cursor", "API usage")
+    const a = metricId("cursor", "Cursor Models")
+    const b = metricId("cursor", "Other Models")
     const c = metricId("cursor", "Total usage")
     const pinned = [a, b]
     expect(canPinMetric(pinned, c)).toBe(false)
@@ -78,7 +78,7 @@ describe("modern-layout pins", () => {
 describe("classic ↔ modern dashboard sync", () => {
   const descriptors = [
     desc("cursor", "Total usage"),
-    desc("cursor", "Auto usage"),
+    desc("cursor", "Cursor Models"),
     desc("claude", "Session"),
   ]
 
@@ -128,9 +128,9 @@ describe("classic ↔ modern dashboard sync", () => {
     const next = applyDashboardMetricToggle(
       baseSettings,
       "cursor",
-      "Auto usage",
+      "Cursor Models",
       false,
-      ["Total usage", "Auto usage"],
+      ["Total usage", "Cursor Models"],
     )
     expect(next.trayLines?.cursor).toEqual(["Total usage"])
   })
@@ -143,7 +143,7 @@ describe("classic ↔ modern dashboard sync", () => {
     const next = applyProviderDashboardMetrics(
       settings,
       "cursor",
-      ["Total usage", "Auto usage"],
+      ["Total usage", "Cursor Models"],
       true,
     )
     expect(next.trayLines?.cursor).toBeUndefined()
@@ -191,6 +191,41 @@ describe("classic ↔ modern dashboard sync", () => {
     expect(layout.pinnedMetricIds).toEqual([
       metricId("antigravity-cli", "Session"),
       metricId("antigravity-cli", "Session — Claude and GPT Models"),
+    ])
+  })
+
+  it("normalizes old Cursor Auto/API metric ids to dashboard names", () => {
+    const layout = normalizeModernLayout({
+      placedMetricIds: [
+        metricId("cursor", "Auto usage"),
+        metricId("cursor-nightly", "API usage"),
+        metricId("cursor:work", "Auto usage"),
+        metricId("cursor-nightly:dev", "API usage"),
+        metricId("claude", "Auto usage"),
+      ],
+      metricOrderByProvider: {
+        cursor: [metricId("cursor", "API usage")],
+      },
+      pinnedMetricIds: [
+        metricId("cursor", "Auto usage"),
+        metricId("cursor-nightly", "API usage"),
+      ],
+      initialized: true,
+    })
+
+    expect(layout.placedMetricIds).toEqual([
+      metricId("cursor", "Cursor Models"),
+      metricId("cursor-nightly", "Other Models"),
+      metricId("cursor:work", "Cursor Models"),
+      metricId("cursor-nightly:dev", "Other Models"),
+      metricId("claude", "Auto usage"),
+    ])
+    expect(layout.metricOrderByProvider.cursor).toEqual([
+      metricId("cursor", "Other Models"),
+    ])
+    expect(layout.pinnedMetricIds).toEqual([
+      metricId("cursor", "Cursor Models"),
+      metricId("cursor-nightly", "Other Models"),
     ])
   })
 })
