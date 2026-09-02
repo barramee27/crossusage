@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import type { PluginMeta } from "@/lib/plugin-types"
 import { getProviderInstanceMeta, type PluginSettings } from "@/lib/settings"
 import { getEffectiveTrayLines } from "@/lib/tray-line-selection"
+import { trayReadoutLabelsFromManifest } from "@/lib/tray-readout-pick"
 
 export type SettingsPluginState = {
   id: string
@@ -10,6 +11,7 @@ export type SettingsPluginState = {
   name: string
   enabled: boolean
   primaryCandidates: string[]
+  trayReadoutLabels: string[]
   trayLines: string[]
 }
 
@@ -27,6 +29,7 @@ export function useSettingsPluginList({ pluginSettings, pluginsMeta }: UseSettin
         const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
         if (!meta) return []
         const primaryCandidates = meta.primaryCandidates || []
+        const trayReadoutLabels = trayReadoutLabelsFromManifest(meta.lines ?? [])
         const trayLines = getEffectiveTrayLines(
           id,
           pluginSettings,
@@ -39,6 +42,7 @@ export function useSettingsPluginList({ pluginSettings, pluginsMeta }: UseSettin
           name: meta.name,
           enabled: !pluginSettings.disabled.includes(id),
           primaryCandidates,
+          trayReadoutLabels,
           trayLines,
         }]
       })

@@ -19,9 +19,10 @@ type WidgetGroupedListProps = {
   compact?: boolean
   className?: string
   onRefreshPlugin?: (pluginId: string) => void
+  onFocusProvider?: (pluginId: string) => void
 }
 
-export function WidgetGroupedList({ groups, compact, className, onRefreshPlugin }: WidgetGroupedListProps) {
+export function WidgetGroupedList({ groups, compact, className, onRefreshPlugin, onFocusProvider }: WidgetGroupedListProps) {
   if (groups.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8 text-sm">
@@ -38,6 +39,7 @@ export function WidgetGroupedList({ groups, compact, className, onRefreshPlugin 
           group={group}
           compact={compact}
           onRefreshPlugin={onRefreshPlugin}
+          onFocusProvider={onFocusProvider}
           index={index}
         />
       ))}
@@ -49,11 +51,13 @@ function ProviderCard({
   group,
   compact,
   onRefreshPlugin,
+  onFocusProvider,
   index = 0,
 }: {
   group: ProviderWidgetGroup
   compact?: boolean
   onRefreshPlugin?: (pluginId: string) => void
+  onFocusProvider?: (pluginId: string) => void
   index?: number
 }) {
   const bounded = group.metrics.filter((m) => m.bounded && m.kind === "progress")
@@ -72,7 +76,9 @@ function ProviderCard({
         className={cn(
           "flex items-center gap-2 px-3 border-b border-border/60",
           compact ? "py-1.5" : "py-2",
+          onFocusProvider ? "cursor-pointer hover:bg-muted/40" : "",
         )}
+        onClick={onFocusProvider ? () => onFocusProvider(group.pluginId) : undefined}
       >
         {group.iconUrl ? (
           <img src={group.iconUrl} alt="" className="h-4 w-4 shrink-0" />

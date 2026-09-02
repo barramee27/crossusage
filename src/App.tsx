@@ -300,7 +300,7 @@ function App() {
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
-    handleSetCursorTrayMetricForAllAccounts,
+    handleSetTrayReadout,
     handleDashboardMetricToggle,
     handleProviderDashboardMetrics,
   } = useSettingsPluginActions({
@@ -691,7 +691,7 @@ function App() {
       onUsageSpikeAlertThresholdPctChange: handleUsageSpikeAlertThresholdPctChange,
       onUIScaleChange: handleUIScaleChange,
       onShowAccountIdentityChange: handleShowAccountIdentityChange,
-      onSetCursorTrayMetricForAllAccounts: handleSetCursorTrayMetricForAllAccounts,
+      onSetTrayReadout: handleSetTrayReadout,
       cursorRequestsLineAvailable,
     },
   }

@@ -7,12 +7,16 @@ const { savePluginSettingsMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/settings", () => ({
   savePluginSettings: savePluginSettingsMock,
+  saveModernLayout: vi.fn().mockResolvedValue(undefined),
   getProviderInstanceMeta: (id: string, _settings: unknown, plugins: PluginMeta[]) =>
     plugins.find((plugin) => plugin.id === id) ?? null,
 }))
 
 import type { PluginMeta } from "@/lib/plugin-types"
 import { useSettingsPluginActions } from "@/hooks/app/use-settings-plugin-actions"
+import { EMPTY_MODERN_LAYOUT } from "@/lib/modern-layout"
+import { metricId } from "@/lib/metric-id"
+import { useModernLayoutStore } from "@/stores/modern-layout-store"
 
 const codexMeta: PluginMeta = {
   id: "codex",
@@ -23,10 +27,27 @@ const codexMeta: PluginMeta = {
   primaryCandidates: ["Session", "Weekly"],
 }
 
+const antigravityMeta: PluginMeta = {
+  id: "antigravity",
+  name: "Antigravity",
+  iconUrl: "/antigravity.svg",
+  brandColor: "#000",
+  lines: [],
+  primaryCandidates: ["Session", "Weekly"],
+}
+
 describe("useSettingsPluginActions", () => {
   beforeEach(() => {
     savePluginSettingsMock.mockReset()
     savePluginSettingsMock.mockResolvedValue(undefined)
+    useModernLayoutStore.setState({
+      ...EMPTY_MODERN_LAYOUT,
+      hydrated: true,
+      pinLimitNotice: null,
+      initialized: true,
+      pinnedMetricIds: [metricId("claude", "Session")],
+      trayFocusProviderId: "claude",
+    })
   })
 
   it("reorders plugins and persists new order", () => {
@@ -364,5 +385,93 @@ describe("useSettingsPluginActions", () => {
       disabled: [],
       trayLines: { codex: ["Session", "Weekly"] },
     })
+  })
+
+  it("sets tray readout for one plugin and focuses it", () => {
+    const setPluginSettings = vi.fn()
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["claude", "antigravity"],
+          disabled: [],
+          trayLines: { claude: ["Session"] },
+        },
+        pluginsMeta: [codexMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate: vi.fn(),
+      })
+    )
+
+    act(() => {
+      result.current.handleSetTrayReadout("antigravity", "Weekly")
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["claude", "antigravity"],
+      disabled: [],
+      trayLines: { claude: ["Session"], antigravity: ["Weekly"] },
+    })
+    expect(useModernLayoutStore.getState().trayFocusProviderId).toBe("antigravity")
+  })
+
+  it("promotes tray readout without dropping other meters", () => {
+    const setPluginSettings = vi.fn()
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["antigravity"],
+          disabled: [],
+          trayLines: { antigravity: ["Session", "Weekly"] },
+        },
+        pluginsMeta: [antigravityMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate: vi.fn(),
+      })
+    )
+
+    act(() => {
+      result.current.handleSetTrayReadout("antigravity", "Weekly")
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["antigravity"],
+      disabled: [],
+      trayLines: { antigravity: ["Weekly", "Session"] },
+    })
+  })
+
+  it("does not collapse unset trayLines when the pick is already the default", () => {
+    const setPluginSettings = vi.fn()
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["antigravity"],
+          disabled: [],
+          trayLines: {},
+        },
+        pluginsMeta: [antigravityMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate: vi.fn(),
+      })
+    )
+
+    act(() => {
+      result.current.handleSetTrayReadout("antigravity", "Session")
+    })
+
+    expect(setPluginSettings).not.toHaveBeenCalled()
+    expect(useModernLayoutStore.getState().trayFocusProviderId).toBe("antigravity")
+    expect(useModernLayoutStore.getState().pinnedMetricIds[0]).toBe(
+      metricId("antigravity", "Session"),
+    )
   })
 })

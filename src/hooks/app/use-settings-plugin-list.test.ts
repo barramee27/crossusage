@@ -14,7 +14,11 @@ function createPluginMeta(
     name,
     iconUrl: `/${id}.svg`,
     brandColor: "#000000",
-    lines: [],
+    lines: primaryCandidates.map((label) => ({
+      type: "progress" as const,
+      label,
+      scope: "overview" as const,
+    })),
     primaryCandidates,
   }
 }
@@ -37,8 +41,8 @@ describe("useSettingsPluginList", () => {
     )
 
     expect(result.current).toEqual([
-      { id: "codex", baseProviderId: "codex", name: "Codex", enabled: true, primaryCandidates: [], trayLines: [] },
-      { id: "cursor", baseProviderId: "cursor", name: "Cursor", enabled: false, primaryCandidates: [], trayLines: [] },
+      { id: "codex", baseProviderId: "codex", name: "Codex", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
+      { id: "cursor", baseProviderId: "cursor", name: "Cursor", enabled: false, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
     ])
   })
 
@@ -66,6 +70,7 @@ describe("useSettingsPluginList", () => {
         name: "Claude",
         enabled: true,
         primaryCandidates: ["Usage"],
+        trayReadoutLabels: ["Usage"],
         trayLines: ["Usage"],
       },
       {
@@ -75,6 +80,7 @@ describe("useSettingsPluginList", () => {
         name: "Claude (Work)",
         enabled: true,
         primaryCandidates: ["Usage"],
+        trayReadoutLabels: ["Usage"],
         trayLines: ["Usage"],
       },
     ])
@@ -101,9 +107,46 @@ describe("useSettingsPluginList", () => {
         name: "Codex",
         enabled: true,
         primaryCandidates: ["Session", "Weekly"],
+        trayReadoutLabels: ["Session", "Weekly"],
         trayLines: ["Session"],
       },
     ])
+  })
+
+  it("lists every plugin.json progress line even without primaryOrder", () => {
+    const pluginSettings: PluginSettings = {
+      order: ["cursor"],
+      disabled: [],
+    }
+
+    const { result } = renderHook(() =>
+      useSettingsPluginList({
+        pluginSettings,
+        pluginsMeta: [
+          {
+            id: "cursor",
+            name: "Cursor",
+            iconUrl: "/cursor.svg",
+            iconFilePath: "",
+            brandColor: "#000",
+            lines: [
+              { type: "progress", label: "Credits", scope: "overview" },
+              { type: "progress", label: "Total usage", scope: "overview" },
+              { type: "progress", label: "Cursor Models", scope: "detail" },
+              { type: "text", label: "Today", scope: "detail" },
+            ],
+            primaryCandidates: ["Total usage", "Credits"],
+          },
+        ],
+      })
+    )
+
+    expect(result.current[0]?.trayReadoutLabels).toEqual([
+      "Credits",
+      "Total usage",
+      "Cursor Models",
+    ])
+    expect(result.current[0]?.primaryCandidates).toEqual(["Total usage", "Credits"])
   })
 
   it("returns empty list when settings are not loaded", () => {

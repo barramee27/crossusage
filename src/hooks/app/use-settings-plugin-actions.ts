@@ -6,7 +6,9 @@ import {
   applyProviderDashboardMetrics,
 } from "@/lib/modern-layout"
 import { parseMetricId } from "@/lib/metric-id"
+import { applyTrayReadoutLines } from "@/lib/tray-readout-pick"
 import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
+import { useModernLayoutStore } from "@/stores/modern-layout-store"
 
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
 
@@ -143,26 +145,40 @@ export function useSettingsPluginActions({
     setPluginSettings,
   ])
 
-  const handleSetCursorTrayMetricForAllAccounts = useCallback(
-    (lineLabel: string) => {
+  const handleSetTrayReadout = useCallback(
+    (pluginId: string, lineLabel: string) => {
       if (!pluginSettings) return
-      const nextTrayLines = { ...pluginSettings.trayLines }
-      for (const id of pluginSettings.order) {
-        if (pluginSettings.disabled.includes(id)) continue
-        const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
-        const base = meta?.baseProviderId ?? meta?.id
-        if (base !== "cursor") continue
-        nextTrayLines[id] = [lineLabel]
+      const primaryCandidates =
+        getProviderInstanceMeta(pluginId, pluginSettings, pluginsMeta)?.primaryCandidates ?? []
+      const unsetFallback = getEffectiveTrayLines(pluginId, pluginSettings, primaryCandidates)
+      const nextLines = applyTrayReadoutLines(
+        pluginSettings.trayLines?.[pluginId],
+        lineLabel,
+        unsetFallback,
+      )
+      const prevLines = pluginSettings.trayLines?.[pluginId]
+      const trayLinesChanged =
+        nextLines !== undefined &&
+        (prevLines == null ||
+          prevLines.length !== nextLines.length ||
+          prevLines.some((label, i) => label !== nextLines[i]))
+
+      if (trayLinesChanged && nextLines) {
+        const nextSettings: PluginSettings = {
+          ...pluginSettings,
+          trayLines: {
+            ...pluginSettings.trayLines,
+            [pluginId]: nextLines,
+          },
+        }
+        setPluginSettings(nextSettings)
+        scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+        void savePluginSettings(nextSettings).catch((error) => {
+          console.error("Failed to save tray readout:", error)
+        })
       }
-      const nextSettings: PluginSettings = {
-        ...pluginSettings,
-        trayLines: nextTrayLines,
-      }
-      setPluginSettings(nextSettings)
-      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
-      void savePluginSettings(nextSettings).catch((error) => {
-        console.error("Failed to save Cursor tray metric:", error)
-      })
+
+      useModernLayoutStore.getState().applyTrayReadout(pluginId, lineLabel)
     },
     [pluginSettings, pluginsMeta, scheduleTrayIconUpdate, setPluginSettings],
   )
@@ -213,7 +229,7 @@ export function useSettingsPluginActions({
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
-    handleSetCursorTrayMetricForAllAccounts,
+    handleSetTrayReadout,
     handleDashboardMetricToggle,
     handleProviderDashboardMetrics,
   }

@@ -223,6 +223,21 @@ describe("tray-bars-icon", () => {
     expect(svg).not.toContain("<image ")
   })
 
+  it("embeds full-color svg provider icons as images so gradients stay intact", () => {
+    const icon = encodeURIComponent(
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"><stop stop-color="#3186FF"/></linearGradient></defs><path d="M0 0h10v10H0z" fill="url(#g)"/></svg>'
+    )
+    const svg = makeTrayBarsSvg({
+      sizePx: 30,
+      style: "provider",
+      providerIconUrl: `data:image/svg+xml,${icon}`,
+      foregroundHex: "#ffffff",
+      gridCells: [{ text: "76%" }],
+    })
+    expect(svg).toContain("<image ")
+    expect(svg).not.toContain('fill="currentColor"')
+  })
+
   it("uses provider brand color for currentColor provider tray icons", () => {
     const icon = encodeURIComponent(
       '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z" fill="currentColor"/></svg>'

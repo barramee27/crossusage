@@ -92,7 +92,7 @@ function renderSettings(props: React.ComponentProps<typeof SettingsPage>) {
 }
 
 const defaultProps = {
-  plugins: [{ id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] }],
+  plugins: [{ id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] }],
   onReorder: vi.fn(),
   onToggle: vi.fn(),
   onTrayLineToggle: vi.fn(),
@@ -152,7 +152,7 @@ const defaultProps = {
   showAccountIdentity: true,
   onShowAccountIdentityChange: vi.fn(),
   cursorRequestsLineAvailable: null,
-  onSetCursorTrayMetricForAllAccounts: vi.fn(),
+  onSetTrayReadout: vi.fn(),
 }
 
 afterEach(() => {
@@ -174,7 +174,7 @@ describe("SettingsPage", () => {
     renderSettings({
       ...defaultProps,
       plugins: [
-          { id: "b", baseProviderId: "b", name: "Beta", enabled: false, primaryCandidates: [], trayLines: [] },
+          { id: "b", baseProviderId: "b", name: "Beta", enabled: false, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
         ],
       onToggle,
     })
@@ -188,8 +188,8 @@ describe("SettingsPage", () => {
     renderSettings({
       ...defaultProps,
       plugins: [
-          { id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayLines: [] },
-          { id: "b", baseProviderId: "b", name: "Beta", enabled: true, primaryCandidates: [], trayLines: [] },
+          { id: "a", baseProviderId: "a", name: "Alpha", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
+          { id: "b", baseProviderId: "b", name: "Beta", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
         ],
       onReorder,
     })
@@ -217,7 +217,7 @@ describe("SettingsPage", () => {
     renderSettings({
       ...defaultProps,
       plugins: [
-          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
+          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
           {
             id: "claude:work",
             baseProviderId: "claude",
@@ -225,6 +225,7 @@ describe("SettingsPage", () => {
             name: "Claude (Work)",
             enabled: true,
             primaryCandidates: [],
+            trayReadoutLabels: [],
             trayLines: [],
           },
         ],
@@ -273,7 +274,7 @@ describe("SettingsPage", () => {
     renderSettings({
       ...defaultProps,
       plugins: [
-          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayLines: [] },
+          { id: "claude", baseProviderId: "claude", name: "Claude", enabled: true, primaryCandidates: [], trayReadoutLabels: [], trayLines: [] },
         ],
     })
     await user.click(screen.getByRole("button", { name: "Add account" }))
@@ -412,31 +413,48 @@ describe("SettingsPage", () => {
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("donut")
   })
 
-  it("opens Cursor tray metric dialog when choosing Pie with Cursor enabled", async () => {
+  it("opens tray readout dialog with per-plugin meters", async () => {
     const onMenubarIconStyleChange = vi.fn()
-    const onSetCursorTrayMetricForAllAccounts = vi.fn()
+    const onSetTrayReadout = vi.fn()
     const user = userEvent.setup()
     renderSettings({
       ...defaultProps,
       menubarIconStyle: "bars",
       plugins: [
-          {
-            id: "cursor",
-            baseProviderId: "cursor",
-            name: "Cursor",
-            enabled: true,
-            primaryCandidates: ["Total usage"],
-            trayLines: ["Total usage"],
-          },
-        ],
+        {
+          id: "claude",
+          baseProviderId: "claude",
+          name: "Claude",
+          enabled: true,
+          primaryCandidates: ["Session"],
+          trayReadoutLabels: ["Session", "Weekly", "Fable", "Sonnet", "Claude Design", "Extra usage spent"],
+          trayLines: ["Session"],
+        },
+        {
+          id: "antigravity",
+          baseProviderId: "antigravity",
+          name: "Antigravity",
+          enabled: true,
+          primaryCandidates: ["Session", "Weekly"],
+          trayReadoutLabels: [
+            "Session",
+            "Weekly",
+            "Session — Claude and GPT Models",
+            "Weekly — Claude and GPT Models",
+          ],
+          trayLines: ["Session"],
+        },
+      ],
       onMenubarIconStyleChange,
-      onSetCursorTrayMetricForAllAccounts,
+      onSetTrayReadout,
     })
     await user.click(screen.getByRole("radio", { name: "Pie chart" }))
-    expect(screen.getByRole("dialog", { name: "Cursor tray readout" })).toBeInTheDocument()
-    await user.click(screen.getByRole("radio", { name: "Credits" }))
+    expect(screen.getByRole("dialog", { name: "Tray readout" })).toBeInTheDocument()
+    await user.click(screen.getByRole("radio", { name: "Antigravity" }))
+    expect(screen.getByRole("radio", { name: "Session — Claude and GPT Models" })).toBeInTheDocument()
+    await user.click(screen.getByRole("radio", { name: /^Weekly$/ }))
     await user.click(screen.getByRole("button", { name: "Apply" }))
-    expect(onSetCursorTrayMetricForAllAccounts).toHaveBeenCalledWith("Credits")
+    expect(onSetTrayReadout).toHaveBeenCalledWith("antigravity", "Weekly")
     expect(onMenubarIconStyleChange).toHaveBeenCalledWith("donut")
   })
 

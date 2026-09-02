@@ -12,6 +12,7 @@ import { getTrayForegroundHex, renderTrayBarsIcon, type TrayProviderIcon } from 
 import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { formatTrayIssuesAppendage } from "@/lib/tray-health"
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress"
+import { pickTrayProviderId } from "@/lib/tray-provider-id"
 import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
 import { formatTopTrayInsightLine } from "@/lib/usage-insights"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
@@ -291,21 +292,15 @@ export function useTrayIcon({
       })()
 
       const focusFromLayout = trayFocusProviderIdRef.current
-      let trayProviderId: string | null = null
-      if (focusFromLayout && enabledPluginIds.includes(focusFromLayout)) {
-        trayProviderId = focusFromLayout
-      } else if (activeProviderId && enabledPluginIds.includes(activeProviderId)) {
-        trayProviderId = activeProviderId
-      } else if (
-        lastTrayProviderIdRef.current &&
-        enabledPluginIds.includes(lastTrayProviderIdRef.current)
-      ) {
-        trayProviderId = lastTrayProviderIdRef.current
-      } else if (firstPinnedProviderId) {
-        trayProviderId = firstPinnedProviderId
-      } else {
-        trayProviderId = enabledPluginIds[0] ?? null
-      }
+      const trayProviderId = pickTrayProviderId({
+        uiLayout: uiLayoutRef.current,
+        enabledPluginIds,
+        activeProviderId,
+        trayFocusProviderId: focusFromLayout,
+        lastTrayProviderId: lastTrayProviderIdRef.current,
+        firstPinnedProviderId,
+      })
+      if (trayProviderId) lastTrayProviderIdRef.current = trayProviderId
 
       const barsForPreview = resolveTrayBarsForLayout({
         uiLayout: uiLayoutRef.current,

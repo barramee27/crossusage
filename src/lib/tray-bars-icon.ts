@@ -83,7 +83,10 @@ function providerIconMarkup(args: {
   const drawY = y - bleed
   const drawSize = size + bleed * 2
   const svgText = href.length > 0 ? decodeSvgDataUrl(href) : null
-  const inlineSvg = svgText ? inlineSvgImage({ svgText, x: drawX, y: drawY, size: drawSize, color }) : null
+  const inlineSvg =
+    svgText && /currentColor/i.test(svgText)
+      ? inlineSvgImage({ svgText, x: drawX, y: drawY, size: drawSize, color })
+      : null
   const content = inlineSvg
     ? inlineSvg
     : href.length > 0
