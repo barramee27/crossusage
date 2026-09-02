@@ -141,7 +141,7 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
       pinned.splice(existingIdx, 1)
       const insertAt = pinned.findIndex((p) => parseMetricId(p)?.pluginId === pluginId)
       if (insertAt >= 0) pinned.splice(insertAt, 0, id)
-      else pinned.unshift(id)
+      else pinned.splice(existingIdx, 0, id)
     } else if (providerIdxs.length >= MAX_PINS_PER_PROVIDER) {
       pinned[providerIdxs[0]] = id
     } else {

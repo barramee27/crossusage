@@ -54,6 +54,23 @@ describe("modern-layout-store tray readout", () => {
     expect(state.pinnedMetricIds).toContain(cursorCredits)
   })
 
+  it("applyTrayReadout leaves an already-pinned only meter in place", () => {
+    useModernLayoutStore.getState().applyTrayReadout("cursor", "Credits")
+    const state = useModernLayoutStore.getState()
+    expect(state.trayFocusProviderId).toBe("cursor")
+    expect(state.pinnedMetricIds).toEqual([claudeSession, cursorCredits])
+  })
+
+  it("applyTrayReadout reorders sibling pins within the provider group", () => {
+    useModernLayoutStore.setState({
+      pinnedMetricIds: [claudeSession, claudeWeekly, cursorCredits],
+    })
+    useModernLayoutStore.getState().applyTrayReadout("claude", "Weekly")
+    const state = useModernLayoutStore.getState()
+    expect(state.trayFocusProviderId).toBe("claude")
+    expect(state.pinnedMetricIds).toEqual([claudeWeekly, claudeSession, cursorCredits])
+  })
+
   it("syncPinsFromTrayLines does not overwrite pins or focus after init", () => {
     useModernLayoutStore.getState().applyTrayReadout("antigravity", "Weekly")
     useModernLayoutStore.getState().syncPinsFromTrayLines(
