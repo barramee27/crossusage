@@ -1,6 +1,6 @@
 [package]
 name = "crossusage-core"
-version = "1.4.3"
+version = "1.4.4"
 description = "Shared plugin engine for CrossUsage (GUI + CLI)"
 edition = "2024"
 

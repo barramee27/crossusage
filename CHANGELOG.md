@@ -2,6 +2,19 @@
 
 **CrossUsage** ships **1.x** releases from [github.com/barramee27/crossusage](https://github.com/barramee27/crossusage). Older **0.6.x** sections below are **archived OpenUsage upstream** notes, not CrossUsage release numbers.
 
+## 1.4.4
+
+**Theme:** Tray style switching and Classic vs Modern logo pick.
+
+### Bug fixes
+
+- **Tray styles** — Logo+%, fill, pie, and all-logos open a Tray readout picker when more than one plugin or meter can drive the icon; battery bars apply immediately. Style previews use a mid fill so pie/fill/logo are distinguishable ([#25](https://github.com/barramee27/crossusage/pull/25)).
+- **Classic vs Modern** — Classic tray logo follows the open sidebar provider. Modern pin focus no longer freezes Classic on one logo.
+- **Tray readout** — Apply promotes the picked meter without hiding other metrics (Classic detail, Modern dashboard, battery bars).
+- **Full-color logos** — SVGs without `currentColor` (and rasters) render as images in the tray.
+
+---
+
 ## 1.4.3
 
 **Theme:** OpenUsage **v0.7.10** upstream patch (PATCH per [docs/VERSIONING.md](docs/VERSIONING.md)). Port tracker: [docs/PORT-0.7.10.md](docs/PORT-0.7.10.md).

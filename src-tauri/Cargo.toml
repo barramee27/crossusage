@@ -1,6 +1,6 @@
 [package]
 name = "crossusage"
-version = "1.4.3"
+version = "1.4.4"
 description = "CrossUsage — cross-platform fork of OpenUsage, an open source AI subscription limit tracker"
 authors = ["barramee kottanawadee <barramee25038@gmail.com>"]
 homepage = "https://github.com/barramee27/crossusage"
