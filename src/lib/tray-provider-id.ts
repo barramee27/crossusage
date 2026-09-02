@@ -10,7 +10,7 @@ export function pickTrayProviderId(args: {
 }): string | null {
   const enabled = args.enabledPluginIds
   const isEnabled = (id: string | null | undefined): id is string =>
-    Boolean(id) && enabled.includes(id)
+    typeof id === "string" && enabled.includes(id)
 
   // Classic follows the sidebar. Modern pin focus must not freeze Classic on one logo.
   if (args.uiLayout === "modern" && isEnabled(args.trayFocusProviderId)) {
