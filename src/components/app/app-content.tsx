@@ -69,7 +69,7 @@ export type AppContentActionProps = {
   onUsageSpikeAlertThresholdPctChange: (value: import("@/lib/settings").UsageSpikeAlertThresholdPct) => void
   onUIScaleChange: (value: UIScale) => void
   onShowAccountIdentityChange: (value: boolean) => void
-  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void
+  onSetTrayReadout: (pluginId: string, lineLabel: string) => void
   cursorRequestsLineAvailable: boolean | null
 }
 
@@ -115,7 +115,7 @@ export function AppContent({
   onUsageSpikeAlertThresholdPctChange,
   onUIScaleChange,
   onShowAccountIdentityChange,
-  onSetCursorTrayMetricForAllAccounts,
+  onSetTrayReadout,
   cursorRequestsLineAvailable,
   viewOverride,
 }: AppContentProps) {
@@ -263,7 +263,7 @@ export function AppContent({
         onUIScaleChange={onUIScaleChange}
         showAccountIdentity={showAccountIdentity}
         onShowAccountIdentityChange={onShowAccountIdentityChange}
-        onSetCursorTrayMetricForAllAccounts={onSetCursorTrayMetricForAllAccounts}
+        onSetTrayReadout={onSetTrayReadout}
         cursorRequestsLineAvailable={cursorRequestsLineAvailable}
         presentation={uiLayout === "modern" ? "modern" : "classic"}
       />

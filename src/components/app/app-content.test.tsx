@@ -89,7 +89,7 @@ function createProps(): AppContentProps {
     onUsageSpikeAlertThresholdPctChange: vi.fn(),
     onUIScaleChange: vi.fn(),
     onShowAccountIdentityChange: vi.fn(),
-    onSetCursorTrayMetricForAllAccounts: vi.fn(),
+    onSetTrayReadout: vi.fn(),
     cursorRequestsLineAvailable: null,
   }
 }

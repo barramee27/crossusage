@@ -7,6 +7,7 @@ const { savePluginSettingsMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/settings", () => ({
   savePluginSettings: savePluginSettingsMock,
+  saveModernLayout: vi.fn().mockResolvedValue(undefined),
   getProviderInstanceMeta: (id: string, _settings: unknown, plugins: PluginMeta[]) =>
     plugins.find((plugin) => plugin.id === id) ?? null,
 }))
@@ -363,6 +364,35 @@ describe("useSettingsPluginActions", () => {
       order: ["codex"],
       disabled: [],
       trayLines: { codex: ["Session", "Weekly"] },
+    })
+  })
+
+  it("sets tray readout for one plugin and focuses it", () => {
+    const setPluginSettings = vi.fn()
+    const { result } = renderHook(() =>
+      useSettingsPluginActions({
+        pluginSettings: {
+          order: ["claude", "antigravity"],
+          disabled: [],
+          trayLines: { claude: ["Session"] },
+        },
+        pluginsMeta: [codexMeta],
+        setPluginSettings,
+        setLoadingForPlugins: vi.fn(),
+        setErrorForPlugins: vi.fn(),
+        startBatch: vi.fn(),
+        scheduleTrayIconUpdate: vi.fn(),
+      })
+    )
+
+    act(() => {
+      result.current.handleSetTrayReadout("antigravity", "Weekly")
+    })
+
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      order: ["claude", "antigravity"],
+      disabled: [],
+      trayLines: { claude: ["Session"], antigravity: ["Weekly"] },
     })
   })
 })

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { getRelativeLuminance } from "@/lib/color"
-import { isRasterProviderIconUrl } from "@/lib/provider-icon-url"
+import { isFullColorProviderIconUrl } from "@/lib/provider-icon-url"
 
 function getMaskIconColor(brandColor: string | undefined, isDark: boolean): string {
   if (!brandColor) return "currentColor"
@@ -46,7 +46,7 @@ export function ProviderIcon({
     )
   }
 
-  if (isRasterProviderIconUrl(iconUrl)) {
+  if (isFullColorProviderIconUrl(iconUrl)) {
     return (
       <img
         src={iconUrl}

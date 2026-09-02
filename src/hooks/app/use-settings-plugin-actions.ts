@@ -7,6 +7,7 @@ import {
 } from "@/lib/modern-layout"
 import { parseMetricId } from "@/lib/metric-id"
 import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
+import { useModernLayoutStore } from "@/stores/modern-layout-store"
 
 const TRAY_SETTINGS_DEBOUNCE_MS = 2000
 
@@ -143,28 +144,24 @@ export function useSettingsPluginActions({
     setPluginSettings,
   ])
 
-  const handleSetCursorTrayMetricForAllAccounts = useCallback(
-    (lineLabel: string) => {
+  const handleSetTrayReadout = useCallback(
+    (pluginId: string, lineLabel: string) => {
       if (!pluginSettings) return
-      const nextTrayLines = { ...pluginSettings.trayLines }
-      for (const id of pluginSettings.order) {
-        if (pluginSettings.disabled.includes(id)) continue
-        const meta = getProviderInstanceMeta(id, pluginSettings, pluginsMeta)
-        const base = meta?.baseProviderId ?? meta?.id
-        if (base !== "cursor") continue
-        nextTrayLines[id] = [lineLabel]
-      }
       const nextSettings: PluginSettings = {
         ...pluginSettings,
-        trayLines: nextTrayLines,
+        trayLines: {
+          ...pluginSettings.trayLines,
+          [pluginId]: [lineLabel],
+        },
       }
       setPluginSettings(nextSettings)
       scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+      useModernLayoutStore.getState().setTrayFocusProvider(pluginId)
       void savePluginSettings(nextSettings).catch((error) => {
-        console.error("Failed to save Cursor tray metric:", error)
+        console.error("Failed to save tray readout:", error)
       })
     },
-    [pluginSettings, pluginsMeta, scheduleTrayIconUpdate, setPluginSettings],
+    [pluginSettings, scheduleTrayIconUpdate, setPluginSettings],
   )
 
   const persistPluginSettings = useCallback(
@@ -213,7 +210,7 @@ export function useSettingsPluginActions({
     handleReorder,
     handleToggle,
     handleTrayLineToggle,
-    handleSetCursorTrayMetricForAllAccounts,
+    handleSetTrayReadout,
     handleDashboardMetricToggle,
     handleProviderDashboardMetrics,
   }

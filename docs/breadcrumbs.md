@@ -1,5 +1,9 @@
 # Breadcrumbs
 
+## 2026-09-02
+
+- Tray readout (provider + meter, portal to `document.body`) + Classic vs Modern tray provider pick + mid-fill style previews. Lab Gemini Apps / Grok.com stay off this branch.
+
 ## 2026-08-28
 
 - Port OpenUsage **v0.7.10** → CrossUsage **1.4.3** on `feat/port-openusage-0.7.10`. Pricing supplement 2026-08-26; Cursor Grok Bot; Antigravity/Grok local spend; Claude spend-without-OAuth + Fable + sub-1% countdown; Copilot org credits; OpenRouter key window. Tracker: [PORT-0.7.10.md](./PORT-0.7.10.md).

@@ -1,5 +1,11 @@
 # Choices
 
+## 2026-09-02
+
+- **Tray provider pick:** Classic follows the open sidebar provider. Modern may use pin focus / first pinned. Do not apply Modern pin focus on Classic (it froze the logo on one plugin).
+- **Tray readout dialog:** Logo+% / fill / pie / all-logos open a body-portaled picker when more than one enabled plugin or meter can drive the icon. Battery bars apply immediately. Style previews use a mid fill (`0.62`) so they are not all full at 90% remaining.
+- **Full-color tray logos:** SVGs without `currentColor` (and rasters) render as `<img>`, not a CSS mask.
+
 ## 2026-08-28
 
 - **No file line-count budget** (AGENTS.md). Do not split or drop code to stay under a LOC cap.

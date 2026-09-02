@@ -117,6 +117,7 @@ export function ModernShell({
       hydrated: s.hydrated,
       ensureInitialized: s.ensureInitialized,
       setMetricOrder: s.setMetricOrder,
+      setTrayFocusProvider: s.setTrayFocusProvider,
       syncDescriptors: s.syncDescriptors,
       syncPinsFromTrayLines: s.syncPinsFromTrayLines,
     })),
@@ -352,6 +353,7 @@ export function ModernShell({
                   onRefreshPlugin={(pluginId) => {
                     appContentProps.onRetryPlugin(pluginId)
                   }}
+                  onFocusProvider={layout.setTrayFocusProvider}
                 />
               </div>
             ) : null}

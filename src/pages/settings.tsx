@@ -78,6 +78,7 @@ import {
 import { formatOsDiagnosticsLine, type OsDiagnosticsPayload } from "@/lib/os-diagnostics-format";
 import { cn } from "@/lib/utils";
 import { LayoutPreviewClassic, LayoutPreviewModern } from "@/components/ui-layout-preview";
+import { TrayReadoutDialog, type TrayReadoutDialogState } from "@/components/tray-readout-dialog";
 import { useAppPreferencesStore } from "@/stores/app-preferences-store";
 import { fireMotionShock } from "@/components/motion-field";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -86,37 +87,20 @@ import { FORK_REPO_URL } from "@/lib/fork-meta";
 import { sendNotificationAsync } from "@/lib/notification";
 import { useTranslation } from "react-i18next";
 import { useTranslatedSettingsOptions } from "@/hooks/use-translated-settings-options";
-
-const MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK = new Set<MenubarIconStyle>([
-  "provider",
-  "donut",
-  "logoBar",
-  "logoGrid",
-]);
-
-const CURSOR_TRAY_METRIC_CHOICES = [
-  "Credits",
-  "Total usage",
-  "Cursor Models",
-  "Other Models",
-  "Grok Bot usage",
-  "Requests",
-] as const;
-
-function pickDefaultCursorTrayLine(plugins: SettingsPluginState[]): string {
-  const row = plugins.find((p) => p.enabled && p.baseProviderId === "cursor");
-  const first = row?.trayLines?.[0];
-  if (first && (CURSOR_TRAY_METRIC_CHOICES as readonly string[]).includes(first)) {
-    return first;
-  }
-  return "Total usage";
-}
+import { useModernLayoutStore } from "@/stores/modern-layout-store";
+import {
+  defaultTrayReadoutLine,
+  defaultTrayReadoutPluginId,
+  shouldOpenTrayReadoutDialog,
+} from "@/lib/tray-readout-pick";
 
 function trayBarPrimaryFraction(bar: TrayPrimaryBar | undefined): number {
   return bar?.items[0]?.fraction ?? 0;
 }
 
 const TRAY_PREVIEW_SIZE_PX = getTrayIconSizePx(1);
+/** Style picker uses a mid fill so pie / logo-fill / full logo don't all look identical at 90%+ remaining. */
+const TRAY_STYLE_DEMO_FRACTION = 0.62;
 
 const PREVIEW_BAR_TRACK_PX = 20;
 
@@ -354,11 +338,10 @@ function MenubarIconStylePreview({
   }
 
   if (style === "logoBar") {
-    const fraction = trayBarPrimaryFraction(traySettingsPreview.providerBars[0]);
     return (
       <ProviderLogoFillPreview
         iconUrl={traySettingsPreview.providerIconUrl}
-        fraction={fraction}
+        fraction={TRAY_STYLE_DEMO_FRACTION}
         isActive={isActive}
         sizePx={TRAY_PREVIEW_SIZE_PX}
       />
@@ -374,7 +357,7 @@ function MenubarIconStylePreview({
           <ProviderLogoFillPreview
             key={bar.id}
             iconUrl={traySettingsPreview.providerIconUrls[bar.id] ?? traySettingsPreview.providerIconUrl}
-            fraction={trayBarPrimaryFraction(bar)}
+            fraction={TRAY_STYLE_DEMO_FRACTION}
             isActive={isActive}
             sizePx={Math.max(9, Math.round(TRAY_PREVIEW_SIZE_PX * 0.48))}
           />
@@ -384,11 +367,10 @@ function MenubarIconStylePreview({
   }
 
   if (style === "donut") {
-    const fraction = trayBarPrimaryFraction(traySettingsPreview.providerBars[0]);
     return (
       <ProviderLogoPiePreview
         iconUrl={traySettingsPreview.providerIconUrl}
-        fraction={fraction}
+        fraction={TRAY_STYLE_DEMO_FRACTION}
         isActive={isActive}
         sizePx={TRAY_PREVIEW_SIZE_PX}
       />
@@ -1253,7 +1235,7 @@ interface SettingsPageProps {
   showAccountIdentity: boolean;
   onShowAccountIdentityChange: (value: boolean) => void;
   cursorRequestsLineAvailable: boolean | null;
-  onSetCursorTrayMetricForAllAccounts: (lineLabel: string) => void;
+  onSetTrayReadout: (pluginId: string, lineLabel: string) => void;
   presentation?: "classic" | "modern";
 }
 
@@ -1313,7 +1295,7 @@ export function SettingsPage({
   showAccountIdentity,
   onShowAccountIdentityChange,
   cursorRequestsLineAvailable,
-  onSetCursorTrayMetricForAllAccounts,
+  onSetTrayReadout,
   presentation = "classic",
 }: SettingsPageProps) {
   const { t } = useTranslation();
@@ -1344,10 +1326,7 @@ export function SettingsPage({
   const [logPathMessage, setLogPathMessage] = useState<string | null>(null);
   const [usageAlertTestMessage, setUsageAlertTestMessage] = useState<string | null>(null);
   const [troubleshootingOsLine, setTroubleshootingOsLine] = useState<string | null>(null);
-  const [cursorTrayIconDialog, setCursorTrayIconDialog] = useState<{
-    nextStyle: MenubarIconStyle;
-    selectedLine: string;
-  } | null>(null);
+  const [trayReadoutDialog, setTrayReadoutDialog] = useState<TrayReadoutDialogState | null>(null);
   const [usageHistorySectionKey, setUsageHistorySectionKey] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1400,15 +1379,21 @@ export function SettingsPage({
 
   const handleMenubarIconStyleOptionClick = (style: MenubarIconStyle) => {
     if (style === menubarIconStyle) return;
-    const needsPick =
-      MENUBAR_STYLES_NEED_CURSOR_TRAY_PICK.has(style) &&
-      plugins.some((p) => p.enabled && p.baseProviderId === "cursor");
-    if (needsPick) {
-      setCursorTrayIconDialog({
-        nextStyle: style,
-        selectedLine: pickDefaultCursorTrayLine(plugins),
-      });
-      return;
+    if (shouldOpenTrayReadoutDialog(style, plugins)) {
+      const preferredId =
+        useModernLayoutStore.getState().trayFocusProviderId ??
+        traySettingsPreview.providerBars[0]?.id ??
+        null;
+      const pluginId = defaultTrayReadoutPluginId(plugins, preferredId);
+      const plugin = plugins.find((p) => p.id === pluginId);
+      if (pluginId && plugin) {
+        setTrayReadoutDialog({
+          nextStyle: style,
+          pluginId,
+          lineLabel: defaultTrayReadoutLine(plugin),
+        });
+        return;
+      }
     }
     onMenubarIconStyleChange(style);
   };
@@ -2253,62 +2238,16 @@ export function SettingsPage({
         </div>
       </section>
       ) : null}
-      {cursorTrayIconDialog ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="presentation"
-          onClick={() => setCursorTrayIconDialog(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cursor-tray-dialog-title"
-            className="max-w-md w-full rounded-lg border border-border bg-card p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="cursor-tray-dialog-title" className="text-base font-semibold text-foreground">
-              Cursor tray readout
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1 mb-3">
-              Pick the Cursor metric for this icon style. Credits use dollar amounts in the tray; other lines use your
-              usage mode (Used vs Left) like the rest of the app. You can still adjust line checkboxes per account under
-              Plugins.
-            </p>
-            <div className="flex flex-col gap-2" role="radiogroup" aria-label="Cursor tray metric">
-              {CURSOR_TRAY_METRIC_CHOICES.map((line) => (
-                <label key={line} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="cursor-tray-metric"
-                    className="accent-primary"
-                    checked={cursorTrayIconDialog.selectedLine === line}
-                    onChange={() =>
-                      setCursorTrayIconDialog((d) => (d ? { ...d, selectedLine: line } : d))
-                    }
-                  />
-                  <span>{line}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" size="sm" onClick={() => setCursorTrayIconDialog(null)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  onSetCursorTrayMetricForAllAccounts(cursorTrayIconDialog.selectedLine);
-                  onMenubarIconStyleChange(cursorTrayIconDialog.nextStyle);
-                  setCursorTrayIconDialog(null);
-                }}
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <TrayReadoutDialog
+        dialog={trayReadoutDialog}
+        plugins={plugins}
+        onClose={() => setTrayReadoutDialog(null)}
+        onApply={(pluginId, lineLabel, nextStyle) => {
+          onSetTrayReadout(pluginId, lineLabel);
+          onMenubarIconStyleChange(nextStyle);
+          setTrayReadoutDialog(null);
+        }}
+      />
     </div>
   );
 }
