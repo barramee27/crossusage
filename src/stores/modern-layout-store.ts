@@ -1,8 +1,9 @@
 import { create } from "zustand"
-import { parseMetricId } from "@/lib/metric-id"
+import { metricId, parseMetricId } from "@/lib/metric-id"
 import {
   DEFAULT_PINNED_METRIC_IDS,
   EMPTY_MODERN_LAYOUT,
+  MAX_PINS_PER_PROVIDER,
   canPinMetric,
   pinnedIdsFromTrayLines,
   placedIdsFromPluginSettings,
@@ -28,6 +29,7 @@ type ModernLayoutStore = ModernLayoutState & {
   setProviderMetricsEnabled: (pluginId: string, metricIds: string[], enabled: boolean) => void
   togglePin: (metricIdValue: string) => boolean
   setTrayFocusProvider: (pluginId: string | null) => void
+  applyTrayReadout: (pluginId: string, lineLabel: string) => void
   setPinnedOrder: (order: string[]) => void
   syncDescriptors: (descriptors: MetricDescriptor[]) => void
   syncPinsFromTrayLines: (trayLines: Record<string, string[]> | undefined, descriptors: MetricDescriptor[]) => void
@@ -126,6 +128,32 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
     void get().persist()
   },
 
+  applyTrayReadout: (pluginId, lineLabel) => {
+    const id = metricId(pluginId, lineLabel)
+    const pinned = [...get().pinnedMetricIds]
+    const existingIdx = pinned.indexOf(id)
+    const providerIdxs: number[] = []
+    for (let i = 0; i < pinned.length; i++) {
+      if (parseMetricId(pinned[i])?.pluginId === pluginId) providerIdxs.push(i)
+    }
+
+    if (existingIdx >= 0) {
+      pinned.splice(existingIdx, 1)
+      const insertAt = pinned.findIndex((p) => parseMetricId(p)?.pluginId === pluginId)
+      if (insertAt >= 0) pinned.splice(insertAt, 0, id)
+      else pinned.unshift(id)
+    } else if (providerIdxs.length >= MAX_PINS_PER_PROVIDER) {
+      pinned[providerIdxs[0]] = id
+    } else {
+      const insertAt = pinned.findIndex((p) => parseMetricId(p)?.pluginId === pluginId)
+      if (insertAt >= 0) pinned.splice(insertAt, 0, id)
+      else pinned.unshift(id)
+    }
+
+    set({ pinnedMetricIds: pinned, trayFocusProviderId: pluginId, pinLimitNotice: null })
+    void get().persist()
+  },
+
   setPinnedOrder: (order) => {
     set({ pinnedMetricIds: order, pinLimitNotice: null })
     void get().persist()
@@ -156,13 +184,13 @@ export const useModernLayoutStore = create<ModernLayoutStore>((set, get) => ({
     const current = get()
     if (!current.initialized || !trayLines || Object.keys(trayLines).length === 0) return
 
+    // Pins and tray focus are user-chosen in Modern (and by applyTrayReadout).
+    // Rebuilding from trayLines would drop customized pins and overwrite the
+    // provider the tray-readout dialog just applied (fromTray[0] is map order).
+    if (current.pinnedMetricIds.length > 0) return
+
     const fromTray = filterKnown(pinnedIdsFromTrayLines(trayLines), descriptors)
     if (fromTray.length === 0) return
-
-    const same =
-      fromTray.length === current.pinnedMetricIds.length &&
-      fromTray.every((id, i) => current.pinnedMetricIds[i] === id)
-    if (same) return
 
     set({
       pinnedMetricIds: fromTray,

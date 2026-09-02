@@ -6,6 +6,7 @@ import {
   applyProviderDashboardMetrics,
 } from "@/lib/modern-layout"
 import { parseMetricId } from "@/lib/metric-id"
+import { applyTrayReadoutLines } from "@/lib/tray-readout-pick"
 import { getProviderInstanceMeta, savePluginSettings, type PluginSettings } from "@/lib/settings"
 import { useModernLayoutStore } from "@/stores/modern-layout-store"
 
@@ -147,21 +148,39 @@ export function useSettingsPluginActions({
   const handleSetTrayReadout = useCallback(
     (pluginId: string, lineLabel: string) => {
       if (!pluginSettings) return
-      const nextSettings: PluginSettings = {
-        ...pluginSettings,
-        trayLines: {
-          ...pluginSettings.trayLines,
-          [pluginId]: [lineLabel],
-        },
+      const primaryCandidates =
+        getProviderInstanceMeta(pluginId, pluginSettings, pluginsMeta)?.primaryCandidates ?? []
+      const unsetFallback = getEffectiveTrayLines(pluginId, pluginSettings, primaryCandidates)
+      const nextLines = applyTrayReadoutLines(
+        pluginSettings.trayLines?.[pluginId],
+        lineLabel,
+        unsetFallback,
+      )
+      const prevLines = pluginSettings.trayLines?.[pluginId]
+      const trayLinesChanged =
+        nextLines !== undefined &&
+        (prevLines == null ||
+          prevLines.length !== nextLines.length ||
+          prevLines.some((label, i) => label !== nextLines[i]))
+
+      if (trayLinesChanged && nextLines) {
+        const nextSettings: PluginSettings = {
+          ...pluginSettings,
+          trayLines: {
+            ...pluginSettings.trayLines,
+            [pluginId]: nextLines,
+          },
+        }
+        setPluginSettings(nextSettings)
+        scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+        void savePluginSettings(nextSettings).catch((error) => {
+          console.error("Failed to save tray readout:", error)
+        })
       }
-      setPluginSettings(nextSettings)
-      scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
-      useModernLayoutStore.getState().setTrayFocusProvider(pluginId)
-      void savePluginSettings(nextSettings).catch((error) => {
-        console.error("Failed to save tray readout:", error)
-      })
+
+      useModernLayoutStore.getState().applyTrayReadout(pluginId, lineLabel)
     },
-    [pluginSettings, scheduleTrayIconUpdate, setPluginSettings],
+    [pluginSettings, pluginsMeta, scheduleTrayIconUpdate, setPluginSettings],
   )
 
   const persistPluginSettings = useCallback(

@@ -2,7 +2,7 @@
 
 ## 2026-09-02
 
-- Tray readout (provider + meter, portal to `document.body`) + Classic vs Modern tray provider pick + mid-fill style previews. Lab Gemini Apps / Grok.com stay off this branch.
+- Tray readout (provider + meter, portal to `document.body`) + Classic vs Modern tray provider pick + mid-fill style previews. Lab Gemini Apps / Grok.com stay off this branch. Apply keeps other `trayLines` meters; Modern pin-sync does not clobber tray focus.
 
 ## 2026-08-28
 

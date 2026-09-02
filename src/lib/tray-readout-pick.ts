@@ -61,3 +61,21 @@ export function defaultTrayReadoutLine(plugin: TrayReadoutPlugin | undefined): s
   if (current && labels.includes(current)) return current
   return labels[0] ?? ""
 }
+
+/**
+ * Put `lineLabel` first without dropping other meters.
+ * Returns undefined when trayLines is unset and the pick is already the default
+ * (leave unset so Classic detail / Modern dashboard keep showing every metric).
+ */
+export function applyTrayReadoutLines(
+  prev: string[] | undefined,
+  lineLabel: string,
+  unsetFallback: string[] = [],
+): string[] | undefined {
+  if (prev == null || prev.length === 0) {
+    if (unsetFallback[0] === lineLabel) return undefined
+    return [lineLabel, ...unsetFallback.filter((l) => l !== lineLabel)]
+  }
+  if (prev[0] === "__NONE__") return [lineLabel]
+  return [lineLabel, ...prev.filter((l) => l !== "__NONE__" && l !== lineLabel)]
+}

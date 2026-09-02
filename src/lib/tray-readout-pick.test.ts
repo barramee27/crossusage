@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  applyTrayReadoutLines,
   defaultTrayReadoutLine,
   defaultTrayReadoutPluginId,
   shouldOpenTrayReadoutDialog,
@@ -63,5 +64,23 @@ describe("defaults", () => {
 
   it("uses the plugin's current tray line when it is still a candidate", () => {
     expect(defaultTrayReadoutLine({ ...antigravity, trayLines: ["Weekly"] })).toBe("Weekly")
+  })
+})
+
+describe("applyTrayReadoutLines", () => {
+  it("promotes the pick without dropping other meters", () => {
+    expect(applyTrayReadoutLines(["Session", "Weekly"], "Weekly")).toEqual(["Weekly", "Session"])
+  })
+
+  it("leaves unset trayLines unset when the pick is already the default", () => {
+    expect(applyTrayReadoutLines(undefined, "Session", ["Session"])).toBeUndefined()
+  })
+
+  it("prepends onto the default when unset and the pick differs", () => {
+    expect(applyTrayReadoutLines(undefined, "Weekly", ["Session"])).toEqual(["Weekly", "Session"])
+  })
+
+  it("replaces the none sentinel with the pick", () => {
+    expect(applyTrayReadoutLines(["__NONE__"], "Weekly")).toEqual(["Weekly"])
   })
 })
