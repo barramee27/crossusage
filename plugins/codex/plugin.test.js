@@ -46,6 +46,39 @@ describe("codex plugin", () => {
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
   }
 
+  it("does not fall back to the default auth file when a provider-account credential fails", async () => {
+    const ctx = makeCtx()
+    ctx.util.readProviderCredential = () => ({
+      accessToken: "extra-access",
+      refreshToken: "extra-refresh",
+    })
+    ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
+      tokens: { access_token: "file-token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.keychain.readGenericPassword.mockReturnValue(JSON.stringify({
+      tokens: { access_token: "keychain-token" },
+      last_refresh: new Date().toISOString(),
+    }))
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("oauth/token")) {
+        return {
+          status: 401,
+          headers: {},
+          bodyText: JSON.stringify({ error: { code: "refresh_token_invalidated" } }),
+        }
+      }
+      const authorization = opts.headers && opts.headers.Authorization
+      if (authorization === "Bearer file-token" || authorization === "Bearer keychain-token") {
+        throw new Error("fell back to the default account auth")
+      }
+      return { status: 401, headers: {}, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Token revoked. Run `codex` to log in again.")
+  })
+
   it("throws when auth missing", async () => {
     const ctx = makeCtx()
     const plugin = await loadPlugin()

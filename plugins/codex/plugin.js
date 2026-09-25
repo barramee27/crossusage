@@ -1365,8 +1365,10 @@
       try {
         return probeWithAuthState(ctx, providerAuth)
       } catch (e) {
-        if (!isAuthFallbackError(e)) throw e
-        ctx.host.log.warn("provider account auth failed: " + String(e))
+        if (isAuthFallbackError(e)) {
+          ctx.host.log.warn("provider account auth failed: " + String(e))
+        }
+        throw e
       }
     }
 
