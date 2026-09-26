@@ -552,7 +552,11 @@ function App() {
       const baseProviderId = getBaseProviderId(id, pluginSettings)
       const base = pluginsMeta.find((plugin) => plugin.id === baseProviderId)
       if (!base) return
-      const label = input.label?.trim() || getProviderInstanceLabel(id, pluginSettings) || base.name
+      const isBase = id === baseProviderId
+      const storedLabel = getProviderInstanceLabel(id, pluginSettings)
+      const label = isBase
+        ? storedLabel || base.name
+        : input.label?.trim() || storedLabel || base.name
       void saveProviderAccountCredentials({
         instanceId: id,
         baseProviderId,
@@ -583,9 +587,22 @@ function App() {
   const handleRenameProviderAccount = useCallback(
     (id: string, label: string) => {
       if (!pluginSettings) return
+      const trimmedLabel = label.trim()
+      const baseProviderId = getBaseProviderId(id, pluginSettings)
+      if (id === baseProviderId) {
+        const nextLabels = { ...(pluginSettings.providerLabels ?? {}) }
+        if (trimmedLabel) nextLabels[id] = trimmedLabel
+        else delete nextLabels[id]
+        const nextSettings = { ...pluginSettings, providerLabels: nextLabels }
+        setPluginSettings(nextSettings)
+        void savePluginSettings(nextSettings).catch((error) => {
+          console.error("Failed to save plugin settings for base account label:", error)
+        })
+        scheduleTrayIconUpdate("settings", TRAY_SETTINGS_DEBOUNCE_MS)
+        return
+      }
       const instance = pluginSettings.providerInstances?.[id]
       if (!instance) return
-      const trimmedLabel = label.trim()
       if (!trimmedLabel) return
       const nextSettings = {
         ...pluginSettings,

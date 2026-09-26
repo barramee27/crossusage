@@ -28,6 +28,8 @@ export type PluginSettings = {
   disabled: string[];
   trayLines?: Record<string, string[]>;
   providerInstances?: Record<string, ProviderInstanceSettings>;
+  /** Display-only labels for base provider rows. Does not touch credentials. */
+  providerLabels?: Record<string, string>;
 };
 
 export type AutoUpdateIntervalMinutes = 5 | 15 | 30 | 60;
@@ -255,6 +257,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   disabled: [],
   trayLines: {},
   providerInstances: {},
+  providerLabels: {},
 };
 
 export async function loadPluginSettings(): Promise<PluginSettings> {
@@ -267,6 +270,10 @@ export async function loadPluginSettings(): Promise<PluginSettings> {
     providerInstances:
       stored.providerInstances && typeof stored.providerInstances === "object"
         ? stored.providerInstances
+        : {},
+    providerLabels:
+      stored.providerLabels && typeof stored.providerLabels === "object"
+        ? stored.providerLabels
         : {},
   };
 }
@@ -423,7 +430,23 @@ export function normalizePluginSettings(
     plugins
   );
 
-  return { order: sortedOrder, disabled, trayLines, providerInstances };
+  const providerLabels = normalizeProviderLabels(settings.providerLabels, knownBaseSet);
+
+  return { order: sortedOrder, disabled, trayLines, providerInstances, providerLabels };
+}
+
+function normalizeProviderLabels(
+  raw: Record<string, string> | undefined,
+  knownBaseSet: Set<string>,
+): Record<string, string> {
+  const providerLabels: Record<string, string> = {};
+  for (const [instanceId, value] of Object.entries(raw ?? {})) {
+    const id = instanceId.trim();
+    const label = typeof value === "string" ? value.trim() : "";
+    if (!id || !label || !knownBaseSet.has(id)) continue;
+    providerLabels[id] = label;
+  }
+  return providerLabels;
 }
 
 /**
@@ -500,6 +523,16 @@ export function arePluginSettingsEqual(
     const key = aInstanceKeys[i];
     if (aInstances[key]?.baseProviderId !== bInstances[key]?.baseProviderId) return false;
     if (aInstances[key]?.label !== bInstances[key]?.label) return false;
+  }
+
+  const aLabels = a.providerLabels || {};
+  const bLabels = b.providerLabels || {};
+  const aLabelKeys = Object.keys(aLabels).sort();
+  const bLabelKeys = Object.keys(bLabels).sort();
+  if (aLabelKeys.length !== bLabelKeys.length) return false;
+  for (let i = 0; i < aLabelKeys.length; i += 1) {
+    if (aLabelKeys[i] !== bLabelKeys[i]) return false;
+    if (aLabels[aLabelKeys[i]] !== bLabels[bLabelKeys[i]]) return false;
   }
 
   return true;
@@ -686,6 +719,16 @@ export function getProviderInstanceLabel(instanceId: string, settings: PluginSet
   return settings?.providerInstances?.[instanceId]?.label ?? null;
 }
 
+/** Label shown on cards and lists. Base rows use providerLabels; extra accounts use their instance label. */
+export function getProviderDisplayLabel(instanceId: string, settings: PluginSettings | null): string | null {
+  const baseProviderId = getBaseProviderId(instanceId, settings);
+  if (instanceId === baseProviderId) {
+    const label = settings?.providerLabels?.[instanceId]?.trim();
+    return label || null;
+  }
+  return getProviderInstanceLabel(instanceId, settings);
+}
+
 export function getProviderDisplayName(
   instanceId: string,
   settings: PluginSettings | null,
@@ -693,8 +736,8 @@ export function getProviderDisplayName(
 ): string {
   const baseProviderId = getBaseProviderId(instanceId, settings);
   const baseName = plugins.find((plugin) => plugin.id === baseProviderId)?.name ?? baseProviderId;
-  const label = getProviderInstanceLabel(instanceId, settings);
-  if (!label || instanceId === baseProviderId) return baseName;
+  const label = getProviderDisplayLabel(instanceId, settings);
+  if (!label) return baseName;
   return `${baseName} (${label})`;
 }
 
@@ -706,7 +749,7 @@ export function getProviderInstanceMeta(
   const baseProviderId = getBaseProviderId(instanceId, settings);
   const base = plugins.find((plugin) => plugin.id === baseProviderId);
   if (!base) return null;
-  const label = getProviderInstanceLabel(instanceId, settings) ?? undefined;
+  const label = getProviderDisplayLabel(instanceId, settings) ?? undefined;
   return {
     ...base,
     id: instanceId,

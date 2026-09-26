@@ -137,6 +137,7 @@ type AccountFormState =
   | {
     mode: "rename";
     id: string;
+    baseProviderId: string;
     providerName: string;
     label: string;
   };
@@ -489,7 +490,7 @@ function SortablePluginItem({
             >
               {plugin.name}
             </span>
-            {plugin.instanceLabel && (
+            {plugin.id !== plugin.baseProviderId && (
               <span className="text-[11px] text-muted-foreground">
                 {plugin.baseProviderId}
               </span>
@@ -509,7 +510,7 @@ function SortablePluginItem({
             <Button type="button" variant="outline" size="xs" onClick={() => onUpdateCredentials(plugin.id)}>
               Set credentials
             </Button>
-            {!plugin.instanceLabel && (
+            {plugin.id === plugin.baseProviderId && (
               <Button
                 type="button"
                 variant="outline"
@@ -519,12 +520,10 @@ function SortablePluginItem({
                 Add account
               </Button>
             )}
-            {plugin.instanceLabel && (
-              <Button type="button" variant="outline" size="xs" onClick={() => onRenameAccount(plugin.id)}>
-                Rename
-              </Button>
-            )}
-            {plugin.instanceLabel && (
+            <Button type="button" variant="outline" size="xs" onClick={() => onRenameAccount(plugin.id)}>
+              Rename
+            </Button>
+            {plugin.id !== plugin.baseProviderId && (
               <Button type="button" variant="outline" size="xs" onClick={() => onRemoveAccount(plugin.id)}>
                 Remove account
               </Button>
@@ -613,6 +612,9 @@ function ProviderAccountForm({
           onChange={(event) => onChange({ ...form, label: event.target.value } as AccountFormState)}
         />
       </label>
+      {isRename && form.id === form.baseProviderId ? (
+        <p className="text-xs text-muted-foreground">Leave empty to show the provider name only.</p>
+      ) : null}
       {!isRename && (
         <>
           <label className="block space-y-1 text-xs text-muted-foreground">
@@ -1431,12 +1433,19 @@ export function SettingsPage({
     setDevMockSaveNotice(null);
     const plugin = plugins.find((item) => item.id === id);
     if (!plugin) return;
+    const isBase = plugin.id === plugin.baseProviderId;
+    const displayLabel = plugin.instanceLabel;
+    const persistableLabel = isBase
+      ? displayLabel && plugin.name.endsWith(` (${displayLabel})`)
+        ? plugin.name.slice(0, -(displayLabel.length + 3))
+        : plugin.name
+      : (displayLabel ?? plugin.name);
     setAccountForm({
       mode: "credentials",
       id,
       baseProviderId: plugin.baseProviderId,
       providerName: plugin.name,
-      label: plugin.instanceLabel ?? plugin.name,
+      label: persistableLabel,
       accessToken: "",
       refreshToken: "",
       sessionKey: "",
@@ -1449,20 +1458,23 @@ export function SettingsPage({
     setAccountForm({
       mode: "rename",
       id,
+      baseProviderId: plugin.baseProviderId,
       providerName: plugin.name,
-      label: plugin.instanceLabel ?? plugin.name,
+      label: plugin.instanceLabel ?? "",
     });
   };
 
   const submitAccountForm = () => {
     if (!accountForm) return;
     const label = accountForm.label.trim();
-    if (!label) return;
     if (accountForm.mode === "rename") {
+      const isBase = accountForm.id === accountForm.baseProviderId;
+      if (!label && !isBase) return;
       onRenameProviderAccount(accountForm.id, label);
       setAccountForm(null);
       return;
     }
+    if (!label) return;
     const devMock = shouldApplyProviderAccountDevMock();
     const rawAccess = accountForm.accessToken.trim();
     const rawRefresh = accountForm.refreshToken.trim();

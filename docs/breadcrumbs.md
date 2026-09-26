@@ -1,5 +1,9 @@
 # Breadcrumbs
 
+## 2026-09-25
+
+- Base provider rows can take a display label (`providerLabels`) via Settings → Rename. Add account stays; Remove stays off the base row.
+
 ## 2026-09-20
 
 - Port OpenUsage **v0.7.11 + v0.7.12** + Gemini Apps → CrossUsage **1.5.0** (MINOR) on `feat/port-openusage-0.7.12`. Pricing supplement 2026-09-11; pace zero-usage; Grok subagent ledgers; Codex Business Premium + gpt-reserve@Luna + Astra; Antigravity sibling conversation stores; Devin exhausted weekly; Claude null nested model + live `/api/oauth/profile`. Tracker: [PORT-0.7.11-0.7.12.md](./PORT-0.7.11-0.7.12.md).
