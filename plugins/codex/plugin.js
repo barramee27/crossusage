@@ -20,6 +20,7 @@
   const ERR_USAGE_API_KEY = "Usage not available for API key."
   const ERR_USAGE_CONNECTION = "Usage request failed. Check your connection."
   const ERR_USAGE_AFTER_REFRESH = "Usage request failed after refresh. Try again."
+  const ERR_ACCOUNT_NOT_LOGGED_IN = "No credentials for this account. Use Set credentials in Settings."
 
   function joinPath(base, leaf) {
     return base.replace(/[\\/]+$/, "") + "/" + leaf
@@ -1359,17 +1360,24 @@
     }
   }
 
+  function isExtraAccountInstance(ctx) {
+    const account = ctx.account
+    return !!(account && account.instanceId && account.baseProviderId &&
+      account.instanceId !== account.baseProviderId)
+  }
+
   function probe(ctx) {
     const providerAuth = loadAuthFromProviderAccount(ctx)
+    const extraAccount = isExtraAccountInstance(ctx)
     if (providerAuth) {
       try {
         return probeWithAuthState(ctx, providerAuth)
       } catch (e) {
-        if (isAuthFallbackError(e)) {
-          ctx.host.log.warn("provider account auth failed: " + String(e))
-        }
-        throw e
+        if (!isAuthFallbackError(e) || extraAccount) throw e
+        ctx.host.log.warn("provider account auth failed: " + String(e))
       }
+    } else if (extraAccount) {
+      throw ERR_ACCOUNT_NOT_LOGGED_IN
     }
 
     const fileAuth = loadFileAuthCandidates(ctx)

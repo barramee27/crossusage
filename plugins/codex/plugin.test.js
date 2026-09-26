@@ -46,37 +46,73 @@ describe("codex plugin", () => {
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
   }
 
-  it("does not fall back to the default auth file when a provider-account credential fails", async () => {
+  const makeAccountCtx = ({ instanceId, credential }) => {
     const ctx = makeCtx()
-    ctx.util.readProviderCredential = () => ({
-      accessToken: "extra-access",
-      refreshToken: "extra-refresh",
-    })
+    ctx.account = {
+      instanceId,
+      baseProviderId: "codex",
+      label: instanceId === "codex" ? "" : "Work",
+    }
+    ctx.util.readProviderCredential = () => credential
     ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
-      tokens: { access_token: "file-token" },
-      last_refresh: new Date().toISOString(),
-    }))
-    ctx.host.keychain.readGenericPassword.mockReturnValue(JSON.stringify({
-      tokens: { access_token: "keychain-token" },
+      tokens: { access_token: "default-file-token", refresh_token: "default-file-refresh" },
       last_refresh: new Date().toISOString(),
     }))
     ctx.host.http.request.mockImplementation((opts) => {
       if (String(opts.url).includes("oauth/token")) {
         return {
-          status: 401,
+          status: 400,
           headers: {},
           bodyText: JSON.stringify({ error: { code: "refresh_token_invalidated" } }),
         }
       }
-      const authorization = opts.headers && opts.headers.Authorization
-      if (authorization === "Bearer file-token" || authorization === "Bearer keychain-token") {
-        throw new Error("fell back to the default account auth")
+      if (opts.headers && opts.headers.Authorization === "Bearer default-file-token") {
+        return { status: 200, headers: { "x-codex-primary-used-percent": "12" }, bodyText: "{}" }
       }
       return { status: 401, headers: {}, bodyText: "" }
     })
+    return ctx
+  }
 
+  const usedDefaultFileToken = (ctx) =>
+    ctx.host.http.request.mock.calls.some(([opts]) => opts.headers?.Authorization === "Bearer default-file-token")
+
+  it("does not fall back to the default account when an extra account's token is revoked", async () => {
+    const ctx = makeAccountCtx({
+      instanceId: "codex:work",
+      credential: { accessToken: "work-token", refreshToken: "work-refresh" },
+    })
     const plugin = await loadPlugin()
-    expect(() => plugin.probe(ctx)).toThrow("Token revoked. Run `codex` to log in again.")
+    expect(() => plugin.probe(ctx)).toThrow("Token revoked")
+    expect(usedDefaultFileToken(ctx)).toBe(false)
+  })
+
+  it("asks for credentials instead of using the default account when an extra account has none", async () => {
+    const ctx = makeAccountCtx({ instanceId: "codex:work", credential: null })
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("No credentials for this account")
+    expect(usedDefaultFileToken(ctx)).toBe(false)
+  })
+
+  it("does not use the default account when an extra account only stored a refresh token", async () => {
+    const ctx = makeAccountCtx({
+      instanceId: "codex:work",
+      credential: { accessToken: null, refreshToken: "work-refresh" },
+    })
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("No credentials for this account")
+    expect(usedDefaultFileToken(ctx)).toBe(false)
+  })
+
+  it("still falls back to file auth for the default account when its stored credential fails", async () => {
+    const ctx = makeAccountCtx({
+      instanceId: "codex",
+      credential: { accessToken: "stale-token", refreshToken: "stale-refresh" },
+    })
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+    expect(usedDefaultFileToken(ctx)).toBe(true)
   })
 
   it("throws when auth missing", async () => {
