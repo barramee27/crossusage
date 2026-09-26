@@ -1178,7 +1178,7 @@ describe("App", () => {
     removeAction()
 
     await waitFor(() =>
-      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {}, providerLabels: {} })
+      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {} })
     )
     expect(state.startBatchMock).not.toHaveBeenCalled()
   })
@@ -1192,7 +1192,7 @@ describe("App", () => {
     const removeAction = await triggerPluginContextAction("Beta", "b", "remove")
     removeAction()
     await waitFor(() =>
-      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {}, providerLabels: {} })
+      expect(state.savePluginSettingsMock).toHaveBeenCalledWith({ order: ["a", "b"], disabled: ["b"], trayLines: {}, providerInstances: {} })
     )
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Beta" })).not.toBeInTheDocument()
