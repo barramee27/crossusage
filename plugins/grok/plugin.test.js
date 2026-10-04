@@ -466,6 +466,43 @@ describe("grok plugin", () => {
     expect(result.lines.find((l) => l.label === "Today")).toBeUndefined()
   })
 
+  it("keeps local spend when team billing returns 412", async () => {
+    const todayKey = localDayKey(new Date())
+    const ctx = makeCtx()
+    writeAuth(ctx)
+    ctx.host.http.request.mockImplementation((req) => {
+      if (req.url === BILLING_URL) {
+        return { status: 412, headers: {}, bodyText: JSON.stringify({ error: "No personal team." }) }
+      }
+      if (req.url === SETTINGS_URL) {
+        return { status: 200, headers: {}, bodyText: JSON.stringify({ subscription_tier_display: "SuperGrok Heavy" }) }
+      }
+      return { status: 404, headers: {}, bodyText: "" }
+    })
+    mockGrokLogs(ctx, [
+      { date: todayKey, totalTokens: 1000, totalCost: 1, models: { "grok-4.6": { totalTokens: 1000, totalCost: 1 } } },
+    ])
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    expect(result.plan).toBe("SuperGrok Heavy")
+    expect(result.warning).toContain("no personal quota")
+    expect(result.lines.find((l) => l.label === "Weekly limit")).toBeUndefined()
+    expect(result.lines.find((l) => l.label === "Today")).toBeTruthy()
+  })
+
+  it("still fails on an unrelated 412", async () => {
+    const ctx = makeCtx()
+    writeAuth(ctx)
+    ctx.host.http.request.mockImplementation((req) => {
+      if (req.url === BILLING_URL) {
+        return { status: 412, headers: {}, bodyText: JSON.stringify({ error: "precondition failed" }) }
+      }
+      return { status: 404, headers: {}, bodyText: "" }
+    })
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("HTTP 412")
+  })
+
   it("shows local spend when auth is missing", async () => {
     const todayKey = localDayKey(new Date())
     const ctx = makeCtx()

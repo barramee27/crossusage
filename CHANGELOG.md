@@ -4,6 +4,28 @@
 
 ## Unreleased
 
+## 1.5.1
+
+**Theme:** OpenUsage **v0.7.13** port (PATCH). Tracker: [docs/PORT-0.7.13.md](docs/PORT-0.7.13.md). Also includes fixes merged after 1.5.0.
+
+### New features
+
+- **Pricing** — Claude Sonnet 5.5 and Opus 5.5, GPT-6 Sol / 6.1 Sol / Luna, Grok 4.7 (including `grok-bot-cua`). GPT-5.6 Sol promotional rates. Supplement `updated_at` **2026-09-30**.
+- **Claude** — Rate Limit Resets from `cedar_ember` on the usage request (#1290).
+- **Ollama** — Monthly meter from `limits.monthly` (#1270).
+- **Base account label** — optional display name on the base card (`providerLabels`) (#33).
+
+### Bug fixes
+
+- **Codex** — extra accounts no longer show the default `~/.codex/auth.json` usage when their credential fails or is missing (#34). Ultrafast on GPT-6 Astra is 6x (#1331).
+- **Cursor** — usage CSV download deadline is 20s (#1324).
+- **Grok** — team billing HTTP 412 (“no personal team”) keeps the card and local spend (#1272).
+- **OpenCode Go** — read the API key from OpenCode 2 channel databases when `auth.json` has none (#1323).
+- **Z.ai** — `CREDIT_LIMIT` fills session and weekly when `TOKENS_LIMIT` is absent (#30).
+- **Settings** — Windsurf → Devin migration keeps `trayLines` (#32).
+
+Skipped: Codex Swap, auto one-card-per-Codex-home, PostHog/Sparkle/pullfrog, Swift settings labels. See the port tracker.
+
 ## 1.5.0
 
 **Theme:** Fork MINOR — Gemini Apps. OpenUsage **v0.7.11 + v0.7.12** rides along (would be PATCH alone). Port tracker: [docs/PORT-0.7.11-0.7.12.md](docs/PORT-0.7.11-0.7.12.md).

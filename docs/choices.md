@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-10-04
+
+- **1.5.1:** PATCH for OpenUsage **v0.7.13**. Skip Codex Swap and auto Codex-home cards (manual extra accounts stay). Skip PostHog/Sparkle/pullfrog and Swift settings copy.
+
 ## 2026-09-25
 
 - **Base account label:** `providerLabels` is display-only. Empty rename clears it. Extra accounts still use `providerInstances` and the account store. Probe targets do not receive the base label.

@@ -13,6 +13,7 @@
   "lines": [
     { "type": "progress", "label": "Session", "scope": "overview", "primaryOrder": 1 },
     { "type": "progress", "label": "Weekly", "scope": "overview", "primaryOrder": 2 },
+    { "type": "progress", "label": "Monthly", "scope": "overview", "primaryOrder": 3 },
     { "type": "text", "label": "Source", "scope": "detail" }
   ]
 }

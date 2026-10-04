@@ -1327,7 +1327,8 @@ describe("claude plugin", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(usageCalls).toBe(2)
-    expect(firstUsageHeaders["User-Agent"]).toBe("claude-code/2.1.69")
+    expect(firstUsageHeaders["User-Agent"]).toBe("claude-cli/2.1.280 (external, cli)")
+    expect(String(ctx.host.http.request.mock.calls.find((call) => String(call[0]?.url).includes("/api/oauth/usage"))[0].url)).toContain("cedar_ember=1")
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
   })
 

@@ -230,7 +230,7 @@
 
     return {
       baseApiUrl: baseApiUrl,
-      usageUrl: baseApiUrl + "/api/oauth/usage",
+      usageUrl: baseApiUrl + "/api/oauth/usage?cedar_ember=1",
       profileUrl: baseApiUrl + "/api/oauth/profile",
       refreshUrl: refreshUrl,
       clientId: clientId,
@@ -562,7 +562,7 @@
         Accept: "application/json",
         "Content-Type": "application/json",
         "anthropic-beta": "oauth-2025-04-20",
-        "User-Agent": "claude-code/2.1.69",
+        "User-Agent": "claude-cli/2.1.280 (external, cli)",
       },
       timeoutMs: 10000,
     })
@@ -1087,6 +1087,34 @@
     return true
   }
 
+  function appendClaudeResetGrants(ctx, data, lines) {
+    const block = data && data.cedar_ember
+    if (!block || typeof block !== "object") return
+    let count = 0
+    const expiries = []
+    const now = Date.now()
+    if (block.eligible === true && Array.isArray(block.grants)) {
+      for (let i = 0; i < block.grants.length; i += 1) {
+        const grant = block.grants[i]
+        const left = grant && Number(grant.resets_left)
+        if (!Number.isFinite(left) || left < 1) continue
+        const resets = Math.floor(left)
+        const ends = grant.ends_at ? Date.parse(grant.ends_at) : NaN
+        if (Number.isFinite(ends) && ends <= now) continue
+        count += resets
+        if (Number.isFinite(ends)) {
+          for (let n = 0; n < resets; n += 1) expiries.push(ends)
+        }
+      }
+    }
+    expiries.sort(function (a, b) { return a - b })
+    lines.push(ctx.line.text({
+      label: "Rate Limit Resets",
+      value: count + " available",
+      resetCreditExpiries: expiries.map(function (ms) { return new Date(ms).toISOString() }),
+    }))
+  }
+
   function probe(ctx) {
     const homePath = getClaudeHomeOverride(ctx)
     const creds = loadCredentials(ctx)
@@ -1280,6 +1308,8 @@
           periodDurationMs: 7 * 24 * 60 * 60 * 1000 // 7 days
         }))
       }
+
+      appendClaudeResetGrants(ctx, data, lines)
 
       if (data.extra_usage && data.extra_usage.is_enabled) {
         const used = data.extra_usage.used_credits

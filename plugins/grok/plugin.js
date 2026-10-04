@@ -214,6 +214,13 @@
     }
   }
 
+  function isTeamBillingUnavailable(ctx, resp) {
+    if (!resp || resp.status !== 412) return false
+    const data = ctx.util.tryParseJson(resp.bodyText)
+    const error = data && typeof data.error === "string" ? data.error : ""
+    return error.toLowerCase().indexOf("no personal team") !== -1
+  }
+
   function parseBilling(ctx, resp) {
     if (ctx.util.isAuthStatus(resp.status)) {
       throw LOGIN_HINT
@@ -576,6 +583,17 @@
         return refreshed
       },
     })
+    if (isTeamBillingUnavailable(ctx, billingResp)) {
+      ctx.host.log.warn("credits config unavailable: team principal has no personal team; weekly/pay-as-you-go omitted, local spend still loads")
+      const lines = []
+      appendSpendLines(lines, ctx, usageResult)
+      return {
+        plan: fetchPlanName(ctx, auth.token),
+        lines,
+        warning: "Team accounts have no personal quota. Spend below is still from your Grok logs.",
+      }
+    }
+
     const data = parseBilling(ctx, billingResp)
     const config = data && data.config
     if (!config || typeof config !== "object") {

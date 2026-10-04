@@ -4504,6 +4504,19 @@ mod tests {
     }
 
     #[test]
+    fn extract_marked_value_accepts_banner_glued_to_start_marker() {
+        let stdout = "memory 34 GiB __OPENUSAGE_ENV_START__\n/home/dev/.codex\n__OPENUSAGE_ENV_END__\n";
+        assert_eq!(
+            parse_interactive_shell_env_output(
+                stdout,
+                "__OPENUSAGE_ENV_START__",
+                "__OPENUSAGE_ENV_END__"
+            )
+            .as_deref(),
+            Some("/home/dev/.codex")
+        );
+    }
+
     fn extract_marked_value_ignores_noisy_shell_output() {
         let stdout = concat!(
             "startup banner\n",

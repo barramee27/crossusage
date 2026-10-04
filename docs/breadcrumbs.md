@@ -1,5 +1,9 @@
 # Breadcrumbs
 
+## 2026-10-04
+
+- Port OpenUsage **v0.7.13** → CrossUsage **1.5.1** on `feat/port-openusage-0.7.13`. Tracker: [PORT-0.7.13.md](./PORT-0.7.13.md).
+
 ## 2026-09-25
 
 - Base provider rows can take a display label (`providerLabels`) via Settings → Rename. Add account stays; Remove stays off the base row.

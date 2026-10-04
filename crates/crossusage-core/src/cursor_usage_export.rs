@@ -656,7 +656,7 @@ pub fn download_cursor_usage_csv_for_plugin(
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(20))
         .build()?;
 
     let url = format!(
