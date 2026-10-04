@@ -4517,6 +4517,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn extract_marked_value_ignores_noisy_shell_output() {
         let stdout = concat!(
             "startup banner\n",

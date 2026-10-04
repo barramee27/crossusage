@@ -1,5 +1,11 @@
 export type ResetClaimOutcome = "success" | "nothing_to_reset" | "no_credit" | "failed"
 
+/** Only Codex implements `claimResetCredit`. Other plugins reuse the display row. */
+export function isCodexResetClaimPlugin(pluginId?: string): boolean {
+  const id = pluginId?.trim() ?? ""
+  return id === "codex" || id.startsWith("codex:")
+}
+
 export type ResetCreditsContent =
   | { kind: "timeline"; expiries: string[] }
   | { kind: "unknownExpiries"; count: number }

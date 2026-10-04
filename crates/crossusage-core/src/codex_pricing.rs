@@ -44,7 +44,7 @@ fn codex_long_context_rates(model: &str) -> Option<(f64, f64, f64)> {
         "gpt-5.4-pro" => Some((60.0, 270.0, 60.0)),
         "gpt-5.5" => Some((10.0, 45.0, 1.0)),
         "gpt-5.5-pro" => Some((60.0, 270.0, 60.0)),
-        "gpt-5.6-sol" => Some((10.0, 45.0, 1.0)),
+        "gpt-5.6-sol" => Some((8.0, 30.0, 0.8)),
         "gpt-5.6-terra" => Some((4.0, 18.0, 0.4)),
         "gpt-5.6-luna" => Some((0.4, 1.8, 0.04)),
         // Above 272k: 2x input and cache, 1.5x output.
@@ -160,5 +160,42 @@ mod tests {
         )
         .expect("ultra");
         assert!((ultra / base - 6.0).abs() < 0.01, "ultra {ultra} base {base}");
+    }
+
+    #[test]
+    fn sol_promo_long_context_is_two_times_input_and_1_5_output() {
+        let pricing = ModelPricing::from_bundled();
+        let short = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-5.6-sol",
+                input: 100_000,
+                cached: 0,
+                output: 100_000,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: false,
+            },
+        )
+        .expect("short");
+        // Promo base 4 / 20 → 100k in + 100k out = $2.40
+        assert!((short - 2.4).abs() < 0.01, "short {short}");
+
+        let long = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-5.6-sol",
+                input: 273_000,
+                cached: 0,
+                output: 273_000,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: false,
+            },
+        )
+        .expect("long");
+        // Above 272k: 2x input (8) and 1.5x output (30)
+        let expected = 273_000.0 * (8.0 + 30.0) / 1_000_000.0;
+        assert!((long - expected).abs() < 0.01, "long {long} expected {expected}");
     }
 }
