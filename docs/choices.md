@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-09-25
+
+- **Base account label:** `providerLabels` is display-only. Empty rename clears it. Extra accounts still use `providerInstances` and the account store. Probe targets do not receive the base label.
+
 ## 2026-09-20
 
 - **1.5.0:** MINOR — Gemini Apps is a new CrossUsage provider ([VERSIONING.md](./VERSIONING.md)). OpenUsage **v0.7.11 + v0.7.12** rides along (0.7.11 was never ported; would be PATCH alone). Skip Claude Swap/Desktop/iCloud/ownership scans, PostHog/stale.yml, menu-bar pin remap. Ollama Cloud Ed25519 skipped (cookies/API key already). OpenCode Codex OAuth (#1195) later. Antigravity #1206: sibling `antigravity*` conversation dirs now; step timestamps later.

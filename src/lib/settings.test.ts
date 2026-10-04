@@ -24,6 +24,7 @@ import {
   getBaseProviderId,
   getEnabledPluginIds,
   getProviderDisplayName,
+  getProbeTargets,
   getProviderInstanceMeta,
   insertProviderInstanceInOrder,
   listNewlyBundledPluginIds,
@@ -116,11 +117,12 @@ describe("settings", () => {
       disabled: [],
       trayLines: {},
       providerInstances: {},
+      providerLabels: {},
     })
   })
 
   it("saves settings", async () => {
-    const settings = { order: ["a"], disabled: ["b"], trayLines: { a: ["Session"] }, providerInstances: {} }
+    const settings = { order: ["a"], disabled: ["b"], trayLines: { a: ["Session"] }, providerInstances: {}, providerLabels: {} }
     await savePluginSettings(settings)
     await expect(loadPluginSettings()).resolves.toEqual(settings)
   })
@@ -139,6 +141,7 @@ describe("settings", () => {
       disabled: ["a"],
       trayLines: { "a": ["x"] },
       providerInstances: {},
+      providerLabels: {},
     })
   })
 
@@ -179,6 +182,43 @@ describe("settings", () => {
       instanceLabel: "Work",
       iconUrl: "icon",
     })
+  })
+
+  it("uses providerLabels only for the base account display name", () => {
+    const plugins: PluginMeta[] = [
+      { id: "claude", name: "Claude", iconUrl: "icon", lines: [], primaryCandidates: [] },
+    ]
+    const normalized = normalizePluginSettings(
+      {
+        order: ["claude"],
+        disabled: [],
+        providerLabels: {
+          claude: "  Work CIP  ",
+          "claude:work": "Ignored",
+          missing: "Nope",
+          cursor: "   ",
+        },
+      },
+      plugins,
+    )
+    expect(normalized.providerLabels).toEqual({ claude: "Work CIP" })
+    expect(getProviderDisplayName("claude", normalized, plugins)).toBe("Claude (Work CIP)")
+    expect(getProviderInstanceMeta("claude", normalized, plugins)).toMatchObject({
+      id: "claude",
+      instanceLabel: "Work CIP",
+      name: "Claude (Work CIP)",
+    })
+    expect(getProbeTargets(["claude"], normalized)?.[0]).toEqual({
+      instanceId: "claude",
+      baseProviderId: "claude",
+      label: undefined,
+    })
+    const cleared = normalizePluginSettings(
+      { ...normalized, providerLabels: { claude: "  " } },
+      plugins,
+    )
+    expect(cleared.providerLabels).toEqual({})
+    expect(getProviderDisplayName("claude", cleared, plugins)).toBe("Claude")
   })
 
   it("keeps trayLines and providerInstances when migrating Windsurf to Devin", () => {
@@ -855,6 +895,7 @@ describe("settings", () => {
         disabled: ["mock"],
         trayLines: { cursor: ["Requests"] },
         providerInstances: {},
+        providerLabels: {},
       }
       await savePluginSettings(plugins)
       await saveThemeMode("dark")
