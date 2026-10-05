@@ -1,8 +1,12 @@
 # Breadcrumbs
 
+## 2026-10-05
+
+- Ship number on `feat/port-openusage-0.7.13` is **1.6.0** (MINOR). The base account label sets the bump; the v0.7.13 port rides along.
+
 ## 2026-10-04
 
-- Port OpenUsage **v0.7.13** → CrossUsage **1.5.1** on `feat/port-openusage-0.7.13`. Tracker: [PORT-0.7.13.md](./PORT-0.7.13.md).
+- Port OpenUsage **v0.7.13** on `feat/port-openusage-0.7.13`. Tracker: [PORT-0.7.13.md](./PORT-0.7.13.md).
 
 ## 2026-09-25
 

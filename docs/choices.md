@@ -1,8 +1,12 @@
 # Choices
 
+## 2026-10-05
+
+- **1.6.0:** MINOR. The base account label is a CrossUsage feature ([VERSIONING.md](./VERSIONING.md)). OpenUsage **v0.7.13** rides along (would be PATCH alone).
+
 ## 2026-10-04
 
-- **1.5.1:** PATCH for OpenUsage **v0.7.13**. Skip Codex Swap and auto Codex-home cards (manual extra accounts stay). Skip PostHog/Sparkle/pullfrog and Swift settings copy.
+- **v0.7.13 scope:** Skip Codex Swap and auto Codex-home cards (manual extra accounts stay). Skip PostHog/Sparkle/pullfrog and Swift settings copy.
 
 ## 2026-09-25
 

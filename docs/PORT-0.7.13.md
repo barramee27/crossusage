@@ -1,8 +1,8 @@
-# OpenUsage v0.7.13 port (CrossUsage 1.5.1)
+# OpenUsage v0.7.13 port (CrossUsage 1.6.0)
 
 Upstream **v0.7.13** (2026-10-02). Swift-only — port applicable behavior into JS plugins, the pricing supplement, and Rust spend math.
 
-**Version:** [**1.5.1**](./VERSIONING.md) — **PATCH**. Baseline: CrossUsage **1.5.0** plus the already-merged extra-account and settings fixes. Tag: `v0.7.13`.
+**Version:** [**1.6.0**](./VERSIONING.md) — **MINOR**, because the base account label is a CrossUsage feature. The v0.7.13 port would be PATCH alone. Baseline: CrossUsage **1.5.0** plus the already-merged extra-account and settings fixes. Tag: `v0.7.13`.
 
 ## Shipped
 

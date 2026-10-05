@@ -1223,7 +1223,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "base64 0.22.1",
  "crossusage-core",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-cli"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1297,7 +1297,7 @@ dependencies = [
 
 [[package]]
 name = "crossusage-core"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "aes",
  "aes-gcm",

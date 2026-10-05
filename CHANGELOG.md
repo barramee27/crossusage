@@ -4,9 +4,9 @@
 
 ## Unreleased
 
-## 1.5.1
+## 1.6.0
 
-**Theme:** OpenUsage **v0.7.13** port (PATCH). Tracker: [docs/PORT-0.7.13.md](docs/PORT-0.7.13.md). Also includes fixes merged after 1.5.0.
+**Theme:** Fork MINOR — base account label. OpenUsage **v0.7.13** rides along (would be PATCH alone). Tracker: [docs/PORT-0.7.13.md](docs/PORT-0.7.13.md). Also includes fixes merged after 1.5.0.
 
 ### New features
 
