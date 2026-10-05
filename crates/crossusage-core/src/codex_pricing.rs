@@ -10,6 +10,8 @@ pub struct CodexCostInput<'a> {
     pub output: i32,
     pub reasoning: i32,
     pub is_fast: bool,
+    /// Codex Ultrafast service tier. GPT-6 Astra prices this at 6x, not the 2x fast tier.
+    pub is_ultrafast: bool,
 }
 
 fn dated_base_model(model: &str) -> String {
@@ -23,7 +25,7 @@ fn codex_priority_multiplier(model: &str, rates: &ModelRates) -> f64 {
     match dated_base_model(model).as_str() {
         "gpt-5.5" | "gpt-5.5-pro" => 2.5,
         "gpt-5.4" | "gpt-5.4-pro" | "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna"
-        | "gpt-6-astra" => 2.0,
+        | "gpt-6-astra" | "gpt-6.1-sol" | "gpt-6-sol" | "gpt-6-luna" => 2.0,
         _ if (rates.fast_multiplier - 1.0).abs() < f64::EPSILON => 2.0,
         _ => rates.fast_multiplier,
     }
@@ -42,11 +44,14 @@ fn codex_long_context_rates(model: &str) -> Option<(f64, f64, f64)> {
         "gpt-5.4-pro" => Some((60.0, 270.0, 60.0)),
         "gpt-5.5" => Some((10.0, 45.0, 1.0)),
         "gpt-5.5-pro" => Some((60.0, 270.0, 60.0)),
-        "gpt-5.6-sol" => Some((10.0, 45.0, 1.0)),
+        "gpt-5.6-sol" => Some((8.0, 30.0, 0.8)),
         "gpt-5.6-terra" => Some((4.0, 18.0, 0.4)),
         "gpt-5.6-luna" => Some((0.4, 1.8, 0.04)),
         // Above 272k: 2x input and cache, 1.5x output.
         "gpt-6-astra" => Some((20.0, 75.0, 2.0)),
+        "gpt-6.1-sol" => Some((4.0, 15.0, 0.2)),
+        "gpt-6-sol" => Some((4.0, 15.0, 0.4)),
+        "gpt-6-luna" => Some((0.2, 0.75, 0.02)),
         _ => None,
     }
 }
@@ -71,7 +76,7 @@ pub fn estimated_cost_dollars(pricing: &ModelPricing, event: &CodexCostInput<'_>
     let applies_codex_fast = if is_fast_alias {
         base_rates.is_some()
     } else {
-        event.is_fast
+        event.is_fast || event.is_ultrafast
     };
 
     if let Some((input, output, cache_read)) = codex_long_context_rates(&rate_model) {
@@ -84,7 +89,11 @@ pub fn estimated_cost_dollars(pricing: &ModelPricing, event: &CodexCostInput<'_>
         rates.cache_read_per_million = rates.input_per_million;
         rates.cache_read_above_200k = rates.input_above_200k;
     }
-    rates.fast_multiplier = codex_priority_multiplier(&rate_model, &rates);
+    rates.fast_multiplier = if event.is_ultrafast && dated_base_model(&rate_model) == "gpt-6-astra" {
+        6.0
+    } else {
+        codex_priority_multiplier(&rate_model, &rates)
+    };
 
     let non_cached = (event.input - event.cached).max(0);
     let tokens = TokenBreakdown {
@@ -115,8 +124,78 @@ mod tests {
                 output: 100,
                 reasoning: 0,
                 is_fast: false,
+                is_ultrafast: false,
             },
         );
         assert!(cost.is_some());
+    }
+
+    #[test]
+    fn ultrafast_astra_uses_six_times_priority() {
+        let pricing = ModelPricing::from_bundled();
+        let base = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-6-astra",
+                input: 1_000_000,
+                cached: 0,
+                output: 0,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: false,
+            },
+        )
+        .expect("base");
+        let ultra = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-6-astra",
+                input: 1_000_000,
+                cached: 0,
+                output: 0,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: true,
+            },
+        )
+        .expect("ultra");
+        assert!((ultra / base - 6.0).abs() < 0.01, "ultra {ultra} base {base}");
+    }
+
+    #[test]
+    fn sol_promo_long_context_is_two_times_input_and_1_5_output() {
+        let pricing = ModelPricing::from_bundled();
+        let short = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-5.6-sol",
+                input: 100_000,
+                cached: 0,
+                output: 100_000,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: false,
+            },
+        )
+        .expect("short");
+        // Promo base 4 / 20 → 100k in + 100k out = $2.40
+        assert!((short - 2.4).abs() < 0.01, "short {short}");
+
+        let long = estimated_cost_dollars(
+            &pricing,
+            &CodexCostInput {
+                model: "gpt-5.6-sol",
+                input: 273_000,
+                cached: 0,
+                output: 273_000,
+                reasoning: 0,
+                is_fast: false,
+                is_ultrafast: false,
+            },
+        )
+        .expect("long");
+        // Above 272k: 2x input (8) and 1.5x output (30)
+        let expected = 273_000.0 * (8.0 + 30.0) / 1_000_000.0;
+        assert!((long - expected).abs() < 0.01, "long {long} expected {expected}");
     }
 }

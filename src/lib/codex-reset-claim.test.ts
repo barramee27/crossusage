@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   claimBannerText,
   creditIdForExpiry,
+  isCodexResetClaimPlugin,
   outcomeFromConsume,
   parseAvailableCount,
   resetsDetailContent,
@@ -59,6 +60,16 @@ describe("resetsDetailContent", () => {
     expect(resetsDetailContent(0, [])).toEqual({ kind: "empty" })
     expect(resetsDetailContent(2, [])).toEqual({ kind: "unknownExpiries", count: 2 })
     expect(resetsDetailContent(1, ["2026-07-12T00:00:00.000Z"]).kind).toBe("timeline")
+  })
+})
+
+describe("isCodexResetClaimPlugin", () => {
+  it("allows only Codex instance ids", () => {
+    expect(isCodexResetClaimPlugin("codex")).toBe(true)
+    expect(isCodexResetClaimPlugin("codex:work")).toBe(true)
+    expect(isCodexResetClaimPlugin("claude")).toBe(false)
+    expect(isCodexResetClaimPlugin("claude:personal")).toBe(false)
+    expect(isCodexResetClaimPlugin(undefined)).toBe(false)
   })
 })
 

@@ -1011,6 +1011,10 @@ fn codex_claim_reset_credit(
                 })
         });
 
+    if base_provider_id != "codex" {
+        return Err("reset credit claim is only supported for Codex".to_string());
+    }
+
     let plugin = plugins
         .into_iter()
         .find(|p| p.manifest.id == base_provider_id || p.manifest.id == "codex")

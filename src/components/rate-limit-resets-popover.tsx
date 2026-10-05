@@ -6,6 +6,7 @@ import {
   expirySeverity,
   formatExpiryCountdown,
   formatExpiryTime,
+  isCodexResetClaimPlugin,
   parseAvailableCount,
   resetsDetailContent,
   type ResetClaimOutcome,
@@ -36,7 +37,7 @@ export function RateLimitResetsValue({
   onClaimed,
   compact,
   className,
-  claimable = true,
+  claimable = isCodexResetClaimPlugin(pluginId),
 }: RateLimitResetsPopoverProps) {
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)

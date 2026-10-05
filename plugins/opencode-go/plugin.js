@@ -146,9 +146,9 @@
     return toIso((oldest === null ? nowMs : oldest) + FIVE_HOURS_MS);
   }
 
-  function queryRows(ctx, sql) {
+  function queryRows(ctx, sql, dbPath) {
     try {
-      const raw = ctx.host.sqlite.query(DB_PATH, sql);
+      const raw = ctx.host.sqlite.query(dbPath || DB_PATH, sql);
       const rows = Array.isArray(raw) ? raw : ctx.util.tryParseJson(raw);
       if (!Array.isArray(rows)) {
         ctx.host.log.warn("sqlite query returned non-array result");
@@ -167,23 +167,35 @@
       ctx.host.log.info("api key loaded from provider account")
       return providerKey
     }
-    if (!ctx.host.fs.exists(AUTH_PATH)) return null;
-
-    try {
-      const text = ctx.host.fs.readText(AUTH_PATH);
-      const parsed = ctx.util.tryParseJson(text);
-      if (!parsed || typeof parsed !== "object") {
-        ctx.host.log.warn("opencode auth file is not valid json");
-        return null;
+    if (ctx.host.fs.exists(AUTH_PATH)) {
+      try {
+        const text = ctx.host.fs.readText(AUTH_PATH);
+        const parsed = ctx.util.tryParseJson(text);
+        if (!parsed || typeof parsed !== "object") {
+          ctx.host.log.warn("opencode auth file is not valid json");
+        } else {
+          const entry = parsed[PROVIDER_ID];
+          const key = entry && typeof entry.key === "string" ? entry.key.trim() : "";
+          if (key) return key;
+        }
+      } catch (e) {
+        ctx.host.log.warn("opencode auth read failed: " + String(e));
       }
-      const entry = parsed[PROVIDER_ID];
-      if (!entry || typeof entry !== "object") return null;
-      const key = typeof entry.key === "string" ? entry.key.trim() : "";
-      return key || null;
-    } catch (e) {
-      ctx.host.log.warn("opencode auth read failed: " + String(e));
-      return null;
     }
+    return loadGoKeyFromDatabases(ctx);
+  }
+
+  function loadGoKeyFromDatabases(ctx) {
+    const sql = "SELECT json_extract(value,'$.key') AS key FROM credential WHERE integration_id = 'opencode-go' AND (active IS NULL OR active = 1) ORDER BY active DESC, time_updated DESC, id DESC LIMIT 1";
+    const paths = [DB_PATH, DB_PATH.replace(/opencode\.db$/, "opencode-next.db")];
+    for (let i = 0; i < paths.length; i += 1) {
+      if (!ctx.host.fs.exists(paths[i])) continue;
+      const result = queryRows(ctx, sql, paths[i]);
+      const row = result.ok && result.rows[0];
+      const key = row && (row.key || row["json_extract(value,'$.key')"]);
+      if (typeof key === "string" && key.trim()) return key.trim();
+    }
+    return null;
   }
 
   function hasHistory(ctx) {

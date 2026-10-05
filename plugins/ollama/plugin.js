@@ -153,6 +153,12 @@
     return json && typeof json === "object" ? json : null
   }
 
+  function fractionPercent(value) {
+    const n = Number(value)
+    if (!Number.isFinite(n)) return null
+    return n <= 1 ? n * 100 : n
+  }
+
   function findNestedObject(root, keys) {
     if (!root || typeof root !== "object") return null
     for (let i = 0; i < keys.length; i += 1) {
@@ -166,24 +172,30 @@
     const body = data && typeof data.data === "object" ? data.data : data
     if (!body || typeof body !== "object") return null
 
-    const session = findNestedObject(body, ["session", "session_usage", "sessionUsage"])
-    const weekly = findNestedObject(body, ["weekly", "weekly_usage", "weeklyUsage"])
+    const limits = body.limits && typeof body.limits === "object" ? body.limits : body
+    const session = findNestedObject(limits, ["session", "session_usage", "sessionUsage"])
+    const weekly = findNestedObject(limits, ["weekly", "weekly_usage", "weeklyUsage"])
+    const monthly = findNestedObject(limits, ["monthly", "monthly_usage", "monthlyUsage"])
     const sessionPercent = clampPercent(
       session
-        ? session.used_percent ?? session.usedPercent ?? session.percent ?? session.percentage
+        ? session.used_percent ?? session.usedPercent ?? session.percent ?? session.percentage ?? fractionPercent(session.usage)
         : body.session_percent ?? body.sessionPercent
     )
     const weeklyPercent = clampPercent(
       weekly
-        ? weekly.used_percent ?? weekly.usedPercent ?? weekly.percent ?? weekly.percentage
+        ? weekly.used_percent ?? weekly.usedPercent ?? weekly.percent ?? weekly.percentage ?? fractionPercent(weekly.usage)
         : body.weekly_percent ?? body.weeklyPercent
     )
+    const monthlyPercent = monthly
+      ? clampPercent(monthly.used_percent ?? monthly.usedPercent ?? monthly.percent ?? monthly.percentage ?? fractionPercent(monthly.usage))
+      : null
     if (sessionPercent === null || weeklyPercent === null) return null
 
     return {
       plan: readString(body.plan || body.tier || body.subscription),
       sessionPercent: sessionPercent,
       weeklyPercent: weeklyPercent,
+      monthlyPercent: monthlyPercent,
       sessionResetsAt: session ? session.resets_at || session.resetsAt || null : body.session_resets_at || null,
       weeklyResetsAt: weekly ? weekly.resets_at || weekly.resetsAt || null : body.weekly_resets_at || null,
       source: "API",
@@ -246,7 +258,7 @@
     const percentages = []
     const re = /(\d+(?:\.\d+)?)%\s*used/gi
     let match
-    while ((match = re.exec(text)) && percentages.length < 2) {
+    while ((match = re.exec(text)) && percentages.length < 3) {
       percentages.push(clampPercent(match[1]))
     }
     if (percentages.length < 2 || percentages[0] === null || percentages[1] === null) return null
@@ -264,6 +276,7 @@
       plan: planMatch ? planMatch[1] : null,
       sessionPercent: percentages[0],
       weeklyPercent: percentages[1],
+      monthlyPercent: percentages.length > 2 ? percentages[2] : null,
       sessionResetsAt: resetValues[0] || relativeResetIso(sessionSection, nowIso),
       weeklyResetsAt: resetValues[1] || relativeResetIso(weeklySection, nowIso),
       source: "settings",
@@ -340,14 +353,23 @@
       periodDurationMs: WEEK_MS,
     }
     if (usage.weeklyResetsAt) weeklyOpts.resetsAt = usage.weeklyResetsAt
+    const lines = [
+      ctx.line.progress(sessionOpts),
+      ctx.line.progress(weeklyOpts),
+    ]
+    if (usage.monthlyPercent != null) {
+      lines.push(ctx.line.progress({
+        label: "Monthly",
+        used: usage.monthlyPercent,
+        limit: 100,
+        format: { kind: "percent" },
+      }))
+    }
 
+    lines.push(ctx.line.text({ label: "Source", value: usage.source === "API" ? "Ollama API" : "Settings page" }))
     return {
       plan: formatPlan(usage.plan),
-      lines: [
-        ctx.line.progress(sessionOpts),
-        ctx.line.progress(weeklyOpts),
-        ctx.line.text({ label: "Source", value: usage.source === "API" ? "Ollama API" : "Settings page" }),
-      ],
+      lines,
     }
   }
 

@@ -36,6 +36,7 @@ struct CodexEvent {
     reasoning: i32,
     total: i32,
     is_fast: bool,
+    is_ultrafast: bool,
 }
 
 struct DiscoveredFile {
@@ -369,6 +370,7 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
     let mut previous_totals: Option<RawUsage> = None;
     let mut current_model: Option<String> = None;
     let mut current_tier_is_fast = false;
+    let mut current_tier_is_ultrafast = false;
     let mut saw_session_meta = false;
     let mut replay_gate: Option<ChildReplayGate> = None;
 
@@ -434,7 +436,9 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
         {
             if let Some(p) = payload {
                 if let Some(tier) = service_tier_in_payload(p) {
-                    current_tier_is_fast = tier == "fast" || tier == "priority";
+                    current_tier_is_ultrafast = tier == "ultrafast";
+                    current_tier_is_fast = !current_tier_is_ultrafast
+                        && (tier == "fast" || tier == "priority");
                 }
             }
             continue;
@@ -525,6 +529,7 @@ fn parse_file(path: &Path) -> Vec<CodexEvent> {
             reasoning: usage.reasoning,
             total: usage.total,
             is_fast: current_tier_is_fast,
+            is_ultrafast: current_tier_is_ultrafast,
         });
     }
     events
@@ -645,6 +650,7 @@ fn aggregate(events: &[CodexEvent], since: OffsetDateTime, pricing: &ModelPricin
                 output: event.output,
                 reasoning: event.reasoning,
                 is_fast: event.is_fast,
+                is_ultrafast: event.is_ultrafast,
             },
         ) else {
             continue;
@@ -806,6 +812,7 @@ mod tests {
                 reasoning: 0,
                 total: 1100,
                 is_fast: false,
+                is_ultrafast: false,
             }],
             ts,
             &ModelPricing::from_bundled(),
@@ -830,6 +837,7 @@ mod tests {
                 reasoning: 0,
                 total: 1100,
                 is_fast: false,
+                is_ultrafast: false,
             }],
             ts,
             &ModelPricing::from_bundled(),
