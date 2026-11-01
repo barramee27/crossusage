@@ -92,3 +92,8 @@
 
 
 
+
+## 2026-11-01
+
+- Provider order: startup normalization preserves saved order instead of alphabetically sorting every launch. Regression coverage includes custom provider orders, disabled entries, and newly discovered providers. Modern dashboard and Customize both use plugins.order; modernLayout.providerOrder is legacy state.
+

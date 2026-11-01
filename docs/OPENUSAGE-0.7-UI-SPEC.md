@@ -23,12 +23,14 @@ Classic (`uiLayout === "classic"`) keeps `AppShell` + `SideNav` unchanged.
 | Field | Purpose |
 |-------|---------|
 | `placedMetricIds` | Dashboard-visible metrics |
-| `providerOrder` | Card order |
+| `providerOrder` | Legacy stored order; current card order comes from `plugins.order` |
 | `metricOrderByProvider` | Row order within card |
 | `pinnedMetricIds` | Tray strip (Modern only); max **2 per provider** |
 | `initialized` | First-launch defaults applied |
 
 Defaults ported from upstream `DefaultLayout.swift`. Migration: legacy `trayLines` → seed `pinnedMetricIds` on first Modern init.
+
+As of 2026-11-01, both dashboard cards and Customize use `plugins.order`. Startup normalization must preserve the saved relative order of known providers, discard duplicate/unknown IDs, and append newly discovered providers. Alphabetically sorting the full list during normalization overwrites drag-and-drop choices on every launch; changing `modernLayout.providerOrder` does not fix that behavior.
 
 ## Widget rows
 
