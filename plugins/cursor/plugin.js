@@ -207,12 +207,59 @@
     }
   }
 
+  // Cursor 3.2x+ keeps the desktop app's own tokens encrypted in state.vscdb as
+  // "cursor-safe-storage:v1:<base64>" (Electron safeStorage). That is ciphertext, not a
+  // token: sent to the API it is rejected as "not logged in". `agent login` (Cursor CLI)
+  // writes plaintext tokens to <app data>/Cursor/auth.json instead, so use that.
+  const ENCRYPTED_AUTH_PREFIX = "cursor-safe-storage:"
+  const CLI_AUTH_FILE = "Cursor/auth.json"
+  const ENCRYPTED_AUTH_MESSAGE =
+    "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then refresh."
+
+  function isEncryptedAuthValue(value) {
+    return typeof value === "string" && value.trim().indexOf(ENCRYPTED_AUTH_PREFIX) === 0
+  }
+
+  // The Cursor CLI login belongs to the stable app. This file is also bundled as the
+  // Nightly plugin (generated from this one), so Nightly must opt out here.
+  function isNightly(ctx) {
+    return cursorBaseProviderId(ctx) === "cursor-nightly"
+  }
+
+  function encryptedAuthMessage(ctx) {
+    return isNightly(ctx)
+      ? "Cursor Nightly keeps its sign-in encrypted, which CrossUsage cannot read."
+      : ENCRYPTED_AUTH_MESSAGE
+  }
+
+  function readCliAuthFile(ctx) {
+    if (isNightly(ctx)) return null
+    try {
+      if (!ctx.host.fs || typeof ctx.host.fs.firstExistingAppSupport !== "function") return null
+      const path = ctx.host.fs.firstExistingAppSupport(CLI_AUTH_FILE)
+      if (!path) return null
+      const parsed = ctx.util.tryParseJson(ctx.host.fs.readText(path))
+      if (!parsed || typeof parsed !== "object") return null
+      const accessToken = typeof parsed.accessToken === "string" ? parsed.accessToken.trim() : ""
+      const refreshToken = typeof parsed.refreshToken === "string" ? parsed.refreshToken.trim() : ""
+      if (!accessToken && !refreshToken) return null
+      return { accessToken: accessToken || null, refreshToken: refreshToken || null }
+    } catch (e) {
+      ctx.host.log.warn("cursor cli auth file read failed: " + String(e))
+      return null
+    }
+  }
+
   function loadAuthState(ctx) {
     const injected = readInjectedCredential(ctx)
     if (injected) return injected
 
-    const sqliteAccessToken = readStateValue(ctx, "cursorAuth/accessToken")
-    const sqliteRefreshToken = readStateValue(ctx, "cursorAuth/refreshToken")
+    let sqliteAccessToken = readStateValue(ctx, "cursorAuth/accessToken")
+    let sqliteRefreshToken = readStateValue(ctx, "cursorAuth/refreshToken")
+    const encryptedAtRest = isEncryptedAuthValue(sqliteAccessToken) || isEncryptedAuthValue(sqliteRefreshToken)
+    if (isEncryptedAuthValue(sqliteAccessToken)) sqliteAccessToken = null
+    if (isEncryptedAuthValue(sqliteRefreshToken)) sqliteRefreshToken = null
+    if (encryptedAtRest) ctx.host.log.info("state.vscdb auth is encrypted at rest; ignoring it")
     const sqliteMembershipTypeRaw = readStateValue(ctx, "cursorAuth/stripeMembershipType")
     const sqliteMembershipType = typeof sqliteMembershipTypeRaw === "string"
       ? sqliteMembershipTypeRaw.trim().toLowerCase()
@@ -251,10 +298,20 @@
       }
     }
 
+    const cliAuth = readCliAuthFile(ctx)
+    if (cliAuth) {
+      return {
+        accessToken: cliAuth.accessToken,
+        refreshToken: cliAuth.refreshToken,
+        source: "cli-file",
+      }
+    }
+
     return {
       accessToken: null,
       refreshToken: null,
       source: null,
+      encryptedAtRest: encryptedAtRest,
     }
   }
 
@@ -368,6 +425,10 @@
     }
     if (source === "keychain") {
       return writeKeychainValue(ctx, KEYCHAIN_ACCESS_TOKEN_SERVICE, accessToken)
+    }
+    if (source === "cli-file") {
+      // The CLI owns this file; keep a refreshed token in memory only.
+      return false
     }
     return writeStateValue(ctx, "cursorAuth/accessToken", accessToken)
   }
@@ -1530,7 +1591,8 @@
     }
 
     if (!accessToken && !refreshTokenValue) {
-      ctx.host.log.error("probe failed: no access or refresh token in sqlite/keychain")
+      ctx.host.log.error("probe failed: no access or refresh token in sqlite/keychain/cli file")
+      if (authState.encryptedAtRest) throw encryptedAuthMessage(ctx)
       throw "Not logged in. " + LOGIN_HINT
     }
 

@@ -578,7 +578,9 @@ struct RefreshBody {
     should_logout: Option<bool>,
 }
 
-fn refresh_access_token(refresh_token: &str, db_path: &PathBuf) -> Result<Option<String>> {
+/// `persist_to` is the state DB to write a refreshed access token back into, or `None`
+/// to keep it in memory only (the tokens did not come from that DB).
+fn refresh_access_token(refresh_token: &str, persist_to: Option<&PathBuf>) -> Result<Option<String>> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()?;
@@ -614,30 +616,165 @@ fn refresh_access_token(refresh_token: &str, db_path: &PathBuf) -> Result<Option
     let Some(at) = body.access_token.filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
-    let _ = write_sqlite_value(db_path, ACCESS_KEY, &at);
+    if let Some(db_path) = persist_to {
+        let _ = write_sqlite_value(db_path, ACCESS_KEY, &at);
+    }
     Ok(Some(at))
 }
 
-fn resolve_cursor_access_token(db_path: &PathBuf) -> Result<String> {
-    let mut access = read_sqlite_value(db_path, ACCESS_KEY)?;
-    let refresh = read_sqlite_value(db_path, REFRESH_KEY)?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthSource {
+    /// The desktop app's `state.vscdb`.
+    StateDb,
+    /// The plaintext `auth.json` written by `agent login` (Cursor CLI).
+    CliFile,
+}
 
+#[derive(Debug, PartialEq, Eq)]
+struct AuthTokens {
+    access: Option<String>,
+    refresh: Option<String>,
+    source: AuthSource,
+}
+
+/// Tokens from the Cursor CLI's `auth.json`.
+#[derive(Debug, PartialEq, Eq)]
+struct CliAuth {
+    access: Option<String>,
+    refresh: Option<String>,
+}
+
+fn parse_cli_auth(text: &str) -> Option<CliAuth> {
+    let v: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let pick = |key: &str| {
+        v.get(key)
+            .and_then(|s| s.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    let (access, refresh) = (pick("accessToken"), pick("refreshToken"));
     if access.is_none() && refresh.is_none() {
+        return None;
+    }
+    Some(CliAuth { access, refresh })
+}
+
+fn read_cli_auth_file() -> Option<CliAuth> {
+    let path = crate::cursor_paths::resolve_cursor_cli_auth_file()?;
+    parse_cli_auth(&std::fs::read_to_string(path).ok()?)
+}
+
+/// Pick which tokens to use. The desktop app's own tokens win when they are readable.
+/// Cursor 3.2x+ keeps them encrypted in `state.vscdb`; ciphertext is not a token, so it
+/// is ignored and the CLI file is used instead.
+fn choose_auth_tokens(
+    db_access: Option<String>,
+    db_refresh: Option<String>,
+    cli: Option<CliAuth>,
+) -> Option<AuthTokens> {
+    let readable = |v: Option<String>| v.filter(|s| !crate::cursor_paths::is_encrypted_auth_value(s));
+    let (access, refresh) = (readable(db_access), readable(db_refresh));
+    if access.is_some() || refresh.is_some() {
+        return Some(AuthTokens { access, refresh, source: AuthSource::StateDb });
+    }
+    cli.map(|c| AuthTokens { access: c.access, refresh: c.refresh, source: AuthSource::CliFile })
+}
+
+const ENCRYPTED_AUTH_MESSAGE: &str = "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then try again.";
+
+fn resolve_cursor_access_token(plugin_id: &str, db_path: &PathBuf) -> Result<String> {
+    let db_access = read_sqlite_value(db_path, ACCESS_KEY)?;
+    let db_refresh = read_sqlite_value(db_path, REFRESH_KEY)?;
+    let db_has_ciphertext = [&db_access, &db_refresh]
+        .iter()
+        .any(|v| v.as_deref().is_some_and(crate::cursor_paths::is_encrypted_auth_value));
+    // The CLI login is the stable app's; Nightly keeps using its own state DB only.
+    let cli = (crate::cursor_paths::CursorInstall::from_plugin_id(plugin_id)
+        == Some(crate::cursor_paths::CursorInstall::Stable))
+    .then(read_cli_auth_file)
+    .flatten();
+
+    let Some(auth) = choose_auth_tokens(db_access, db_refresh, cli) else {
+        if db_has_ciphertext {
+            bail!("{ENCRYPTED_AUTH_MESSAGE}");
+        }
         bail!(
             "No Cursor auth in {}. Sign in via the Cursor app (tokens stored in state.vscdb).",
             db_path.display()
         );
-    }
+    };
+    let AuthTokens { mut access, refresh, source } = auth;
 
     if needs_refresh(access.as_deref()) {
         if let Some(ref rt) = refresh {
-            if let Some(new_a) = refresh_access_token(rt, db_path)? {
+            // Only write a refreshed token back into the DB it came from; never into
+            // Cursor's encrypted store, and never over the CLI's own file.
+            let persist_to = (source == AuthSource::StateDb).then_some(db_path);
+            if let Some(new_a) = refresh_access_token(rt, persist_to)? {
                 access = Some(new_a);
             }
         }
     }
 
     access.context("No usable Cursor access token. Open Cursor and sign in again.")
+}
+
+#[cfg(test)]
+mod auth_selection_tests {
+    use super::*;
+
+    const CIPHERTEXT: &str = "cursor-safe-storage:v1:AAAA";
+
+    fn s(v: &str) -> Option<String> {
+        Some(v.to_string())
+    }
+
+    fn cli(access: &str, refresh: &str) -> Option<CliAuth> {
+        Some(CliAuth { access: s(access), refresh: s(refresh) })
+    }
+
+    #[test]
+    fn readable_state_db_tokens_win_over_cli_file() {
+        let got = choose_auth_tokens(s("db-access"), s("db-refresh"), cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::StateDb);
+        assert_eq!(got.access.as_deref(), Some("db-access"));
+    }
+
+    #[test]
+    fn encrypted_state_db_tokens_are_ignored_in_favor_of_cli_file() {
+        let got = choose_auth_tokens(s(CIPHERTEXT), s(CIPHERTEXT), cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::CliFile);
+        assert_eq!(got.access.as_deref(), Some("cli-a"));
+        assert_eq!(got.refresh.as_deref(), Some("cli-r"));
+    }
+
+    #[test]
+    fn ciphertext_is_never_returned_as_a_token() {
+        // Nothing readable anywhere: no tokens at all, rather than ciphertext sent as a token.
+        assert_eq!(choose_auth_tokens(s(CIPHERTEXT), s(CIPHERTEXT), None), None);
+        // A readable refresh token survives next to an encrypted access token.
+        let got = choose_auth_tokens(s(CIPHERTEXT), s("db-refresh"), None).unwrap();
+        assert_eq!((got.access, got.refresh.as_deref()), (None, Some("db-refresh")));
+    }
+
+    #[test]
+    fn no_state_db_tokens_falls_back_to_cli_file() {
+        let got = choose_auth_tokens(None, None, cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::CliFile);
+        assert_eq!(choose_auth_tokens(None, None, None), None);
+    }
+
+    #[test]
+    fn parses_cli_auth_file() {
+        let ok = parse_cli_auth(r#"{"accessToken":" a ","refreshToken":"r"}"#).unwrap();
+        assert_eq!((ok.access.as_deref(), ok.refresh.as_deref()), (Some("a"), Some("r")));
+        // A BOM from some editors must not break parsing.
+        assert!(parse_cli_auth("\u{feff}{\"accessToken\":\"a\"}").is_some());
+        assert!(parse_cli_auth(r#"{"accessToken":"","refreshToken":"  "}"#).is_none());
+        assert!(parse_cli_auth(r#"{"other":1}"#).is_none());
+        assert!(parse_cli_auth("not json").is_none());
+    }
 }
 
 pub fn download_cursor_usage_csv(start_ms: i64, end_ms: i64) -> Result<String> {
@@ -655,7 +792,7 @@ pub fn download_cursor_usage_csv_for_plugin(
         )
     })?;
 
-    let access = resolve_cursor_access_token(&db_path)?;
+    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
@@ -983,7 +1120,7 @@ fn fetch_cursor_usage_rows_via_events(
     let db_path = resolve_state_db_for_plugin(plugin_id).with_context(|| {
         format!("Cursor state.vscdb not found for {plugin_id}")
     })?;
-    let access = resolve_cursor_access_token(&db_path)?;
+    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
     let payload = decode_jwt_payload(&access).context("invalid JWT access token")?;
     let sub = payload.sub.as_deref().context("JWT missing sub")?;
     let user_id = user_id_from_sub(sub);
