@@ -471,6 +471,9 @@ fn redact_body(body: &str) -> String {
         "profileArn",
         "email",
         "login",
+        "username",
+        "rpc_token",
+        "simpleToken",
         "analytics_tracking_id",
         "uuid",
     ];
@@ -5081,6 +5084,27 @@ mod tests {
         assert!(
             !redacted.contains("supersecretpassword123"),
             "password should be redacted, got: {}",
+            redacted
+        );
+    }
+
+    #[test]
+    fn redact_body_redacts_jetbrains_junie_username_and_tokens() {
+        let body = r#"{"username":"pmarti9","rpc_token":"secret_rpc_token_12345","simpleToken":"junie_token_abcdef123456","balanceLeft":600000.0}"#;
+        let redacted = redact_body(body);
+        assert!(
+            !redacted.contains("pmarti9"),
+            "username should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("secret_rpc_token_12345"),
+            "rpc_token should be redacted, got: {}",
+            redacted
+        );
+        assert!(
+            !redacted.contains("junie_token_abcdef123456"),
+            "simpleToken should be redacted, got: {}",
             redacted
         );
     }

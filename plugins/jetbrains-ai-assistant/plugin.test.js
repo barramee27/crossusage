@@ -335,4 +335,167 @@ describe("jetbrains-ai-assistant plugin", () => {
     const quota2 = result2.lines.find((line) => line.label === "Quota")
     expect(quota2 && quota2.periodDurationMs).toBe(4 * 7 * 24 * 60 * 60 * 1000)
   })
+
+  it("prefers live IDE JSON-RPC over stale AIAssistantQuotaManager2.xml (#41)", async () => {
+    const ctx = makeCtx()
+    ctx.app.platform = "windows"
+
+    // Stale XML showing 86% used (14% remaining)
+    ctx.host.fs.writeText(
+      "~/AppData/Roaming/JetBrains/Rider2025.3/options/AIAssistantQuotaManager2.xml",
+      makeQuotaXml({
+        quotaInfo: {
+          current: "860000",
+          maximum: "1000000",
+          available: "140000",
+          until: "2026-11-30T00:00:00Z",
+        },
+        nextRefill: {
+          type: "Known",
+          next: "2026-11-30T00:00:00Z",
+          tariff: { amount: "1000000", duration: "P30D" },
+        },
+      })
+    )
+
+    // Running IDE instance registered in ~/.junie/instances/12345.json
+    ctx.host.fs.writeText(
+      "~/.junie/instances/12345.json",
+      JSON.stringify({
+        schema_version: 3,
+        plugin_version: "253.1.0",
+        project_path: "C:/work/app",
+        port: 54321,
+        pid: 12345,
+        rpc_token: "secret-rpc-token",
+      })
+    )
+
+    ctx.host.http.request.mockImplementation((opts) => {
+      expect(opts.url).toBe("http://127.0.0.1:54321/rpc")
+      expect(opts.headers.Authorization).toBe("secret-rpc-token")
+      const body = JSON.parse(opts.bodyText)
+      expect(body.method).toBe("JunieSystemService.getQuotaInfo")
+      return {
+        status: 200,
+        bodyText: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            licenseName: "JetBrains AI Pro",
+            licenseType: "AIP",
+            creditsUsed: 250000,
+            creditsMaximum: 1000000,
+            creditsAvailable: 750000,
+            nextRefillMillis: Date.parse("2026-12-01T00:00:00Z"),
+            error: null,
+          },
+        }),
+      }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const quota = result.lines.find((line) => line.label === "Quota")
+    const used = result.lines.find((line) => line.label === "Used")
+    const remaining = result.lines.find((line) => line.label === "Remaining")
+
+    expect(result.plan).toBe("JetBrains AI Pro")
+    expect(quota && quota.used).toBe(25)
+    expect(used && used.value).toBe("2.5 / 10 credits")
+    expect(remaining && remaining.value).toBe("7.5 credits")
+  })
+
+  it("queries Junie cloud API when IDE is closed and secure_credentials.json exists", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "860000",
+          maximum: "1000000",
+          available: "140000",
+          until: "2026-11-30T00:00:00Z",
+        },
+        nextRefill: {
+          type: "Known",
+          next: "2026-11-30T00:00:00Z",
+          tariff: { amount: "1000000", duration: "P30D" },
+        },
+      })
+    )
+
+    ctx.host.fs.writeText(
+      "~/.junie/secure_credentials.json",
+      JSON.stringify({
+        secrets: [
+          {
+            key: "jb-account-stored",
+            secret: JSON.stringify({
+              jbAccount: {
+                id_token: "live-jwt-token",
+                refresh_token: "refresh-token",
+              },
+            }),
+          },
+        ],
+      })
+    )
+
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.url === "https://ingrazzio-cloud-prod.labs.jb.gg/auth/test") {
+        expect(opts.headers.Authorization).toBe("Bearer live-jwt-token")
+        return {
+          status: 200,
+          bodyText: JSON.stringify({
+            username: "pmarti9",
+            active: true,
+            balanceLeft: 600000,
+            licenseType: "AIP",
+            balanceUnit: "CREDITS",
+          }),
+        }
+      }
+      return { status: 404, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const quota = result.lines.find((line) => line.label === "Quota")
+    const remaining = result.lines.find((line) => line.label === "Remaining")
+
+    expect(result.plan).toBe("JetBrains AI Pro")
+    expect(quota && quota.used).toBe(40)
+    expect(remaining && remaining.value).toBe("6 credits")
+  })
+
+  it("reads newer quota state from idea.log when XML has not flushed", async () => {
+    const ctx = makeCtx()
+    ctx.app.platform = "windows"
+
+    ctx.host.fs.writeText(
+      "~/AppData/Roaming/JetBrains/Rider2025.3/options/AIAssistantQuotaManager2.xml",
+      makeQuotaXml({
+        quotaInfo: {
+          current: "860000",
+          maximum: "1000000",
+          available: "140000",
+          until: "2026-10-30T00:00:00Z",
+        },
+        nextRefill: null,
+      })
+    )
+
+    ctx.host.fs.writeText(
+      "~/AppData/Local/JetBrains/Rider2025.3/log/idea.log",
+      [
+        "2026-11-02 10:00:00,000 [ 12345] INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota info is received: {\"type\":\"Available\",\"current\":\"300000\",\"maximum\":\"1000000\",\"available\":\"700000\",\"until\":\"2026-11-30T00:00:00Z\"}",
+      ].join("\n")
+    )
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+    const quota = result.lines.find((line) => line.label === "Quota")
+    expect(quota && quota.used).toBe(30)
+  })
 })
