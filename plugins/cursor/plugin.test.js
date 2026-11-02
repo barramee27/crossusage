@@ -2637,3 +2637,147 @@ describe("cursor plugin", () => {
     expect(total.limit).toBe(5000)
   })
 })
+
+// Cursor 3.2x+ stores the desktop app's tokens in state.vscdb encrypted
+// ("cursor-safe-storage:v1:<base64>"). `agent login` writes plaintext ones to
+// <app data>/Cursor/auth.json.
+describe("cursor plugin: encrypted state.vscdb tokens and the CLI auth file", () => {
+  const CIPHERTEXT = "cursor-safe-storage:v1:" + "A".repeat(80)
+  const CLI_AUTH_PATH = "~/AppData/Roaming/Cursor/auth.json"
+
+  beforeEach(() => {
+    delete globalThis.__openusage_plugin
+    vi.resetModules()
+  })
+
+  // state.vscdb answers per key; `values` maps key -> stored value (or omit for none).
+  function mockStateDb(ctx, values) {
+    ctx.host.sqlite.query.mockImplementation((db, sql) => {
+      for (const [key, value] of Object.entries(values)) {
+        if (String(sql).includes("'" + key + "'")) return JSON.stringify([{ value }])
+      }
+      return JSON.stringify([])
+    })
+  }
+
+  function writeCliAuth(ctx, accessToken, refreshToken) {
+    ctx.host.fs.writeText(CLI_AUTH_PATH, JSON.stringify({ accessToken, refreshToken }))
+    ctx.host.fs.writeText.mockClear() // only count writes the plugin itself makes
+  }
+
+  function mockApi(ctx, { refreshedToken } = {}) {
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (String(opts.url).includes("/oauth/token")) {
+        return { status: 200, bodyText: JSON.stringify({ access_token: refreshedToken || "unused" }) }
+      }
+      return {
+        status: 200,
+        bodyText: JSON.stringify({ enabled: true, planUsage: { totalPercentUsed: 10 } }),
+      }
+    })
+  }
+
+  const bearerOf = (call) => call[0].headers.Authorization
+
+  it("never sends ciphertext as a token; uses the CLI file instead", async () => {
+    const ctx = makeCtx()
+    const cliAccess = makeJwt({ exp: 9999999999, sub: "user_cli" })
+    mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })
+    writeCliAuth(ctx, cliAccess, makeJwt({ exp: 9999999999 }))
+    mockApi(ctx)
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    const sent = ctx.host.http.request.mock.calls.map(bearerOf).filter(Boolean)
+    expect(sent.length).toBeGreaterThan(0)
+    for (const header of sent) {
+      expect(header).toBe("Bearer " + cliAccess)
+      expect(header).not.toContain("cursor-safe-storage")
+    }
+  })
+
+  it("reports a clear, actionable error when the only auth is ciphertext", async () => {
+    const ctx = makeCtx()
+    mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })
+    mockApi(ctx)
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow(/encrypted.*agent login/)
+    // No request may carry the ciphertext.
+    expect(ctx.host.http.request).not.toHaveBeenCalled()
+  })
+
+  it("does not read the stable CLI auth file for Cursor Nightly", async () => {
+    // The Nightly plugin is generated from this one; it identifies itself through this global.
+    globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__ = "cursor-nightly"
+    try {
+      const ctx = makeCtx()
+      mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })
+      writeCliAuth(ctx, makeJwt({ exp: 9999999999, sub: "user_cli" }), makeJwt({ exp: 9999999999 }))
+      mockApi(ctx)
+
+      const plugin = await loadPlugin()
+      let message = ""
+      try {
+        plugin.probe(ctx)
+      } catch (e) {
+        message = String(e)
+      }
+      // No request may use the CLI file's tokens, and the hint must not send a Nightly user to `agent login`.
+      expect(ctx.host.http.request).not.toHaveBeenCalled()
+      expect(message).toContain("Cursor Nightly keeps its sign-in encrypted")
+      expect(message).not.toContain("agent login")
+    } finally {
+      delete globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__
+    }
+  })
+
+  it("keeps preferring readable state.vscdb tokens over the CLI file", async () => {
+    const ctx = makeCtx()
+    const dbAccess = makeJwt({ exp: 9999999999, sub: "user_db" })
+    mockStateDb(ctx, { "cursorAuth/accessToken": dbAccess, "cursorAuth/refreshToken": makeJwt({ exp: 9999999999 }) })
+    writeCliAuth(ctx, makeJwt({ exp: 9999999999, sub: "user_cli" }), makeJwt({ exp: 9999999999 }))
+    mockApi(ctx)
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    for (const header of ctx.host.http.request.mock.calls.map(bearerOf).filter(Boolean)) {
+      expect(header).toBe("Bearer " + dbAccess)
+    }
+  })
+
+  it("works with only the CLI file and no state.vscdb auth at all", async () => {
+    const ctx = makeCtx()
+    const cliAccess = makeJwt({ exp: 9999999999, sub: "user_cli" })
+    mockStateDb(ctx, {})
+    writeCliAuth(ctx, cliAccess, makeJwt({ exp: 9999999999 }))
+    mockApi(ctx)
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines.length).toBeGreaterThan(0)
+    expect(ctx.host.http.request.mock.calls.map(bearerOf).filter(Boolean)[0]).toBe("Bearer " + cliAccess)
+  })
+
+  it("does not write a refreshed token into Cursor's store or over the CLI file", async () => {
+    const ctx = makeCtx()
+    const expired = makeJwt({ exp: 1, sub: "user_cli" })
+    const refreshed = makeJwt({ exp: 9999999999, sub: "user_cli" })
+    mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })
+    writeCliAuth(ctx, expired, makeJwt({ exp: 9999999999 }))
+    mockApi(ctx, { refreshedToken: refreshed })
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    // It did refresh and use the new token...
+    expect(ctx.host.http.request.mock.calls.some((c) => String(c[0].url).includes("/oauth/token"))).toBe(true)
+    expect(ctx.host.http.request.mock.calls.map(bearerOf).filter(Boolean).pop()).toBe("Bearer " + refreshed)
+    // ...but wrote it nowhere: not into the encrypted state DB, not over auth.json.
+    expect(ctx.host.sqlite.exec).not.toHaveBeenCalled()
+    expect(ctx.host.fs.writeText).not.toHaveBeenCalled()
+  })
+})
