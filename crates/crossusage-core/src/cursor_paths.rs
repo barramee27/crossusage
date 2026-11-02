@@ -99,8 +99,8 @@ fn read_sqlite_value(db_path: &Path, key: &str) -> Option<String> {
 }
 
 pub fn cursor_state_db_has_auth(db_path: &Path) -> bool {
-    read_sqlite_value(db_path, ACCESS_KEY).is_some()
-        || read_sqlite_value(db_path, REFRESH_KEY).is_some()
+    let readable = |key| read_sqlite_value(db_path, key).is_some_and(|v| !is_encrypted_auth_value(&v));
+    readable(ACCESS_KEY) || readable(REFRESH_KEY)
 }
 
 /// Cursor 3.2x+ stores the desktop app's own tokens in `state.vscdb` as

@@ -404,9 +404,9 @@ fn redact_google_cookie_pairs(text: &str) -> String {
 fn redact_body(body: &str) -> String {
     let mut result = redact_google_cookie_pairs(body);
 
-    // Redact JWTs (eyJ... pattern with dots)
+    // Redact JWTs and JWEs (eyJ... pattern with 3 to 5 dot-separated segments, e.g. next-auth session cookies)
     let jwt_pattern =
-        regex_lite::Regex::new(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").unwrap();
+        regex_lite::Regex::new(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+){1,3}").unwrap();
     result = jwt_pattern
         .replace_all(&result, |caps: &regex_lite::Captures| {
             redact_value(&caps[0])
@@ -5028,6 +5028,14 @@ mod tests {
             !redacted.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),
             "full JWT should be redacted, got: {}",
             redacted
+        );
+
+        let jwe_body = r#"{"cookie": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..bbbbbbbbbbbbbbbbbbbb.cccccccccccccccccccc.dddddddddddddddddddd"}"#;
+        let redacted_jwe = redact_body(jwe_body);
+        assert!(
+            !redacted_jwe.contains("bbbbbbbbbbbbbbbbbbbb"),
+            "5-segment JWE should be redacted, got: {}",
+            redacted_jwe
         );
     }
 

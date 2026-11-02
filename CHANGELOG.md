@@ -6,11 +6,13 @@
 
 ### New features
 
-- **Perplexity (Windows/Linux)** — paste a perplexity.ai `next-auth` session cookie in **Settings → Providers → Perplexity → Set credentials**; the plugin now reads API credits, per-mode availability and plan from the same REST API the website uses. macOS auto-detect is unchanged. The credentials dialog names the cookie option for Perplexity.
+- **Perplexity (Windows/Linux)** — paste a perplexity.ai `next-auth` session cookie in **Settings → Providers → Perplexity → Set credentials**; the plugin now reads API credits, per-mode availability and plan from the same REST API the website uses. macOS auto-detect is unchanged. The credentials dialog names the cookie option for Perplexity (#46).
+- **Cursor** — emit `Today`, `Yesterday`, and `Last 30 Days` spend lines from the billing/events daily export so Cursor populates the Modern **Total Spend** card, and explicitly label whether costs are billed on-demand (`csv`) or estimated at API rates (`events`) (#45).
 
 ### Bug fixes
 
-- **Provider order** — keep the saved provider order on startup instead of re-sorting it alphabetically. Fresh installs use plugin ID order; newly discovered providers append to the saved list.
+- **Cursor (3.2x+)** — detect `cursor-safe-storage:` ciphertext tokens in `state.vscdb` so they are never sent as Bearer/refresh tokens, and fall back to the plaintext `auth.json` written by `agent login` (Cursor CLI) (#44).
+- **Provider order** — keep the saved provider order on startup instead of re-sorting it alphabetically. Fresh installs use plugin ID order; newly discovered providers append to the saved list (#43).
 
 ## 1.6.1
 

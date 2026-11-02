@@ -389,7 +389,10 @@ pub struct UsageStatsPayload {
 }
 
 fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorMtdTotals> {
-    if resolve_state_db_for_plugin(plugin_id).is_none() {
+    let has_cli_auth = crate::cursor_paths::CursorInstall::from_plugin_id(plugin_id)
+        == Some(crate::cursor_paths::CursorInstall::Stable)
+        && crate::cursor_paths::resolve_cursor_cli_auth_file().is_some();
+    if resolve_state_db_for_plugin(plugin_id).is_none() && !has_cli_auth {
         return None;
     }
     let (since, until) = month_to_date_range_local().ok()?;
@@ -694,9 +697,11 @@ fn choose_auth_tokens(
 
 const ENCRYPTED_AUTH_MESSAGE: &str = "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then try again.";
 
-fn resolve_cursor_access_token(plugin_id: &str, db_path: &PathBuf) -> Result<String> {
-    let db_access = read_sqlite_value(db_path, ACCESS_KEY)?;
-    let db_refresh = read_sqlite_value(db_path, REFRESH_KEY)?;
+fn resolve_cursor_access_token(plugin_id: &str, db_path: Option<&PathBuf>) -> Result<String> {
+    let (db_access, db_refresh) = match db_path {
+        Some(p) => (read_sqlite_value(p, ACCESS_KEY)?, read_sqlite_value(p, REFRESH_KEY)?),
+        None => (None, None),
+    };
     let db_has_ciphertext = [&db_access, &db_refresh]
         .iter()
         .any(|v| v.as_deref().is_some_and(crate::cursor_paths::is_encrypted_auth_value));
@@ -710,9 +715,14 @@ fn resolve_cursor_access_token(plugin_id: &str, db_path: &PathBuf) -> Result<Str
         if db_has_ciphertext {
             bail!("{ENCRYPTED_AUTH_MESSAGE}");
         }
+        if let Some(p) = db_path {
+            bail!(
+                "No Cursor auth in {}. Sign in via the Cursor app (tokens stored in state.vscdb).",
+                p.display()
+            );
+        }
         bail!(
-            "No Cursor auth in {}. Sign in via the Cursor app (tokens stored in state.vscdb).",
-            db_path.display()
+            "Cursor state.vscdb not found for {plugin_id}. Install Cursor or Cursor Nightly and sign in."
         );
     };
     let AuthTokens { mut access, refresh, source } = auth;
@@ -721,7 +731,7 @@ fn resolve_cursor_access_token(plugin_id: &str, db_path: &PathBuf) -> Result<Str
         if let Some(ref rt) = refresh {
             // Only write a refreshed token back into the DB it came from; never into
             // Cursor's encrypted store, and never over the CLI's own file.
-            let persist_to = (source == AuthSource::StateDb).then_some(db_path);
+            let persist_to = (source == AuthSource::StateDb).then_some(db_path).flatten();
             if let Some(new_a) = refresh_access_token(rt, persist_to)? {
                 access = Some(new_a);
             }
@@ -797,13 +807,8 @@ pub fn download_cursor_usage_csv_for_plugin(
     start_ms: i64,
     end_ms: i64,
 ) -> Result<String> {
-    let db_path = resolve_state_db_for_plugin(plugin_id).with_context(|| {
-        format!(
-            "Cursor state.vscdb not found for {plugin_id}. Install Cursor or Cursor Nightly and sign in."
-        )
-    })?;
-
-    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
+    let db_path = resolve_state_db_for_plugin(plugin_id);
+    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref())?;
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
@@ -1128,10 +1133,8 @@ fn fetch_cursor_usage_rows_via_events(
     since: &str,
     until: &str,
 ) -> Result<Vec<CsvUsageRow>> {
-    let db_path = resolve_state_db_for_plugin(plugin_id).with_context(|| {
-        format!("Cursor state.vscdb not found for {plugin_id}")
-    })?;
-    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
+    let db_path = resolve_state_db_for_plugin(plugin_id);
+    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref())?;
     let payload = decode_jwt_payload(&access).context("invalid JWT access token")?;
     let sub = payload.sub.as_deref().context("JWT missing sub")?;
     let user_id = user_id_from_sub(sub);

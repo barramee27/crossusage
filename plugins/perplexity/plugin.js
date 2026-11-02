@@ -527,7 +527,14 @@
 
     const user = authSession && authSession.user
     const tier = user && (user.subscription_tier || user.subscriptionTier)
-    const plan = typeof tier === "string" && tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : null
+    const plan =
+      typeof tier === "string" && tier
+        ? tier
+            .split("_")
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ")
+        : null
 
     return plan ? { plan: plan, lines: lines } : { lines: lines }
   }

@@ -1015,7 +1015,7 @@ describe("perplexity plugin — cookie auth (Windows/Linux)", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(result.plan).toBe("Enterprise_pro")
+    expect(result.plan).toBe("Enterprise Pro")
   })
 
   it("throws usage-unavailable when every endpoint responds but none has renderable data", async () => {

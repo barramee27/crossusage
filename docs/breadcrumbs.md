@@ -1,5 +1,10 @@
 # Breadcrumbs
 
+## 2026-11-02
+
+- Reviewed and merged PRs #43, #44, #45, and #46 onto `feat/linux-windows-native-support`.
+- Post-merge polish: updated `cursor_state_db_has_auth` to ignore `cursor-safe-storage:` ciphertext; allowed `cursor_usage_export` (`fetch_cursor_month_to_date_totals_uncached`, `download_cursor_usage_csv_for_plugin`, `fetch_cursor_usage_rows_via_events`) to authenticate via Cursor CLI `auth.json` even when `state.vscdb` is absent; formatted underscore-separated Perplexity `subscription_tier` values (e.g. `enterprise_pro` → `Enterprise Pro`); and extended `redact_body` JWT regex in `host_api.rs` to redact 5-segment JWE tokens (such as `next-auth` session cookies).
+
 ## 2026-11-01
 
 - Provider order: startup normalization preserves saved order instead of alphabetically sorting every launch. Regression coverage includes custom provider orders, disabled entries, and newly discovered providers. Modern dashboard and Customize both use plugins.order; modernLayout.providerOrder is legacy state.
