@@ -1,5 +1,13 @@
 # Breadcrumbs
 
+## 2026-11-01
+
+- Provider order: startup normalization preserves saved order instead of alphabetically sorting every launch. Regression coverage includes custom provider orders, disabled entries, and newly discovered providers. Modern dashboard and Customize both use plugins.order; modernLayout.providerOrder is legacy state.
+- `feat/perplexity-cookie-auth`: Perplexity on Windows/Linux via a pasted session cookie. `plugins/perplexity/plugin.js` gets `probeViaCookie` (cookie-shape detection, `fetchWebJson`, `buildCookieHeader`); `probe()` tries it first and falls back to the unchanged macOS cache path. Docs (`docs/providers/perplexity.md`, `multi-account-credentials.md`) and the credentials-dialog placeholder/hint in `settings.tsx` updated. Verified live on Windows against a real account: `rate-limit/status`, `billing/credits`, `api/auth/session` all 200, no Cloudflare challenge. 13 new tests in `plugin.test.js`.
+- Checked `host_api.rs` redaction per AGENTS.md: request headers (including the new `Cookie`) are never logged, only the redacted URL and redacted response body. No redaction-list changes needed.
+- Run `npx tsc --noEmit` before pushing UI changes: vitest does not typecheck, and a redundant `form.mode !== "rename"` inside the `!isRename` branch passed all tests but failed `tsc`.
+- Open finding, not fixed here: `redact_body`'s JWT regex expects 3 dot-separated segments; `next-auth` cookies are JWE (5 segments, empty 2nd). A JWE appearing in a response body would not be redacted. Perplexity response bodies carry no token, so this PR is unaffected; worth its own issue.
+
 ## 2026-10-19
 
 - Resolved Grok Bot QA notes and CI checks on PR #40: added `crates/crossusage-cli/build.rs` so `embedded_plugins.rs` stages filtered runtime plugins into `$OUT_DIR/bundled_plugins` without requiring `copy-bundled.cjs` first; auto-created the dev CLI sidecar stub in `scripts/tauri-before-dev.cjs` for clean checkouts; localized the Modern top navigation tabs (`dashboard`, `customize`, `polls`, `settings`) in `modern-shell.tsx` across all 13 locales; fixed `cursorPaths.resolveStateDb` zero-argument arity in `host_api.rs`; and silenced Windows dead-code warnings in `chromium_cookies.rs`.
@@ -89,11 +97,4 @@
 - Antigravity CLI quota UI: updated `plugins/antigravity-cli` to call Cloud Code `retrieveUserQuotaSummary` first and expose the same four summary lines as desktop Antigravity; left `antigravity-ide` unchanged.
 - Antigravity quota UI: Cloud Code now uses `retrieveUserQuotaSummary`; manifest and parser expose Gemini session/weekly lines first, then Claude and GPT session/weekly lines.
 - Antigravity Windows auth fix: resolve existing `Antigravity IDE`/legacy paths through `firstExistingAppSupport` (`%APPDATA%` on Windows), skipping nonexistent macOS paths and their SQLite warnings; read `gemini:antigravity` as raw Go-keyring UTF-8 bytes and refresh once after an auth failure.
-
-
-
-
-## 2026-11-01
-
-- Provider order: startup normalization preserves saved order instead of alphabetically sorting every launch. Regression coverage includes custom provider orders, disabled entries, and newly discovered providers. Modern dashboard and Customize both use plugins.order; modernLayout.providerOrder is legacy state.
 

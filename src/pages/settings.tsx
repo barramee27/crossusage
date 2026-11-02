@@ -622,11 +622,24 @@ function ProviderAccountForm({
             <input
               className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-ring"
               value={form.accessToken}
-              placeholder="Bearer token"
+              placeholder={form.baseProviderId === "perplexity" ? "Session cookie or Bearer token" : "Bearer token"}
               autoComplete="off"
               onChange={(event) => onChange({ ...form, accessToken: event.target.value })}
             />
           </label>
+          {form.baseProviderId === "perplexity" ? (
+            <p className="text-xs text-muted-foreground">
+              macOS auto-detects from the app. On Windows/Linux, paste a perplexity.ai{" "}
+              <code className="font-mono">next-auth</code> session cookie here instead.{" "}
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2 hover:no-underline"
+                onClick={() => openUrl(multiAccountCredentialsGuideUrl()).catch(console.error)}
+              >
+                Where to copy it from (opens GitHub)
+              </button>
+            </p>
+          ) : null}
           <label className="block space-y-1 text-xs text-muted-foreground">
             <span>Refresh token (optional)</span>
             <input

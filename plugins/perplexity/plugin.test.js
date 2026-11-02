@@ -834,3 +834,196 @@ describe("perplexity plugin", () => {
     expect(rateLimitCall.headers.Authorization).toBe("Bearer " + token)
   })
 })
+
+// --- Web-session (cookie) auth: Windows/Linux, no CFNetwork cache to scrape ---
+describe("perplexity plugin — cookie auth (Windows/Linux)", () => {
+  const RATE_LIMIT_URL = "https://www.perplexity.ai/rest/rate-limit/status?version=2.18&source=default"
+  const AUTH_SESSION_URL = "https://www.perplexity.ai/api/auth/session?version=2.18&source=default"
+  const CREDITS_URL = "https://www.perplexity.ai/rest/billing/credits?version=2.18&source=default"
+  const CREDITS_GATE_URL =
+    "https://www.perplexity.ai/rest/billing/credits/computer-submit-gate?version=2.18&source=default"
+
+  const SESSION_JWE =
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.." +
+    "b".repeat(20) + "." + "c".repeat(40) + "." + "d".repeat(20)
+
+  beforeEach(() => {
+    delete globalThis.__openusage_plugin
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function mockCookieCredential(ctx, accessToken) {
+    ctx.util.readProviderCredential = () => ({ accessToken })
+  }
+
+  function mockWebApi(ctx, options = {}) {
+    const status = options.status === undefined
+      ? { modes: { pro_search: { available: true, remaining_detail: { kind: "not_provided" } } } }
+      : options.status
+    const authSession = options.authSession === undefined
+      ? { user: { subscription_tier: "pro" } }
+      : options.authSession
+    const credits = options.credits === undefined ? { balance_cents: 499 } : options.credits
+    const respond = (body) =>
+      body === null ? { status: 404, headers: {}, bodyText: "{}" } : { status: 200, headers: {}, bodyText: JSON.stringify(body) }
+
+    ctx.host.http.request.mockImplementation((req) => {
+      if (req.url === RATE_LIMIT_URL) return respond(status)
+      if (req.url === AUTH_SESSION_URL) return respond(authSession)
+      if (req.url === CREDITS_URL) return respond(credits)
+      if (req.url === CREDITS_GATE_URL) return respond(options.creditsGate ?? null)
+      return { status: 404, headers: {}, bodyText: "{}" }
+    })
+  }
+
+  it("routes a cookie-shaped credential to the web session API, not the macOS cache", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, "__Secure-next-auth.session-token=" + SESSION_JWE)
+    mockWebApi(ctx)
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines.some((l) => l.label === "API credits")).toBe(true)
+    expect(ctx.host.sqlite.query).not.toHaveBeenCalled()
+  })
+
+  it("wraps a bare cookie value in the next-auth session cookie name", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx)
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    const call = ctx.host.http.request.mock.calls.find((c) => c[0]?.url === RATE_LIMIT_URL)?.[0]
+    expect(call.headers.Cookie).toBe("__Secure-next-auth.session-token=" + SESSION_JWE)
+  })
+
+  it("passes a full cookie header string through unchanged", async () => {
+    const ctx = makeCtx()
+    const fullCookie = "__Secure-next-auth.session-token=" + SESSION_JWE + "; cf_clearance=abc123"
+    mockCookieCredential(ctx, fullCookie)
+    mockWebApi(ctx)
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    const call = ctx.host.http.request.mock.calls.find((c) => c[0]?.url === RATE_LIMIT_URL)?.[0]
+    expect(call.headers.Cookie).toBe(fullCookie)
+  })
+
+  it("does not treat a 3-segment Bearer JWT credential as a cookie", async () => {
+    const ctx = makeCtx()
+    const token = makeJwtLikeToken()
+    mockCookieCredential(ctx, token)
+    mockRestApi(ctx, { balance: 4.99, usageAnalytics: [{ meter_event_summaries: [{ cost: 0.04 }] }] })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    // Falls through to loadLocalSession, which also reads readProviderCredential and
+    // uses it as the macOS-style Bearer token — same credential field, different auth shape.
+    expect(result.lines[0].label).toBe("API credits")
+    expect(result.lines[0].type).toBe("progress")
+    expect(ctx.host.http.request.mock.calls.some((c) => c[0]?.headers?.Cookie)).toBe(false)
+  })
+
+  it("throws a re-copy hint when the cookie is rejected everywhere", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    ctx.host.http.request.mockImplementation(() => ({ status: 401, headers: {}, bodyText: "" }))
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Session cookie rejected")
+  })
+
+  it("treats a Cloudflare challenge body as a failed endpoint, not a crash", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    ctx.host.http.request.mockImplementation((req) => {
+      if (req.url === RATE_LIMIT_URL) return { status: 403, headers: {}, bodyText: "<html>Just a moment...</html>" }
+      if (req.url === AUTH_SESSION_URL) return { status: 200, headers: {}, bodyText: JSON.stringify({ user: { subscription_tier: "pro" } }) }
+      if (req.url === CREDITS_URL) return { status: 200, headers: {}, bodyText: JSON.stringify({ balance_cents: 100 }) }
+      return { status: 404, headers: {}, bodyText: "{}" }
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Pro")
+    expect(result.lines.find((l) => l.label === "API credits").value).toBe("$1.00")
+  })
+
+  it("renders API credits in dollars from balance_cents", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx, { credits: { balance_cents: 0 }, status: null, authSession: null })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines).toEqual([{ type: "text", label: "API credits", value: "$0.00" }])
+  })
+
+  it("falls back to the computer-submit-gate balance when billing/credits is unavailable", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx, { credits: null, creditsGate: { balance_cents: 1 }, status: null, authSession: null })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.lines[0].value).toBe("$0.01")
+  })
+
+  it("renders exact remaining counts and availability text per mode", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx, {
+      credits: null,
+      authSession: null,
+      status: {
+        modes: {
+          pro_search: { available: true, remaining_detail: { kind: "not_provided" } },
+          research: { available: false, remaining_detail: { kind: "not_provided" } },
+          labs: { available: true, remaining_detail: { kind: "not_provided" } },
+          agentic_research: { available: false, remaining_detail: { kind: "exact", remaining: 0 } },
+        },
+      },
+    })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    const byLabel = Object.fromEntries(result.lines.map((l) => [l.label, l.value]))
+    expect(byLabel.Queries).toBe("available")
+    expect(byLabel["Deep Research"]).toBe("not available")
+    expect(byLabel.Labs).toBe("available")
+    expect(byLabel["Agentic Research"]).toBe("0 remaining")
+  })
+
+  it("derives the plan label from the auth session's subscription tier", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx, { authSession: { user: { subscription_tier: "enterprise_pro" } } })
+
+    const plugin = await loadPlugin()
+    const result = plugin.probe(ctx)
+
+    expect(result.plan).toBe("Enterprise_pro")
+  })
+
+  it("throws usage-unavailable when every endpoint responds but none has renderable data", async () => {
+    const ctx = makeCtx()
+    mockCookieCredential(ctx, SESSION_JWE)
+    mockWebApi(ctx, { credits: {}, authSession: { user: {} }, status: { modes: {} } })
+
+    const plugin = await loadPlugin()
+    expect(() => plugin.probe(ctx)).toThrow("Usage data unavailable")
+  })
+})
