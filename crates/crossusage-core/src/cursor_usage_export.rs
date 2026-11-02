@@ -217,19 +217,27 @@ pub struct DailyBillingRow {
     pub cost_usd: f64,
 }
 
-/// Per-day totals from the Cursor dashboard billing CSV (includes cost USD).
+/// Per-day rows plus where they came from, so callers can tell billed from estimated.
+#[derive(Debug, Clone, Serialize)]
+pub struct DailyBilling {
+    pub daily: Vec<DailyBillingRow>,
+    pub source: UsageSource,
+}
+
+/// Per-day totals (includes cost USD). See [`UsageSource`] for what the cost means.
 pub fn query_daily_billing(
     plugin_id: &str,
     since: Option<&str>,
     until: Option<&str>,
-) -> Result<Vec<DailyBillingRow>> {
+) -> Result<DailyBilling> {
     let (since, until) = if since.is_none() && until.is_none() {
         let (s, u) = month_to_date_range_local()?;
         (s, u)
     } else {
         resolve_date_range(since, until)?
     };
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+    let (rows, source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
     let by_day = aggregate_by_day(&rows);
     let mut out: Vec<DailyBillingRow> = by_day
         .into_iter()
@@ -242,7 +250,7 @@ pub fn query_daily_billing(
         })
         .collect();
     out.sort_by(|a, b| a.date.cmp(&b.date));
-    Ok(out)
+    Ok(DailyBilling { daily: out, source })
 }
 
 pub fn query_daily_billing_host_json(opts_json: &str) -> String {
@@ -254,7 +262,7 @@ pub fn query_daily_billing_host_json(opts_json: &str) -> String {
         .and_then(|v| v.get("until").and_then(|s| s.as_str()).map(str::to_string));
     let plugin_id = plugin_id_from_opts_json(opts_json);
     match query_daily_billing(&plugin_id, since.as_deref(), until.as_deref()) {
-        Ok(daily) => serde_json::json!({ "status": "ok", "data": { "daily": daily } }).to_string(),
+        Ok(billing) => serde_json::json!({ "status": "ok", "data": billing }).to_string(),
         Err(e) => serde_json::json!({
             "status": "error",
             "message": e.to_string()
@@ -351,6 +359,7 @@ pub struct CursorMtdTotals {
     pub cost_usd: f64,
     pub since: String,
     pub until: String,
+    pub source: UsageSource,
 }
 
 static MTD_CACHE: Mutex<Option<(String, Instant, CursorMtdTotals)>> = Mutex::new(None);
@@ -384,7 +393,8 @@ fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorM
         return None;
     }
     let (since, until) = month_to_date_range_local().ok()?;
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None).ok()?;
+    let (rows, source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None).ok()?;
     let agg = sum_csv_rows(&rows);
     Some(CursorMtdTotals {
         total_tokens: agg.total_tokens,
@@ -393,6 +403,7 @@ fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorM
         cost_usd: agg.cost_usd,
         since,
         until,
+        source,
     })
 }
 
@@ -578,7 +589,9 @@ struct RefreshBody {
     should_logout: Option<bool>,
 }
 
-fn refresh_access_token(refresh_token: &str, db_path: &PathBuf) -> Result<Option<String>> {
+/// `persist_to` is the state DB to write a refreshed access token back into, or `None`
+/// to keep it in memory only (the tokens did not come from that DB).
+fn refresh_access_token(refresh_token: &str, persist_to: Option<&PathBuf>) -> Result<Option<String>> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()?;
@@ -614,30 +627,165 @@ fn refresh_access_token(refresh_token: &str, db_path: &PathBuf) -> Result<Option
     let Some(at) = body.access_token.filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
-    let _ = write_sqlite_value(db_path, ACCESS_KEY, &at);
+    if let Some(db_path) = persist_to {
+        let _ = write_sqlite_value(db_path, ACCESS_KEY, &at);
+    }
     Ok(Some(at))
 }
 
-fn resolve_cursor_access_token(db_path: &PathBuf) -> Result<String> {
-    let mut access = read_sqlite_value(db_path, ACCESS_KEY)?;
-    let refresh = read_sqlite_value(db_path, REFRESH_KEY)?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthSource {
+    /// The desktop app's `state.vscdb`.
+    StateDb,
+    /// The plaintext `auth.json` written by `agent login` (Cursor CLI).
+    CliFile,
+}
 
+#[derive(Debug, PartialEq, Eq)]
+struct AuthTokens {
+    access: Option<String>,
+    refresh: Option<String>,
+    source: AuthSource,
+}
+
+/// Tokens from the Cursor CLI's `auth.json`.
+#[derive(Debug, PartialEq, Eq)]
+struct CliAuth {
+    access: Option<String>,
+    refresh: Option<String>,
+}
+
+fn parse_cli_auth(text: &str) -> Option<CliAuth> {
+    let v: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let pick = |key: &str| {
+        v.get(key)
+            .and_then(|s| s.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    let (access, refresh) = (pick("accessToken"), pick("refreshToken"));
     if access.is_none() && refresh.is_none() {
+        return None;
+    }
+    Some(CliAuth { access, refresh })
+}
+
+fn read_cli_auth_file() -> Option<CliAuth> {
+    let path = crate::cursor_paths::resolve_cursor_cli_auth_file()?;
+    parse_cli_auth(&std::fs::read_to_string(path).ok()?)
+}
+
+/// Pick which tokens to use. The desktop app's own tokens win when they are readable.
+/// Cursor 3.2x+ keeps them encrypted in `state.vscdb`; ciphertext is not a token, so it
+/// is ignored and the CLI file is used instead.
+fn choose_auth_tokens(
+    db_access: Option<String>,
+    db_refresh: Option<String>,
+    cli: Option<CliAuth>,
+) -> Option<AuthTokens> {
+    let readable = |v: Option<String>| v.filter(|s| !crate::cursor_paths::is_encrypted_auth_value(s));
+    let (access, refresh) = (readable(db_access), readable(db_refresh));
+    if access.is_some() || refresh.is_some() {
+        return Some(AuthTokens { access, refresh, source: AuthSource::StateDb });
+    }
+    cli.map(|c| AuthTokens { access: c.access, refresh: c.refresh, source: AuthSource::CliFile })
+}
+
+const ENCRYPTED_AUTH_MESSAGE: &str = "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then try again.";
+
+fn resolve_cursor_access_token(plugin_id: &str, db_path: &PathBuf) -> Result<String> {
+    let db_access = read_sqlite_value(db_path, ACCESS_KEY)?;
+    let db_refresh = read_sqlite_value(db_path, REFRESH_KEY)?;
+    let db_has_ciphertext = [&db_access, &db_refresh]
+        .iter()
+        .any(|v| v.as_deref().is_some_and(crate::cursor_paths::is_encrypted_auth_value));
+    // The CLI login is the stable app's; Nightly keeps using its own state DB only.
+    let cli = (crate::cursor_paths::CursorInstall::from_plugin_id(plugin_id)
+        == Some(crate::cursor_paths::CursorInstall::Stable))
+    .then(read_cli_auth_file)
+    .flatten();
+
+    let Some(auth) = choose_auth_tokens(db_access, db_refresh, cli) else {
+        if db_has_ciphertext {
+            bail!("{ENCRYPTED_AUTH_MESSAGE}");
+        }
         bail!(
             "No Cursor auth in {}. Sign in via the Cursor app (tokens stored in state.vscdb).",
             db_path.display()
         );
-    }
+    };
+    let AuthTokens { mut access, refresh, source } = auth;
 
     if needs_refresh(access.as_deref()) {
         if let Some(ref rt) = refresh {
-            if let Some(new_a) = refresh_access_token(rt, db_path)? {
+            // Only write a refreshed token back into the DB it came from; never into
+            // Cursor's encrypted store, and never over the CLI's own file.
+            let persist_to = (source == AuthSource::StateDb).then_some(db_path);
+            if let Some(new_a) = refresh_access_token(rt, persist_to)? {
                 access = Some(new_a);
             }
         }
     }
 
     access.context("No usable Cursor access token. Open Cursor and sign in again.")
+}
+
+#[cfg(test)]
+mod auth_selection_tests {
+    use super::*;
+
+    const CIPHERTEXT: &str = "cursor-safe-storage:v1:AAAA";
+
+    fn s(v: &str) -> Option<String> {
+        Some(v.to_string())
+    }
+
+    fn cli(access: &str, refresh: &str) -> Option<CliAuth> {
+        Some(CliAuth { access: s(access), refresh: s(refresh) })
+    }
+
+    #[test]
+    fn readable_state_db_tokens_win_over_cli_file() {
+        let got = choose_auth_tokens(s("db-access"), s("db-refresh"), cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::StateDb);
+        assert_eq!(got.access.as_deref(), Some("db-access"));
+    }
+
+    #[test]
+    fn encrypted_state_db_tokens_are_ignored_in_favor_of_cli_file() {
+        let got = choose_auth_tokens(s(CIPHERTEXT), s(CIPHERTEXT), cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::CliFile);
+        assert_eq!(got.access.as_deref(), Some("cli-a"));
+        assert_eq!(got.refresh.as_deref(), Some("cli-r"));
+    }
+
+    #[test]
+    fn ciphertext_is_never_returned_as_a_token() {
+        // Nothing readable anywhere: no tokens at all, rather than ciphertext sent as a token.
+        assert_eq!(choose_auth_tokens(s(CIPHERTEXT), s(CIPHERTEXT), None), None);
+        // A readable refresh token survives next to an encrypted access token.
+        let got = choose_auth_tokens(s(CIPHERTEXT), s("db-refresh"), None).unwrap();
+        assert_eq!((got.access, got.refresh.as_deref()), (None, Some("db-refresh")));
+    }
+
+    #[test]
+    fn no_state_db_tokens_falls_back_to_cli_file() {
+        let got = choose_auth_tokens(None, None, cli("cli-a", "cli-r")).unwrap();
+        assert_eq!(got.source, AuthSource::CliFile);
+        assert_eq!(choose_auth_tokens(None, None, None), None);
+    }
+
+    #[test]
+    fn parses_cli_auth_file() {
+        let ok = parse_cli_auth(r#"{"accessToken":" a ","refreshToken":"r"}"#).unwrap();
+        assert_eq!((ok.access.as_deref(), ok.refresh.as_deref()), (Some("a"), Some("r")));
+        // A BOM from some editors must not break parsing.
+        assert!(parse_cli_auth("\u{feff}{\"accessToken\":\"a\"}").is_some());
+        assert!(parse_cli_auth(r#"{"accessToken":"","refreshToken":"  "}"#).is_none());
+        assert!(parse_cli_auth(r#"{"other":1}"#).is_none());
+        assert!(parse_cli_auth("not json").is_none());
+    }
 }
 
 pub fn download_cursor_usage_csv(start_ms: i64, end_ms: i64) -> Result<String> {
@@ -655,7 +803,7 @@ pub fn download_cursor_usage_csv_for_plugin(
         )
     })?;
 
-    let access = resolve_cursor_access_token(&db_path)?;
+    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
@@ -983,7 +1131,7 @@ fn fetch_cursor_usage_rows_via_events(
     let db_path = resolve_state_db_for_plugin(plugin_id).with_context(|| {
         format!("Cursor state.vscdb not found for {plugin_id}")
     })?;
-    let access = resolve_cursor_access_token(&db_path)?;
+    let access = resolve_cursor_access_token(plugin_id, &db_path)?;
     let payload = decode_jwt_payload(&access).context("invalid JWT access token")?;
     let sub = payload.sub.as_deref().context("JWT missing sub")?;
     let user_id = user_id_from_sub(sub);
@@ -1119,20 +1267,45 @@ fn fetch_cursor_usage_rows_via_events(
     Ok(rows)
 }
 
+/// Where a set of Cursor usage rows came from. Callers that show a dollar figure
+/// need this: only `Csv` carries what Cursor actually billed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UsageSource {
+    /// Dashboard billing CSV: the `Cost` column is the amount Cursor charged.
+    Csv,
+    /// Per-event token counts priced locally from the bundled price table: a
+    /// list-price estimate, which can be non-zero for usage the plan covers.
+    Events,
+}
+
+/// Events win when they load; any failure falls back to the CSV.
+fn pick_usage_rows(
+    events: Result<Vec<CsvUsageRow>>,
+    csv: impl FnOnce() -> Result<Vec<CsvUsageRow>>,
+) -> Result<(Vec<CsvUsageRow>, UsageSource)> {
+    if let Ok(rows) = events {
+        return Ok((rows, UsageSource::Events));
+    }
+    csv().map(|rows| (rows, UsageSource::Csv))
+}
+
 fn load_cursor_usage_rows_with_events_fallback(
     plugin_id: &str,
     since: &str,
     until: &str,
     preloaded_csv: Option<String>,
-) -> Result<Vec<CsvUsageRow>> {
-    if let Ok(rows) = fetch_cursor_usage_rows_via_events(plugin_id, since, until) {
-        return Ok(rows);
-    }
-    let csv_text = match preloaded_csv {
-        Some(t) => t,
-        None => fetch_csv_cached(plugin_id, since, until)?,
-    };
-    parse_usage_csv(&csv_text, since, until)
+) -> Result<(Vec<CsvUsageRow>, UsageSource)> {
+    pick_usage_rows(
+        fetch_cursor_usage_rows_via_events(plugin_id, since, until),
+        || {
+            let csv_text = match preloaded_csv {
+                Some(t) => t,
+                None => fetch_csv_cached(plugin_id, since, until)?,
+            };
+            parse_usage_csv(&csv_text, since, until)
+        },
+    )
 }
 
 fn row_agg_to_json(key: String, a: &RowAgg) -> UsageStatsRowJson {
@@ -1177,7 +1350,8 @@ pub fn query_usage_stats(
         bail!("group must be 'model' or 'provider'");
     }
 
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+    let (rows, _source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
     let map = if group == "model" {
         aggregate_by_model(&rows)
     } else {
@@ -1340,5 +1514,86 @@ mod tests {
             Some(&incomplete)
         ));
         assert!(!cursor_history_day_ready_to_publish(yesterday, today, None));
+    }
+
+    fn sample_row(cost_usd: f64) -> CsvUsageRow {
+        CsvUsageRow {
+            day_key: "2026-11-01".into(),
+            model: "m".into(),
+            input_cache_write: 0,
+            input_no_cache: 10,
+            cache_read: 0,
+            output_tokens: 5,
+            total_tokens: 15,
+            cost_usd,
+        }
+    }
+
+    #[test]
+    fn events_win_and_are_tagged_as_events() {
+        let mut csv_called = false;
+        let (rows, source) = pick_usage_rows(Ok(vec![sample_row(1.0)]), || {
+            csv_called = true;
+            Ok(vec![sample_row(9.0)])
+        })
+        .unwrap();
+        assert_eq!(source, UsageSource::Events);
+        assert_eq!(rows.len(), 1);
+        assert!((rows[0].cost_usd - 1.0).abs() < f64::EPSILON);
+        assert!(!csv_called, "CSV must not be fetched when events loaded");
+    }
+
+    #[test]
+    fn events_failure_falls_back_to_csv_and_is_tagged_as_csv() {
+        let (rows, source) = pick_usage_rows(Err(anyhow::anyhow!("backfill incomplete")), || {
+            Ok(vec![sample_row(9.0)])
+        })
+        .unwrap();
+        assert_eq!(source, UsageSource::Csv);
+        assert!((rows[0].cost_usd - 9.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn both_sources_failing_is_an_error() {
+        let res = pick_usage_rows(Err(anyhow::anyhow!("events down")), || {
+            Err(anyhow::anyhow!("csv down"))
+        });
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn usage_source_serializes_lowercase_in_host_payloads() {
+        assert_eq!(serde_json::to_string(&UsageSource::Csv).unwrap(), "\"csv\"");
+        assert_eq!(
+            serde_json::to_string(&UsageSource::Events).unwrap(),
+            "\"events\""
+        );
+
+        let billing = DailyBilling {
+            daily: vec![DailyBillingRow {
+                date: "20261101".into(),
+                total_tokens: 15,
+                input_tokens: 10,
+                output_tokens: 5,
+                cost_usd: 1.0,
+            }],
+            source: UsageSource::Events,
+        };
+        let v = serde_json::to_value(&billing).unwrap();
+        assert_eq!(v["source"], "events");
+        assert_eq!(v["daily"][0]["costUsd"], 1.0);
+
+        let mtd = CursorMtdTotals {
+            total_tokens: 15,
+            input_tokens: 10,
+            output_tokens: 5,
+            cost_usd: 1.0,
+            since: "20261101".into(),
+            until: "20261101".into(),
+            source: UsageSource::Csv,
+        };
+        let v = serde_json::to_value(&mtd).unwrap();
+        assert_eq!(v["source"], "csv");
+        assert_eq!(v["costUsd"], 1.0);
     }
 }

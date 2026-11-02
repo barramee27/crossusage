@@ -424,15 +424,9 @@ export function normalizePluginSettings(
     }
   }
 
-  const sortedOrder = sortPluginOrderAlphabetically(
-    order,
-    { providerInstances },
-    plugins
-  );
-
   const providerLabels = normalizeProviderLabels(settings.providerLabels, knownBaseSet);
 
-  return { order: sortedOrder, disabled, trayLines, providerInstances, providerLabels };
+  return { order, disabled, trayLines, providerInstances, providerLabels };
 }
 
 function normalizeProviderLabels(
@@ -788,64 +782,6 @@ function defaultProviderInstanceLabel(baseProviderId: string, instanceId: string
     ? instanceId.slice(baseProviderId.length + 1)
     : instanceId;
   return suffix || "Account";
-}
-
-/** Provider list order: A–Z by base provider, account instances grouped under their base. */
-export function sortPluginOrderAlphabetically(
-  order: string[],
-  settings: Pick<PluginSettings, "providerInstances">,
-  plugins: PluginMeta[],
-): string[] {
-  const partialSettings = {
-    order,
-    disabled: [],
-    trayLines: {},
-    providerInstances: settings.providerInstances ?? {},
-  } satisfies PluginSettings;
-
-  const bases = new Set<string>()
-  for (const id of order) {
-    bases.add(getBaseProviderId(id, partialSettings))
-  }
-  for (const plugin of plugins) {
-    bases.add(plugin.id)
-  }
-
-  const sortedBases = [...bases].sort((a, b) => {
-    const nameA = plugins.find((plugin) => plugin.id === a)?.name ?? a
-    const nameB = plugins.find((plugin) => plugin.id === b)?.name ?? b
-    return nameA.localeCompare(nameB, undefined, { sensitivity: "base" })
-  })
-
-  const result: string[] = []
-  const seen = new Set<string>()
-  for (const base of sortedBases) {
-    const members = order.filter(
-      (id) => getBaseProviderId(id, partialSettings) === base && !seen.has(id),
-    )
-    const baseEntry = members.find((id) => id === base)
-    const instances = members
-      .filter((id) => id !== base)
-      .sort((a, b) =>
-        getProviderDisplayName(a, partialSettings, plugins).localeCompare(
-          getProviderDisplayName(b, partialSettings, plugins),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      )
-    if (baseEntry) {
-      seen.add(baseEntry)
-      result.push(baseEntry)
-    }
-    for (const instance of instances) {
-      seen.add(instance)
-      result.push(instance)
-    }
-  }
-  for (const id of order) {
-    if (!seen.has(id)) result.push(id)
-  }
-  return result
 }
 
 export function insertProviderInstanceInOrder(

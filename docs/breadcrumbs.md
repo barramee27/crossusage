@@ -2,6 +2,7 @@
 
 ## 2026-11-01
 
+- Provider order: startup normalization preserves saved order instead of alphabetically sorting every launch. Regression coverage includes custom provider orders, disabled entries, and newly discovered providers. Modern dashboard and Customize both use plugins.order; modernLayout.providerOrder is legacy state.
 - `feat/perplexity-cookie-auth`: Perplexity on Windows/Linux via a pasted session cookie. `plugins/perplexity/plugin.js` gets `probeViaCookie` (cookie-shape detection, `fetchWebJson`, `buildCookieHeader`); `probe()` tries it first and falls back to the unchanged macOS cache path. Docs (`docs/providers/perplexity.md`, `multi-account-credentials.md`) and the credentials-dialog placeholder/hint in `settings.tsx` updated. Verified live on Windows against a real account: `rate-limit/status`, `billing/credits`, `api/auth/session` all 200, no Cloudflare challenge. 13 new tests in `plugin.test.js`.
 - Checked `host_api.rs` redaction per AGENTS.md: request headers (including the new `Cookie`) are never logged, only the redacted URL and redacted response body. No redaction-list changes needed.
 - Run `npx tsc --noEmit` before pushing UI changes: vitest does not typecheck, and a redundant `form.mode !== "rename"` inside the `!isRename` branch passed all tests but failed `tsc`.
@@ -96,6 +97,4 @@
 - Antigravity CLI quota UI: updated `plugins/antigravity-cli` to call Cloud Code `retrieveUserQuotaSummary` first and expose the same four summary lines as desktop Antigravity; left `antigravity-ide` unchanged.
 - Antigravity quota UI: Cloud Code now uses `retrieveUserQuotaSummary`; manifest and parser expose Gemini session/weekly lines first, then Claude and GPT session/weekly lines.
 - Antigravity Windows auth fix: resolve existing `Antigravity IDE`/legacy paths through `firstExistingAppSupport` (`%APPDATA%` on Windows), skipping nonexistent macOS paths and their SQLite warnings; read `gemini:antigravity` as raw Go-keyring UTF-8 bytes and refresh once after an auth failure.
-
-
 

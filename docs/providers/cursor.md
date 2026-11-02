@@ -156,6 +156,7 @@ OpenUsage reads Cursor auth in this order:
 
 1. **Cursor Desktop SQLite** (preferred)
 2. **Cursor CLI keychain** (fallback)
+3. **Cursor CLI `auth.json`** (fallback, plaintext file written by `agent login`)
 
 #### 1) Cursor Desktop SQLite (preferred)
 
@@ -178,6 +179,15 @@ sqlite3 ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb \
 | `cursorAuth/stripeMembershipType` | Plan tier (e.g. `pro`, `ultra`) |
 | `cursorAuth/stripeSubscriptionStatus` | Subscription status |
 
+**Encrypted tokens (Cursor 3.2x+).** Newer Cursor builds store `cursorAuth/accessToken` and
+`cursorAuth/refreshToken` encrypted at rest as `cursor-safe-storage:v1:<base64>` (Electron
+`safeStorage`; the codec lives in Cursor's `main.js` as `cursorAuthTokenStorageCodec`). That value is
+ciphertext, not a JWT: sent to the API it is rejected (`401 ERROR_NOT_LOGGED_IN`), and sent to
+`/oauth/token` it returns `shouldLogout: true`, which looks like an expired session even though the
+app is signed in. CrossUsage detects the prefix and ignores such values (it never sends them and never
+writes a refreshed token back into that store), then falls through to the sources below. With nothing
+else available it reports "Cursor keeps its sign-in encrypted ... Run `agent login`".
+
 #### 2) Cursor CLI keychain (fallback)
 
 OpenUsage reads Cursor CLI tokens from keychain:
@@ -190,6 +200,15 @@ To initialize CLI auth:
 ```bash
 agent login
 ```
+
+#### 3) Cursor CLI `auth.json` (fallback)
+
+On Windows, `agent login` does not use the keychain: it writes `accessToken` and `refreshToken` (plain
+JWTs) to `%APPDATA%\Cursor\auth.json`. CrossUsage reads that file for the stable **Cursor** provider
+when `state.vscdb` holds no readable tokens. The candidate locations are
+`~/.config/Cursor/auth.json`, `~/Library/Application Support/Cursor/auth.json` and
+`~/AppData/Roaming/Cursor/auth.json`; only the Windows one has been verified. A refreshed token is kept
+in memory and never written over the CLI's file. **Cursor Nightly** does not read this file.
 
 ### Token Refresh
 
