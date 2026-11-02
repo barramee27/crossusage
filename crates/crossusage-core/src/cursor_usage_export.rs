@@ -217,19 +217,27 @@ pub struct DailyBillingRow {
     pub cost_usd: f64,
 }
 
-/// Per-day totals from the Cursor dashboard billing CSV (includes cost USD).
+/// Per-day rows plus where they came from, so callers can tell billed from estimated.
+#[derive(Debug, Clone, Serialize)]
+pub struct DailyBilling {
+    pub daily: Vec<DailyBillingRow>,
+    pub source: UsageSource,
+}
+
+/// Per-day totals (includes cost USD). See [`UsageSource`] for what the cost means.
 pub fn query_daily_billing(
     plugin_id: &str,
     since: Option<&str>,
     until: Option<&str>,
-) -> Result<Vec<DailyBillingRow>> {
+) -> Result<DailyBilling> {
     let (since, until) = if since.is_none() && until.is_none() {
         let (s, u) = month_to_date_range_local()?;
         (s, u)
     } else {
         resolve_date_range(since, until)?
     };
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+    let (rows, source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
     let by_day = aggregate_by_day(&rows);
     let mut out: Vec<DailyBillingRow> = by_day
         .into_iter()
@@ -242,7 +250,7 @@ pub fn query_daily_billing(
         })
         .collect();
     out.sort_by(|a, b| a.date.cmp(&b.date));
-    Ok(out)
+    Ok(DailyBilling { daily: out, source })
 }
 
 pub fn query_daily_billing_host_json(opts_json: &str) -> String {
@@ -254,7 +262,7 @@ pub fn query_daily_billing_host_json(opts_json: &str) -> String {
         .and_then(|v| v.get("until").and_then(|s| s.as_str()).map(str::to_string));
     let plugin_id = plugin_id_from_opts_json(opts_json);
     match query_daily_billing(&plugin_id, since.as_deref(), until.as_deref()) {
-        Ok(daily) => serde_json::json!({ "status": "ok", "data": { "daily": daily } }).to_string(),
+        Ok(billing) => serde_json::json!({ "status": "ok", "data": billing }).to_string(),
         Err(e) => serde_json::json!({
             "status": "error",
             "message": e.to_string()
@@ -351,6 +359,7 @@ pub struct CursorMtdTotals {
     pub cost_usd: f64,
     pub since: String,
     pub until: String,
+    pub source: UsageSource,
 }
 
 static MTD_CACHE: Mutex<Option<(String, Instant, CursorMtdTotals)>> = Mutex::new(None);
@@ -384,7 +393,8 @@ fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorM
         return None;
     }
     let (since, until) = month_to_date_range_local().ok()?;
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None).ok()?;
+    let (rows, source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None).ok()?;
     let agg = sum_csv_rows(&rows);
     Some(CursorMtdTotals {
         total_tokens: agg.total_tokens,
@@ -393,6 +403,7 @@ fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorM
         cost_usd: agg.cost_usd,
         since,
         until,
+        source,
     })
 }
 
@@ -1256,20 +1267,45 @@ fn fetch_cursor_usage_rows_via_events(
     Ok(rows)
 }
 
+/// Where a set of Cursor usage rows came from. Callers that show a dollar figure
+/// need this: only `Csv` carries what Cursor actually billed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UsageSource {
+    /// Dashboard billing CSV: the `Cost` column is the amount Cursor charged.
+    Csv,
+    /// Per-event token counts priced locally from the bundled price table: a
+    /// list-price estimate, which can be non-zero for usage the plan covers.
+    Events,
+}
+
+/// Events win when they load; any failure falls back to the CSV.
+fn pick_usage_rows(
+    events: Result<Vec<CsvUsageRow>>,
+    csv: impl FnOnce() -> Result<Vec<CsvUsageRow>>,
+) -> Result<(Vec<CsvUsageRow>, UsageSource)> {
+    if let Ok(rows) = events {
+        return Ok((rows, UsageSource::Events));
+    }
+    csv().map(|rows| (rows, UsageSource::Csv))
+}
+
 fn load_cursor_usage_rows_with_events_fallback(
     plugin_id: &str,
     since: &str,
     until: &str,
     preloaded_csv: Option<String>,
-) -> Result<Vec<CsvUsageRow>> {
-    if let Ok(rows) = fetch_cursor_usage_rows_via_events(plugin_id, since, until) {
-        return Ok(rows);
-    }
-    let csv_text = match preloaded_csv {
-        Some(t) => t,
-        None => fetch_csv_cached(plugin_id, since, until)?,
-    };
-    parse_usage_csv(&csv_text, since, until)
+) -> Result<(Vec<CsvUsageRow>, UsageSource)> {
+    pick_usage_rows(
+        fetch_cursor_usage_rows_via_events(plugin_id, since, until),
+        || {
+            let csv_text = match preloaded_csv {
+                Some(t) => t,
+                None => fetch_csv_cached(plugin_id, since, until)?,
+            };
+            parse_usage_csv(&csv_text, since, until)
+        },
+    )
 }
 
 fn row_agg_to_json(key: String, a: &RowAgg) -> UsageStatsRowJson {
@@ -1314,7 +1350,8 @@ pub fn query_usage_stats(
         bail!("group must be 'model' or 'provider'");
     }
 
-    let rows = load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+    let (rows, _source) =
+        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
     let map = if group == "model" {
         aggregate_by_model(&rows)
     } else {
@@ -1477,5 +1514,86 @@ mod tests {
             Some(&incomplete)
         ));
         assert!(!cursor_history_day_ready_to_publish(yesterday, today, None));
+    }
+
+    fn sample_row(cost_usd: f64) -> CsvUsageRow {
+        CsvUsageRow {
+            day_key: "2026-11-01".into(),
+            model: "m".into(),
+            input_cache_write: 0,
+            input_no_cache: 10,
+            cache_read: 0,
+            output_tokens: 5,
+            total_tokens: 15,
+            cost_usd,
+        }
+    }
+
+    #[test]
+    fn events_win_and_are_tagged_as_events() {
+        let mut csv_called = false;
+        let (rows, source) = pick_usage_rows(Ok(vec![sample_row(1.0)]), || {
+            csv_called = true;
+            Ok(vec![sample_row(9.0)])
+        })
+        .unwrap();
+        assert_eq!(source, UsageSource::Events);
+        assert_eq!(rows.len(), 1);
+        assert!((rows[0].cost_usd - 1.0).abs() < f64::EPSILON);
+        assert!(!csv_called, "CSV must not be fetched when events loaded");
+    }
+
+    #[test]
+    fn events_failure_falls_back_to_csv_and_is_tagged_as_csv() {
+        let (rows, source) = pick_usage_rows(Err(anyhow::anyhow!("backfill incomplete")), || {
+            Ok(vec![sample_row(9.0)])
+        })
+        .unwrap();
+        assert_eq!(source, UsageSource::Csv);
+        assert!((rows[0].cost_usd - 9.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn both_sources_failing_is_an_error() {
+        let res = pick_usage_rows(Err(anyhow::anyhow!("events down")), || {
+            Err(anyhow::anyhow!("csv down"))
+        });
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn usage_source_serializes_lowercase_in_host_payloads() {
+        assert_eq!(serde_json::to_string(&UsageSource::Csv).unwrap(), "\"csv\"");
+        assert_eq!(
+            serde_json::to_string(&UsageSource::Events).unwrap(),
+            "\"events\""
+        );
+
+        let billing = DailyBilling {
+            daily: vec![DailyBillingRow {
+                date: "20261101".into(),
+                total_tokens: 15,
+                input_tokens: 10,
+                output_tokens: 5,
+                cost_usd: 1.0,
+            }],
+            source: UsageSource::Events,
+        };
+        let v = serde_json::to_value(&billing).unwrap();
+        assert_eq!(v["source"], "events");
+        assert_eq!(v["daily"][0]["costUsd"], 1.0);
+
+        let mtd = CursorMtdTotals {
+            total_tokens: 15,
+            input_tokens: 10,
+            output_tokens: 5,
+            cost_usd: 1.0,
+            since: "20261101".into(),
+            until: "20261101".into(),
+            source: UsageSource::Csv,
+        };
+        let v = serde_json::to_value(&mtd).unwrap();
+        assert_eq!(v["source"], "csv");
+        assert_eq!(v["costUsd"], 1.0);
     }
 }
