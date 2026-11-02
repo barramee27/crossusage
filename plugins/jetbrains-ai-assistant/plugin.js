@@ -444,7 +444,10 @@
     var frac = match[3] || "000"
     if (frac.length > 3) frac = frac.slice(0, 3)
     while (frac.length < 3) frac = frac + "0"
-    var ms = Date.parse(match[1] + "T" + match[2] + "." + frac + "Z")
+    // idea.log stamps are local wall time (ZoneId.systemDefault) and carry no offset.
+    // Date.parse treats a date-time without Z as local. Appending Z would read that
+    // wall clock as UTC and mis-rank it against real Unix session timestamps.
+    var ms = Date.parse(match[1] + "T" + match[2] + "." + frac)
     return Number.isFinite(ms) ? ms : null
   }
 

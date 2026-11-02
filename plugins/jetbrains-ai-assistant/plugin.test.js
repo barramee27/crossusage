@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process"
+import path from "node:path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { makeCtx } from "../test-helpers.js"
 
@@ -786,6 +788,90 @@ describe("jetbrains-ai-assistant plugin", () => {
     const plugin = await loadPlugin()
     const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
     expect(used && used.value).toBe("80")
+  })
+
+  it("reads idea.log timestamps as local wall time, not UTC", () => {
+    const pluginFile = path.join(process.cwd(), "plugins/jetbrains-ai-assistant/plugin.js")
+    const script = `
+      const pluginFile = process.argv[1]
+      await import(new URL("file://" + pluginFile).href)
+      const plugin = globalThis.__openusage_plugin
+      const files = new Map()
+      const write = (path, text) => files.set(path, text)
+      const fs = {
+        exists(path) {
+          if (files.has(path)) return true
+          const base = String(path).replace(/\\/+$/, "")
+          for (const filePath of files.keys()) {
+            if (String(filePath).startsWith(base + "/")) return true
+          }
+          return false
+        },
+        readText: (path) => files.get(path),
+        listDir(path) {
+          const base = String(path).replace(/\\/+$/, "")
+          const out = new Set()
+          for (const filePath of files.keys()) {
+            const full = String(filePath)
+            if (!full.startsWith(base + "/")) continue
+            const child = full.slice(base.length + 1).split("/")[0]
+            if (child) out.add(child)
+          }
+          return Array.from(out).sort()
+        },
+      }
+      const noop = () => {}
+      const ctx = {
+        nowIso: "2026-02-02T00:00:00.000Z",
+        app: { platform: "darwin", version: "0", appDataDir: "/tmp", pluginDataDir: "/tmp/p" },
+        host: { fs, log: { debug: noop, info: noop, warn: noop, error: noop, trace: noop } },
+        util: {
+          tryParseJson(text) {
+            try { return JSON.parse(text) } catch { return null }
+          },
+          parseDateMs(value) {
+            const parsed = Date.parse(value)
+            return Number.isFinite(parsed) ? parsed : null
+          },
+          toIso(value) {
+            if (typeof value !== "string" || !value) return null
+            const parsed = Date.parse(value)
+            return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null
+          },
+        },
+        line: { progress: (line) => line, text: (line) => line },
+      }
+      const localMs = new Date(2026, 1, 2, 10, 0, 0, 0).getTime()
+      const utcMs = Date.parse("2026-02-02T10:00:00.000Z")
+      if (localMs === utcMs) {
+        console.error("timezone offset is zero; cannot tell local wall time from UTC")
+        process.exit(2)
+      }
+      write(
+        "~/Library/Logs/JetBrains/WebStorm2025.3/log/idea.log",
+        '2026-02-02 10:00:00,000 [ 1] INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota info is received: {"type":"Available","current":"30","maximum":"100","available":"70","until":"2099-01-31T00:00:00Z"}'
+      )
+      write(
+        "~/.junie/sessions/session-mid/events.jsonl",
+        JSON.stringify({
+          timestampMs: Math.round((localMs + utcMs) / 2),
+          completion: {
+            quota: { current: "80", maximum: "100", available: "20", until: "2099-01-31T00:00:00Z" },
+          },
+        })
+      )
+      const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+      const expectUsed = localMs < utcMs ? "80" : "30"
+      if (!used || used.value !== expectUsed) {
+        console.error(JSON.stringify({ expectUsed, got: used && used.value, localMs, utcMs }))
+        process.exit(1)
+      }
+    `
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script, pluginFile], {
+      env: { ...process.env, TZ: "Pacific/Auckland" },
+      encoding: "utf8",
+    })
+    expect(child.status, child.stderr || child.stdout).toBe(0)
   })
 
   it("keeps the live XML maximum when a stale session would shrink the cloud cap", async () => {
