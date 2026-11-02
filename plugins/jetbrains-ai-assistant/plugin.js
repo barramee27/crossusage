@@ -11,6 +11,17 @@
   // JetBrains stores AI quota in 1e-5 credit units; divide by this to get credits.
   var CREDIT_UNIT_SCALE = 100000
 
+  // Included credits on current JetBrains plans. The Aug 2025 currency model used
+  // 10 (Pro) and 35 (Ultimate); those caps clamp a live balance that is still
+  // inside the real tariff, and top-ups can sit above either number.
+  var AI_PRO_CREDITS = 20
+  var AI_ULTIMATE_CREDITS = 70
+  var UNKNOWN_PLAN_CREDIT_FLOOR = 10
+  var TOKEN_REFRESH_SKEW_MS = 60 * 1000
+  // An undated IDE quota file has no mtime. Sessions older than this do not
+  // outrank it; a dated idea.log is compared by its own timestamp instead.
+  var SESSION_UNDATED_LIVE_MAX_AGE_MS = 48 * 60 * 60 * 1000
+
   var LICENSE_NAMES = {
     AIP: "JetBrains AI Pro",
     AIPU: "JetBrains AI Ultimate",
@@ -350,9 +361,99 @@
     return states
   }
 
+  function coerceEpochMs(ctx, value) {
+    var n = toNumber(value)
+    if (n !== null) {
+      if (n <= 0) return null
+      return n < 1000000000000 ? n * 1000 : n
+    }
+    if (typeof value === "string" && value.trim()) {
+      return ctx.util.parseDateMs(value.trim())
+    }
+    return null
+  }
+
+  function readObservedAtMs(ctx, value) {
+    if (!value || typeof value !== "object") return null
+    var keys = ["timestampMs", "timestamp", "timeMs", "createdAt", "updatedAt"]
+    for (var i = 0; i < keys.length; i += 1) {
+      var ms = coerceEpochMs(ctx, value[keys[i]])
+      if (ms !== null) return ms
+    }
+    return null
+  }
+
+  function eventObservedAtMs(ctx, parsed) {
+    var direct = readObservedAtMs(ctx, parsed)
+    if (direct !== null) return direct
+    if (!parsed || typeof parsed !== "object") return null
+    var fromEvent = readObservedAtMs(ctx, parsed.event)
+    if (fromEvent !== null) return fromEvent
+    return readObservedAtMs(ctx, parsed.completion)
+  }
+
+  function sessionIdObservedAtMs(sessionId) {
+    if (typeof sessionId !== "string") return null
+    var match = sessionId.match(/^session-(\d{2})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-|$)/)
+    if (!match) return null
+    var ms = Date.parse(
+      "20" +
+        match[1] +
+        "-" +
+        match[2] +
+        "-" +
+        match[3] +
+        "T" +
+        match[4] +
+        ":" +
+        match[5] +
+        ":" +
+        match[6] +
+        "Z"
+    )
+    return Number.isFinite(ms) ? ms : null
+  }
+
+  function readJunieSessionIndexTimes(ctx) {
+    var times = Object.create(null)
+    var indexPath = JUNIE_SESSIONS_DIR + "/index.jsonl"
+    if (!ctx.host.fs.exists(indexPath)) return times
+    try {
+      var text = ctx.host.fs.readText(indexPath)
+      if (!text) return times
+      var lines = text.split(/\r?\n/)
+      for (var i = 0; i < lines.length; i += 1) {
+        var line = lines[i].trim()
+        if (!line) continue
+        var row = ctx.util.tryParseJson(line)
+        if (!row || typeof row.sessionId !== "string") continue
+        var at = coerceEpochMs(ctx, row.updatedAt)
+        if (at === null) at = coerceEpochMs(ctx, row.createdAt)
+        if (at !== null) times[row.sessionId] = at
+      }
+    } catch (e) {
+      ctx.host.log.debug("failed reading junie session index: " + String(e))
+    }
+    return times
+  }
+
+  function logLineObservedAtMs(line) {
+    if (typeof line !== "string") return null
+    var match = line.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:,(\d{1,3}))?/)
+    if (!match) return null
+    var frac = match[3] || "000"
+    if (frac.length > 3) frac = frac.slice(0, 3)
+    while (frac.length < 3) frac = frac + "0"
+    var ms = Date.parse(match[1] + "T" + match[2] + "." + frac + "Z")
+    return Number.isFinite(ms) ? ms : null
+  }
+
   // Tier 3: Junie CLI Session Logs (~/.junie/sessions/*/events.jsonl)
+  // Each session keeps the observation time of its newest quota event so a
+  // leftover folder cannot outrank a later idea.log or XML snapshot.
   function probeJunieSessions(ctx) {
     var sessionDirs = safeListDir(ctx, JUNIE_SESSIONS_DIR)
+    var indexTimes = readJunieSessionIndexTimes(ctx)
     var states = []
 
     for (var i = 0; i < sessionDirs.length; i += 1) {
@@ -376,11 +477,17 @@
           if (!candidate) continue
           var quota = normalizeQuota(candidate)
           if (quota) {
+            var observedAt = eventObservedAtMs(ctx, parsed)
+            if (observedAt === null && typeof indexTimes[sessionId] === "number") {
+              observedAt = indexTimes[sessionId]
+            }
+            if (observedAt === null) observedAt = sessionIdObservedAtMs(sessionId)
             states.push({
               path: eventsPath,
               quota: quota,
               nextRefill: candidate.nextRefill || null,
               tier: 3,
+              observedAtMs: observedAt,
             })
             break
           }
@@ -401,6 +508,7 @@
       var lines = text.split(/\r?\n/)
       var latestQuota = null
       var latestRefill = null
+      var latestObservedAt = null
 
       for (var i = lines.length - 1; i >= 0; i -= 1) {
         var line = lines[i]
@@ -411,6 +519,7 @@
             var parsed = ctx.util.tryParseJson(jsonCandidate)
             if (parsed) {
               latestQuota = normalizeQuota(parsed)
+              if (latestQuota) latestObservedAt = logLineObservedAtMs(line)
             }
           }
         }
@@ -429,6 +538,7 @@
         quota: latestQuota,
         nextRefill: latestRefill,
         tier: 4,
+        observedAtMs: latestObservedAt,
       }
     } catch (e) {
       ctx.host.log.debug("failed reading idea.log " + logPath + ": " + String(e))
@@ -504,66 +614,143 @@
     return null
   }
 
+  function probeNowMs(ctx) {
+    var parsed = ctx.nowIso ? ctx.util.parseDateMs(ctx.nowIso) : null
+    if (parsed !== null) return parsed
+    return Date.now()
+  }
+
+  function jwtExpiryMs(ctx, token) {
+    if (!token || !ctx.jwt || typeof ctx.jwt.decodePayload !== "function") return null
+    var payload = ctx.jwt.decodePayload(token)
+    if (!payload || typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return null
+    return payload.exp * 1000
+  }
+
+  function isStoredTokenUsable(ctx, token) {
+    var expMs = jwtExpiryMs(ctx, token)
+    if (expMs === null) return true
+    if (!ctx.util || typeof ctx.util.needsRefreshByExpiry !== "function") {
+      return expMs > probeNowMs(ctx) + TOKEN_REFRESH_SKEW_MS
+    }
+    return !ctx.util.needsRefreshByExpiry({
+      nowMs: probeNowMs(ctx),
+      expiresAtMs: expMs,
+      bufferMs: TOKEN_REFRESH_SKEW_MS,
+    })
+  }
+
+  function readRefreshToken(stored) {
+    if (!stored || typeof stored !== "object") return null
+    var jb = stored.jbAccount
+    if (!jb || typeof jb !== "object") return null
+    if (typeof jb.refresh_token !== "string") return null
+    var token = jb.refresh_token.trim()
+    return token ? token : null
+  }
+
+  function refreshJetBrainsAccessToken(ctx, refreshToken) {
+    if (
+      !refreshToken ||
+      !ctx.host.http ||
+      typeof ctx.host.http.request !== "function"
+    ) {
+      return null
+    }
+    try {
+      var resp = ctx.host.http.request({
+        method: "POST",
+        url: JBA_OAUTH_TOKEN_URL,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        bodyText:
+          "client_id=junie-cli&grant_type=refresh_token&refresh_token=" +
+          encodeURIComponent(refreshToken),
+        timeoutMs: 4000,
+      })
+      if (resp && resp.status >= 200 && resp.status < 300 && resp.bodyText) {
+        var tokenData = ctx.util.tryParseJson(resp.bodyText)
+        if (tokenData) {
+          if (typeof tokenData.id_token === "string" && tokenData.id_token.trim()) {
+            return tokenData.id_token.trim()
+          }
+          if (typeof tokenData.access_token === "string" && tokenData.access_token.trim()) {
+            return tokenData.access_token.trim()
+          }
+        }
+      }
+    } catch (e) {
+      ctx.host.log.debug("junie token refresh failed: " + String(e))
+    }
+    return null
+  }
+
+  // Returns a stored bearer that is still inside its exp window. An expired
+  // JWT is not returned, so the caller can run the refresh_token grant.
   function extractJwtTokenFromStoredAccount(ctx, stored) {
     if (!stored || typeof stored !== "object") return null
+    var candidates = []
     if (typeof stored.simpleToken === "string" && stored.simpleToken.trim()) {
-      return stored.simpleToken.trim()
+      candidates.push(stored.simpleToken.trim())
     }
     var jb = stored.jbAccount
     if (jb && typeof jb === "object") {
       if (typeof jb.id_token === "string" && jb.id_token.trim()) {
-        return jb.id_token.trim()
+        candidates.push(jb.id_token.trim())
       }
       if (typeof jb.access_token === "string" && jb.access_token.trim()) {
-        return jb.access_token.trim()
-      }
-      if (
-        typeof jb.refresh_token === "string" &&
-        jb.refresh_token.trim() &&
-        ctx.host.http &&
-        typeof ctx.host.http.request === "function"
-      ) {
-        try {
-          var resp = ctx.host.http.request({
-            method: "POST",
-            url: JBA_OAUTH_TOKEN_URL,
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            bodyText:
-              "client_id=junie-cli&grant_type=refresh_token&refresh_token=" +
-              encodeURIComponent(jb.refresh_token.trim()),
-            timeoutMs: 4000,
-          })
-          if (resp && resp.status >= 200 && resp.status < 300 && resp.bodyText) {
-            var tokenData = ctx.util.tryParseJson(resp.bodyText)
-            if (tokenData) {
-              return tokenData.id_token || tokenData.access_token || null
-            }
-          }
-        } catch (e) {
-          ctx.host.log.debug("junie token refresh failed: " + String(e))
-        }
+        candidates.push(jb.access_token.trim())
       }
     }
+    for (var i = 0; i < candidates.length; i += 1) {
+      if (isStoredTokenUsable(ctx, candidates[i])) return candidates[i]
+    }
     return null
+  }
+
+  function requestJunieAuthTest(ctx, token) {
+    return ctx.host.http.request({
+      method: "GET",
+      url: INGRAZZIO_AUTH_TEST_URL,
+      headers: {
+        Authorization: "Bearer " + token,
+        "X-Accept-EAP-License": "true",
+        "X-Accept-Release-License": "true",
+      },
+      timeoutMs: 4000,
+    })
+  }
+
+  function resolveCloudMaximum(licenseType, balanceLeft, fallbackMaximum) {
+    if (fallbackMaximum !== null && fallbackMaximum >= balanceLeft) return fallbackMaximum
+    var included = null
+    if (licenseType === "AIPU") included = AI_ULTIMATE_CREDITS * CREDIT_UNIT_SCALE
+    else if (licenseType === "AIP") included = AI_PRO_CREDITS * CREDIT_UNIT_SCALE
+    // Top-ups leave balanceLeft above the tariff. Expand the cap to the live
+    // balance instead of clamping remaining down to the included amount.
+    if (included !== null) return balanceLeft > included ? balanceLeft : included
+    var floor = UNKNOWN_PLAN_CREDIT_FLOOR * CREDIT_UNIT_SCALE
+    return balanceLeft > floor ? balanceLeft : floor
   }
 
   function probeJunieCloudBalance(ctx, fallbackQuotaState) {
     if (!ctx.host.http || typeof ctx.host.http.request !== "function") return null
     var stored = readJunieStoredAccount(ctx)
     var token = extractJwtTokenFromStoredAccount(ctx, stored)
+    var refreshedAlready = false
+    if (!token) {
+      token = refreshJetBrainsAccessToken(ctx, readRefreshToken(stored))
+      refreshedAlready = true
+    }
     if (!token) return null
 
     try {
-      var resp = ctx.host.http.request({
-        method: "GET",
-        url: INGRAZZIO_AUTH_TEST_URL,
-        headers: {
-          Authorization: "Bearer " + token,
-          "X-Accept-EAP-License": "true",
-          "X-Accept-Release-License": "true",
-        },
-        timeoutMs: 4000,
-      })
+      var resp = requestJunieAuthTest(ctx, token)
+      if (resp && resp.status === 401 && !refreshedAlready) {
+        var refreshed = refreshJetBrainsAccessToken(ctx, readRefreshToken(stored))
+        if (refreshed && refreshed !== token) {
+          resp = requestJunieAuthTest(ctx, refreshed)
+        }
+      }
       if (!resp || resp.status < 200 || resp.status >= 300 || !resp.bodyText) return null
       var authInfo = ctx.util.tryParseJson(resp.bodyText)
       if (!authInfo || typeof authInfo !== "object") return null
@@ -571,22 +758,11 @@
       var balanceLeft = toNumber(authInfo.balanceLeft)
       if (balanceLeft === null) return null
 
-      // Combine live balanceLeft with known maximum from fallback state if available
-      var maximum =
+      var fallbackMaximum =
         fallbackQuotaState && fallbackQuotaState.quota && fallbackQuotaState.quota.maximum > 0
           ? fallbackQuotaState.quota.maximum
           : null
-
-      // Standard JetBrains tariff maxima when only balanceLeft is returned
-      if (maximum === null || maximum < balanceLeft) {
-        if (authInfo.licenseType === "AIPU") {
-          maximum = 35 * CREDIT_UNIT_SCALE
-        } else if (authInfo.licenseType === "AIP") {
-          maximum = 10 * CREDIT_UNIT_SCALE
-        } else if (balanceLeft > 0) {
-          maximum = Math.max(balanceLeft, 10 * CREDIT_UNIT_SCALE)
-        }
-      }
+      var maximum = resolveCloudMaximum(authInfo.licenseType, balanceLeft, fallbackMaximum)
 
       if (!maximum || maximum <= 0) return null
 
@@ -628,6 +804,39 @@
     return null
   }
 
+  function filterSessionStates(ctx, sessionStates, liveStates) {
+    if (!liveStates || liveStates.length === 0) return sessionStates
+    var newestLiveAt = null
+    for (var i = 0; i < liveStates.length; i += 1) {
+      var liveAt = liveStates[i].observedAtMs
+      if (typeof liveAt === "number" && (newestLiveAt === null || liveAt > newestLiveAt)) {
+        newestLiveAt = liveAt
+      }
+    }
+    var nowMs = ctx.nowIso ? ctx.util.parseDateMs(ctx.nowIso) : null
+    if (nowMs === null) nowMs = Date.now()
+    var kept = []
+    for (var s = 0; s < sessionStates.length; s += 1) {
+      var session = sessionStates[s]
+      var sessionAt = session.observedAtMs
+      if (typeof sessionAt !== "number") continue
+      if (newestLiveAt !== null) {
+        if (sessionAt >= newestLiveAt) kept.push(session)
+        continue
+      }
+      if (nowMs - sessionAt <= SESSION_UNDATED_LIVE_MAX_AGE_MS) kept.push(session)
+    }
+    return kept
+  }
+
+  function localSourceRank(tier) {
+    var rank = tier || 5
+    // Session logs share `until` with idea.log and XML. That timestamp is the
+    // billing-window end, so a lower tier number must not win the tie.
+    if (rank === 3) return 6
+    return rank
+  }
+
   function pickBestState(ctx, states) {
     var best = null
     var bestMs = -Infinity
@@ -651,13 +860,23 @@
       }
 
       if (untilMs === bestMs) {
-        var stateTier = state.tier || 5
-        var bestTier = best.tier || 5
-        if (stateTier < bestTier) {
+        var stateAt = typeof state.observedAtMs === "number" ? state.observedAtMs : null
+        var bestAt = typeof best.observedAtMs === "number" ? best.observedAtMs : null
+        if (stateAt !== null && bestAt !== null && stateAt !== bestAt) {
+          if (stateAt > bestAt) {
+            best = state
+            continue
+          }
+          continue
+        }
+
+        var stateRank = localSourceRank(state.tier)
+        var bestRank = localSourceRank(best.tier)
+        if (stateRank < bestRank) {
           best = state
           continue
         }
-        if (stateTier > bestTier) {
+        if (stateRank > bestRank) {
           continue
         }
 
@@ -718,11 +937,13 @@
 
     var sessionStates = probeJunieSessions(ctx)
     var logStates = probeIdeaLogs(ctx)
+    var liveStates = logStates.concat(xmlStates)
+    // Drop session snapshots that are older than the live IDE files. A shared
+    // billing-window `until` would otherwise let a leftover events.jsonl win,
+    // including as the maximum/until donor for the cloud balance.
+    var sessionCandidates = filterSessionStates(ctx, sessionStates, liveStates)
 
-    var localFallbackBest = pickBestState(
-      ctx,
-      sessionStates.concat(logStates).concat(xmlStates)
-    )
+    var localFallbackBest = pickBestState(ctx, sessionCandidates.concat(liveStates))
 
     var chosen = null
     if (rpcStates.length > 0) {

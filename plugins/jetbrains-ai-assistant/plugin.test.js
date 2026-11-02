@@ -498,4 +498,345 @@ describe("jetbrains-ai-assistant plugin", () => {
     const quota = result.lines.find((line) => line.label === "Quota")
     expect(quota && quota.used).toBe(30)
   })
+
+  function writeStoredAccount(ctx, jbAccount, simpleToken) {
+    const stored = {}
+    if (simpleToken) stored.simpleToken = simpleToken
+    if (jbAccount) stored.jbAccount = jbAccount
+    ctx.host.fs.writeText(
+      "~/.junie/secure_credentials.json",
+      JSON.stringify({
+        secrets: [{ key: "jb-account-stored", secret: JSON.stringify(stored) }],
+      })
+    )
+  }
+
+  function makeJwt(ctx, payload) {
+    const header = ctx.base64.encode(JSON.stringify({ alg: "none", typ: "JWT" }))
+    const body = ctx.base64.encode(JSON.stringify(payload))
+    return `${header}.${body}.sig`
+  }
+
+  function quotaLines(result) {
+    return {
+      quota: result.lines.find((line) => line.label === "Quota"),
+      used: result.lines.find((line) => line.label === "Used"),
+      remaining: result.lines.find((line) => line.label === "Remaining"),
+    }
+  }
+
+  it("raises a too-small local cap when a Pro balance is still inside 20 credits", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "200000",
+          maximum: "1000000",
+          available: "800000",
+          until: "2099-01-31T00:00:00Z",
+        },
+        nextRefill: null,
+      })
+    )
+    writeStoredAccount(ctx, { id_token: "live-jwt-token" })
+    ctx.host.http.request.mockImplementation(() => ({
+      status: 200,
+      bodyText: JSON.stringify({ balanceLeft: 1500000, licenseType: "AIP" }),
+    }))
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(quota && quota.used).toBe(25)
+    expect(used && used.value).toBe("5 / 20 credits")
+    expect(remaining && remaining.value).toBe("15 credits")
+  })
+
+  it("uses the 20 credit Pro tariff when the cloud balance has no local maximum", async () => {
+    const ctx = makeCtx()
+    writeStoredAccount(ctx, { id_token: "live-jwt-token", refresh_token: "refresh-token" })
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.url === "https://ingrazzio-cloud-prod.labs.jb.gg/auth/test") {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ balanceLeft: 1500000, licenseType: "AIP" }),
+        }
+      }
+      return { status: 404, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(quota && quota.used).toBe(25)
+    expect(used && used.value).toBe("5 / 20 credits")
+    expect(remaining && remaining.value).toBe("15 credits")
+  })
+
+  it("expands the Ultimate cap when the live balance exceeds 70 credits", async () => {
+    const ctx = makeCtx()
+    writeStoredAccount(ctx, { id_token: "live-jwt-token" })
+    ctx.host.http.request.mockImplementation(() => ({
+      status: 200,
+      bodyText: JSON.stringify({ balanceLeft: 8000000, licenseType: "AIPU" }),
+    }))
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(quota && quota.used).toBe(0)
+    expect(used && used.value).toBe("0 / 80 credits")
+    expect(remaining && remaining.value).toBe("80 credits")
+  })
+
+  it("reports an exhausted unknown plan instead of dropping the cloud probe", async () => {
+    const ctx = makeCtx()
+    writeStoredAccount(ctx, { id_token: "live-jwt-token" })
+    ctx.host.http.request.mockImplementation(() => ({
+      status: 200,
+      bodyText: JSON.stringify({ balanceLeft: 0, licenseType: "JUNP" }),
+    }))
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(quota && quota.used).toBe(100)
+    expect(used && used.value).toBe("10 / 10 credits")
+    expect(remaining && remaining.value).toBe("0 credits")
+  })
+
+  it("refreshes an expired JetBrains id_token before calling /auth/test", async () => {
+    const ctx = makeCtx()
+    const expired = makeJwt(ctx, { exp: 1 })
+    writeStoredAccount(ctx, { id_token: expired, refresh_token: "refresh-token" })
+    const authHeaders = []
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.url === "https://oauth.account.jetbrains.com/oauth2/token") {
+        expect(opts.bodyText).toContain("grant_type=refresh_token")
+        expect(opts.bodyText).toContain(`refresh_token=${encodeURIComponent("refresh-token")}`)
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ id_token: "refreshed-id-token" }),
+        }
+      }
+      if (opts.url === "https://ingrazzio-cloud-prod.labs.jb.gg/auth/test") {
+        authHeaders.push(opts.headers.Authorization)
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ balanceLeft: 5000000, licenseType: "AIPU" }),
+        }
+      }
+      return { status: 404, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(authHeaders).toEqual(["Bearer refreshed-id-token"])
+    expect(quota && quota.used).toBeCloseTo((20 / 70) * 100, 5)
+    expect(used && used.value).toBe("20 / 70 credits")
+    expect(remaining && remaining.value).toBe("50 credits")
+  })
+
+  it("retries /auth/test once after a 401 by refreshing the JetBrains token", async () => {
+    const ctx = makeCtx()
+    const valid = makeJwt(ctx, { exp: Math.floor(Date.parse("2099-01-01T00:00:00Z") / 1000) })
+    writeStoredAccount(ctx, { id_token: valid, refresh_token: "refresh-token" })
+    const authHeaders = []
+    ctx.host.http.request.mockImplementation((opts) => {
+      if (opts.url === "https://oauth.account.jetbrains.com/oauth2/token") {
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ access_token: "refreshed-access-token" }),
+        }
+      }
+      if (opts.url === "https://ingrazzio-cloud-prod.labs.jb.gg/auth/test") {
+        authHeaders.push(opts.headers.Authorization)
+        if (authHeaders.length === 1) return { status: 401, bodyText: "" }
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ balanceLeft: 1500000, licenseType: "AIP" }),
+        }
+      }
+      return { status: 404, bodyText: "" }
+    })
+
+    const plugin = await loadPlugin()
+    const { quota, remaining } = quotaLines(plugin.probe(ctx))
+    expect(authHeaders).toEqual(["Bearer " + valid, "Bearer refreshed-access-token"])
+    expect(quota && quota.used).toBe(25)
+    expect(remaining && remaining.value).toBe("15 credits")
+  })
+
+  function writeSessionQuota(ctx, sessionId, quota, observedAtMs) {
+    ctx.host.fs.writeText(
+      `~/.junie/sessions/${sessionId}/events.jsonl`,
+      JSON.stringify({
+        timestampMs: observedAtMs,
+        completion: { quota },
+      })
+    )
+  }
+
+  it("prefers the IDE quota file over an older Junie session with a later until", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "30",
+          maximum: "100",
+          available: "70",
+          until: "2099-01-31T00:00:00Z",
+        },
+        nextRefill: { type: "Known", next: "2099-01-31T00:00:00Z", tariff: { amount: "100", duration: "P30D" } },
+      })
+    )
+    writeSessionQuota(
+      ctx,
+      "session-old",
+      { current: "80", maximum: "100", available: "20", until: "2099-06-01T00:00:00Z" },
+      Date.parse("2020-01-01T00:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("30")
+  })
+
+  it("does not let a same-window Junie session outrank the IDE quota file", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "30",
+          maximum: "100",
+          available: "70",
+          until: "2099-01-31T00:00:00Z",
+        },
+        nextRefill: { type: "Known", next: "2099-01-31T00:00:00Z", tariff: { amount: "100", duration: "P30D" } },
+      })
+    )
+    writeSessionQuota(
+      ctx,
+      "session-recent",
+      { current: "80", maximum: "100", available: "20", until: "2099-01-31T00:00:00Z" },
+      Date.parse("2026-02-01T12:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("30")
+  })
+
+  it("uses a recent Junie session when its billing window is newer than XML", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "30",
+          maximum: "100",
+          available: "70",
+          until: "2099-01-31T00:00:00Z",
+        },
+        nextRefill: { type: "Known", next: "2099-01-31T00:00:00Z", tariff: { amount: "100", duration: "P30D" } },
+      })
+    )
+    writeSessionQuota(
+      ctx,
+      "session-new-window",
+      { current: "10", maximum: "100", available: "90", until: "2099-06-01T00:00:00Z" },
+      Date.parse("2026-02-01T12:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("10")
+  })
+
+  it("prefers a current idea.log over an older session with the same until", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      "~/Library/Logs/JetBrains/WebStorm2025.3/log/idea.log",
+      '2026-02-02 00:00:00,000 [ 1] INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota info is received: {"type":"Available","current":"30","maximum":"100","available":"70","until":"2099-01-31T00:00:00Z"}'
+    )
+    writeSessionQuota(
+      ctx,
+      "session-260101-000000-old",
+      { current: "90", maximum: "100", available: "10", until: "2099-01-31T00:00:00Z" },
+      Date.parse("2026-01-01T00:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("30")
+  })
+
+  it("keeps a Junie session that is newer than idea.log", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      "~/Library/Logs/JetBrains/WebStorm2025.3/log/idea.log",
+      '2026-02-01 10:00:00,000 [ 1] INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota info is received: {"type":"Available","current":"30","maximum":"100","available":"70","until":"2099-01-31T00:00:00Z"}'
+    )
+    writeSessionQuota(
+      ctx,
+      "session-260202-120000-new",
+      { current: "80", maximum: "100", available: "20", until: "2099-01-31T00:00:00Z" },
+      Date.parse("2026-02-02T12:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("80")
+  })
+
+  it("keeps the live XML maximum when a stale session would shrink the cloud cap", async () => {
+    const ctx = makeCtx()
+    ctx.host.fs.writeText(
+      DARWIN_PATH,
+      makeQuotaXml({
+        quotaInfo: {
+          current: "1981684.92",
+          maximum: "2367648.941",
+          available: "385964.021",
+          until: "2099-01-31T00:00:00Z",
+        },
+        nextRefill: null,
+      })
+    )
+    writeSessionQuota(
+      ctx,
+      "session-old-cloud",
+      {
+        current: "900000",
+        maximum: "1000000",
+        available: "100000",
+        until: "2099-06-01T00:00:00Z",
+      },
+      Date.parse("2020-01-01T00:00:00Z")
+    )
+    writeStoredAccount(ctx, { id_token: "live-jwt-token" })
+    ctx.host.http.request.mockImplementation(() => ({
+      status: 200,
+      bodyText: JSON.stringify({ balanceLeft: 1500000, licenseType: "AIP" }),
+    }))
+
+    const plugin = await loadPlugin()
+    const { quota, used, remaining } = quotaLines(plugin.probe(ctx))
+    expect(used && used.value).toBe("8.68 / 23.68 credits")
+    expect(remaining && remaining.value).toBe("15 credits")
+    expect(quota && quota.used).toBeCloseTo((867648.941 / 2367648.941) * 100, 4)
+  })
+
+  it("still reads a Junie session when no IDE quota file or log exists", async () => {
+    const ctx = makeCtx()
+    writeSessionQuota(
+      ctx,
+      "session-260101-000000-cli",
+      { current: "40", maximum: "100", available: "60", until: "2099-01-31T00:00:00Z" },
+      Date.parse("2020-06-01T00:00:00Z")
+    )
+
+    const plugin = await loadPlugin()
+    const used = plugin.probe(ctx).lines.find((line) => line.label === "Used")
+    expect(used && used.value).toBe("40")
+  })
 })
