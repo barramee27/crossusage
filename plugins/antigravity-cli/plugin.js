@@ -745,7 +745,8 @@
       {},
       Object.assign({}, authOpts, {
         continueOnHttpError: true,
-        userAgent: "antigravity",
+        // Cloud Code omits Gemini buckets for an unversioned Antigravity client.
+        userAgent: "antigravity/cli/1.5.0",
       })
     )
     var summaryLines = parseQuotaSummary(ctx, loadData)

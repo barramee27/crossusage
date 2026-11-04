@@ -104,3 +104,7 @@
 - Antigravity quota UI: Cloud Code now uses `retrieveUserQuotaSummary`; manifest and parser expose Gemini session/weekly lines first, then Claude and GPT session/weekly lines.
 - Antigravity Windows auth fix: resolve existing `Antigravity IDE`/legacy paths through `firstExistingAppSupport` (`%APPDATA%` on Windows), skipping nonexistent macOS paths and their SQLite warnings; read `gemini:antigravity` as raw Go-keyring UTF-8 bytes and refresh once after an auth failure.
 
+## 2026-11-04
+
+- Antigravity CLI quota summary: an unversioned client identity returned only third-party buckets on a live Google account. A versioned CLI identity restored Gemini session and weekly buckets. The plugin test asserts the header, and a live probe verified the returned buckets on one account.
+

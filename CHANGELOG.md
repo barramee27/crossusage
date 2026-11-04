@@ -11,6 +11,7 @@
 
 ### Bug fixes
 
+- **Antigravity CLI** — restore Gemini session and weekly quota from Google's quota summary with a versioned CLI identity (#48).
 - **Cursor (3.2x+)** — detect `cursor-safe-storage:` ciphertext tokens in `state.vscdb` so they are never sent as Bearer/refresh tokens, and fall back to the plaintext `auth.json` written by `agent login` (Cursor CLI) (#44).
 - **Provider order** — keep the saved provider order on startup instead of re-sorting it alphabetically. Fresh installs use plugin ID order; newly discovered providers append to the saved list (#43).
 
