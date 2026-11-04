@@ -745,7 +745,7 @@
       {},
       Object.assign({}, authOpts, {
         continueOnHttpError: true,
-        // Cloud Code omits Gemini buckets for an unversioned Antigravity client.
+        // Older client identities omitted Gemini buckets on the tested account.
         userAgent: "antigravity/cli/1.5.0",
       })
     )

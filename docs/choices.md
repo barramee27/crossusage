@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-11-04
+
+- Antigravity CLI quota summary: use the tested versioned `antigravity/cli/1.5.0` identity for `retrieveUserQuotaSummary`; the unversioned identity produced a partial response without Gemini buckets on one account. See [the dated decision](DECISIONS.md#2026-11-04--identify-the-antigravity-cli-quota-client-with-a-versioned-user-agent) for evidence and reconsideration triggers.
+
 ## 2026-11-01
 
 - **Perplexity Windows/Linux auth:** cookie, not Bearer. No CFNetwork-equivalent cache and no plaintext token on disk (checked live app data and a HAR from the web client: only `next-auth` JWE cookies, 5 segments, exist). Send as a `Cookie` header to the same REST paths the account page uses (`rate-limit/status`, `billing/credits`, `api/auth/session`), not `Authorization: Bearer`.
@@ -104,9 +108,3 @@
 - Antigravity CLI quota: match the desktop `agy` path by preferring `retrieveUserQuotaSummary` and rendering Gemini session/weekly lines first, then Claude and GPT session/weekly lines. Keep older `loadCodeAssist` / model quota calls as compatibility fallback only.
 - Antigravity remote quota: prefer `retrieveUserQuotaSummary` on the daily Cloud Code host, then the standard Cloud Code host; render its four stable group/window buckets rather than individual model pools. Retain legacy model calls only when no summary is returned.
 - Antigravity credential discovery: use `host.fs.firstExistingAppSupport` for the platform-native VS Code state database; do not infer credentials from `.gemini/antigravity` conversation files. On Windows, read `agy`'s Go-keyring target as raw UTF-8 bytes; refresh only after Cloud Code returns `401`/`403`.
-
-
-
-## 2026-11-04
-
-- Antigravity CLI quota summary: use the tested versioned `antigravity/cli/1.5.0` identity for `retrieveUserQuotaSummary`; the unversioned identity produced a partial response without Gemini buckets on one account. See [the dated decision](DECISIONS.md#2026-11-04--identify-the-antigravity-cli-quota-client-with-a-versioned-user-agent) for evidence and reconsideration triggers.
