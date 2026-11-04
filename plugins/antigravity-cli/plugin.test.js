@@ -77,7 +77,7 @@ describe("antigravity-cli plugin", () => {
     mockResponses(ctx, {
       [RETRIEVE_QUOTA_SUMMARY_URL]: (opts) => {
         expect(opts.headers.Authorization).toBe("Bearer raw-token")
-        expect(opts.headers["User-Agent"]).toBe("antigravity")
+        expect(opts.headers["User-Agent"]).toBe("antigravity/cli/1.5.0")
         expect(opts.bodyText).toBe("{}")
         return json(200, makeQuotaSummaryResponse())
       },

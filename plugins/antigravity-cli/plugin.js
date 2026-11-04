@@ -745,7 +745,8 @@
       {},
       Object.assign({}, authOpts, {
         continueOnHttpError: true,
-        userAgent: "antigravity",
+        // Older client identities omitted Gemini buckets on the tested account.
+        userAgent: "antigravity/cli/1.5.0",
       })
     )
     var summaryLines = parseQuotaSummary(ctx, loadData)

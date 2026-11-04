@@ -1,5 +1,9 @@
 # Breadcrumbs
 
+## 2026-11-04
+
+- Antigravity CLI quota summary: an unversioned client identity returned only third-party buckets on a live Google account. A versioned CLI identity restored Gemini session and weekly buckets. The plugin test asserts the header, and a live probe verified the returned buckets on one account.
+
 ## 2026-11-02
 
 - JetBrains AI Assistant live quota fix (#41): added multi-source probing to `plugins/jetbrains-ai-assistant/plugin.js` — Tier 1 live IDE JSON-RPC (`~/.junie/instances/*.json` → `http://127.0.0.1:<port>/rpc` `JunieSystemService.getQuotaInfo`), Tier 2 Junie CLI / Grazzio cloud API (`~/.junie/secure_credentials.json` or `junie-cli` keychain → `GET https://ingrazzio-cloud-prod.labs.jb.gg/auth/test` + OAuth refresh), Tier 3 Junie CLI session logs (`~/.junie/sessions/*/events.jsonl`), Tier 4 IDE `idea.log` (`QuotaManager2Impl`), and Tier 5 `AIAssistantQuotaManager2.xml` fallback; added `username`, `rpc_token`, `simpleToken` redaction in `host_api.rs`.
