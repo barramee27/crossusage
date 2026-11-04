@@ -703,7 +703,8 @@
   }
 
   function probeAgyCloudCode(ctx, token) {
-    var summaryData = requestCloudCodeJson(ctx, RETRIEVE_QUOTA_SUMMARY_PATH, token, "antigravity", {})
+    // Older client identities omitted Gemini buckets on the tested account.
+    var summaryData = requestCloudCodeJson(ctx, RETRIEVE_QUOTA_SUMMARY_PATH, token, "antigravity/cli/1.5.0", {})
     if (summaryData && summaryData._authFailed) return summaryData
     var summaryLines = parseQuotaSummary(ctx, summaryData)
     if (summaryLines && summaryLines.length > 0) return { plan: null, lines: summaryLines }

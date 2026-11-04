@@ -2,7 +2,7 @@
 
 ## 2026-11-04
 
-- Antigravity CLI quota summary: an unversioned client identity returned only third-party buckets on a live Google account. A versioned CLI identity restored Gemini session and weekly buckets. The plugin test asserts the header, and a live probe verified the returned buckets on one account.
+- Antigravity CLI quota summary: an unversioned client identity returned only third-party buckets on a live Google account. A versioned CLI identity (`antigravity/cli/1.5.0`) restored Gemini session and weekly buckets in both `plugins/antigravity-cli/plugin.js` (#49) and the `probeAgyCloudCode` fallback in `plugins/antigravity/plugin.js`. The plugin tests assert the header, and a live probe verified the returned buckets on one account.
 
 ## 2026-11-02
 

@@ -803,7 +803,7 @@ describe("antigravity plugin", () => {
 
     expect(ctx.host.keychain.readGenericPassword).toHaveBeenCalledWith("gemini", "antigravity")
     expect(called.every((call) => call.auth === "Bearer agy-keychain-token")).toBe(true)
-    expect(called.every((call) => call.userAgent === "antigravity")).toBe(true)
+    expect(called.every((call) => call.userAgent === "antigravity/cli/1.5.0")).toBe(true)
     expect(called.map((call) => call.url)).toEqual([
       "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
     ])

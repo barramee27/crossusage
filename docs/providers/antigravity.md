@@ -234,9 +234,9 @@ The response has two quota groups. The plugin exposes four progress lines: `Sess
 
 ### agy keychain fallback
 
-`agy` stores its auth in the OS credential store under service `gemini`, account `antigravity`. OpenUsage reads that exact account only; after a `401`, it refreshes the OAuth token once before reporting a sign-in error.
+`agy` stores its auth in the OS credential store under service `gemini`, account `antigravity`. CrossUsage reads that exact account only; after a `401`, it refreshes the OAuth token once before reporting a sign-in error.
 
-`agy` uses the same `retrieveUserQuotaSummary` request and headers. The older `fetchAvailableModels`, `loadCodeAssist`, and `retrieveUserQuota` calls are compatibility fallbacks only if a Cloud Code deployment has no usable summary response.
+`agy` uses the same `retrieveUserQuotaSummary` request with `User-Agent: antigravity/cli/1.5.0` (an unversioned identity can omit Gemini buckets). The older `fetchAvailableModels`, `loadCodeAssist`, and `retrieveUserQuota` calls are compatibility fallbacks only if a Cloud Code deployment has no usable summary response.
 
 #### Response shape
 
