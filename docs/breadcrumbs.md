@@ -2,6 +2,7 @@
 
 ## 2026-11-02
 
+- JetBrains AI Assistant live quota fix (#41): added multi-source probing to `plugins/jetbrains-ai-assistant/plugin.js` — Tier 1 live IDE JSON-RPC (`~/.junie/instances/*.json` → `http://127.0.0.1:<port>/rpc` `JunieSystemService.getQuotaInfo`), Tier 2 Junie CLI / Grazzio cloud API (`~/.junie/secure_credentials.json` or `junie-cli` keychain → `GET https://ingrazzio-cloud-prod.labs.jb.gg/auth/test` + OAuth refresh), Tier 3 Junie CLI session logs (`~/.junie/sessions/*/events.jsonl`), Tier 4 IDE `idea.log` (`QuotaManager2Impl`), and Tier 5 `AIAssistantQuotaManager2.xml` fallback; added `username`, `rpc_token`, `simpleToken` redaction in `host_api.rs`.
 - Reviewed and merged PRs #43, #44, #45, and #46 onto `feat/linux-windows-native-support`.
 - Post-merge polish: updated `cursor_state_db_has_auth` to ignore `cursor-safe-storage:` ciphertext; allowed `cursor_usage_export` (`fetch_cursor_month_to_date_totals_uncached`, `download_cursor_usage_csv_for_plugin`, `fetch_cursor_usage_rows_via_events`) to authenticate via Cursor CLI `auth.json` even when `state.vscdb` is absent; formatted underscore-separated Perplexity `subscription_tier` values (e.g. `enterprise_pro` → `Enterprise Pro`); and extended `redact_body` JWT regex in `host_api.rs` to redact 5-segment JWE tokens (such as `next-auth` session cookies).
 
