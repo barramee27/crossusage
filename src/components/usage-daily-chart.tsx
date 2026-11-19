@@ -15,7 +15,7 @@ const CHART_STROKES = [
 
 function sourceLabel(source: string): string {
   if (source === "cursor_transcripts") return "estimated from agent transcripts"
-  if (source === "ccusage") return "from local CLI logs (ccusage)"
+  if (source === "local_logs" || source === "ccusage") return "from local CLI logs"
   return source
 }
 

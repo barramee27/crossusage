@@ -300,14 +300,14 @@ describe("claude plugin", () => {
         five_hour: { utilization: 10, resets_at: "2099-01-01T00:00:00.000Z" },
       }),
     })
-    ctx.host.ccusage.query = vi.fn(() => ({ status: "ok", data: { daily: [] } }))
+    ctx.host.claudeLogs.queryDaily = vi.fn(() => ({ status: "ok", data: { daily: [] } }))
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
     expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
     expect(ctx.host.fs.readText).toHaveBeenCalledWith(configCredFile)
-    expect(ctx.host.ccusage.query).toHaveBeenCalledWith(
+    expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalledWith(
       expect.objectContaining({ homePath: configDir })
     )
   })
@@ -499,7 +499,7 @@ describe("claude plugin", () => {
         five_hour: { utilization: 10, resets_at: "2099-01-01T00:00:00.000Z" },
       }),
     })
-    ctx.host.ccusage.query = vi.fn(() => ({
+    ctx.host.claudeLogs.queryDaily = vi.fn(() => ({
       status: "ok",
       data: {
         daily: [
@@ -1665,7 +1665,7 @@ describe("claude plugin", () => {
         five_hour: { utilization: 10, resets_at: "2099-01-01T00:00:00.000Z" },
       }),
     })
-    ctx.host.ccusage.query = vi.fn(() => ({ status: "ok", data: {} }))
+    ctx.host.claudeLogs.queryDaily = vi.fn(() => ({ status: "ok", data: {} }))
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
@@ -1755,7 +1755,7 @@ describe("claude plugin", () => {
       ctx.host.fs.exists = () => true
       ctx.host.fs.readText = () => CRED_JSON
       ctx.host.http.request.mockReturnValue({ status: 200, bodyText: USAGE_RESPONSE })
-      ctx.host.ccusage.query = vi.fn(() => ccusageResult)
+      ctx.host.claudeLogs.queryDaily = vi.fn(() => ccusageResult)
       return ctx
     }
 
@@ -2029,7 +2029,7 @@ describe("claude plugin", () => {
       const plugin = await loadPlugin()
       plugin.probe(ctx)
       plugin.probe(ctx)
-      expect(ctx.host.ccusage.query).toHaveBeenCalledTimes(2)
+      expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalledTimes(2)
     })
 
     it("queries ccusage with a 31-day inclusive since window", async () => {
@@ -2039,9 +2039,9 @@ describe("claude plugin", () => {
         const ctx = makeProbeCtx({ ccusageResult: okUsage([]) })
         const plugin = await loadPlugin()
         plugin.probe(ctx)
-        expect(ctx.host.ccusage.query).toHaveBeenCalled()
+        expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalled()
 
-        const firstCall = ctx.host.ccusage.query.mock.calls[0][0]
+        const firstCall = ctx.host.claudeLogs.queryDaily.mock.calls[0][0]
         const since = new Date()
         since.setDate(since.getDate() - 30)
         expect(firstCall.since).toBe(localCompactDayKey(since))

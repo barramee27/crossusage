@@ -70,8 +70,8 @@ function sourceNote(source: string): string {
   if (source === "cursor_transcripts") {
     return "local transcript token estimate only; refresh Cursor to pull billing rows"
   }
-  if (source === "ccusage" || source.includes("ccusage")) {
-    return "from local Claude/Codex usage logs"
+  if (source === "local_logs" || source === "ccusage" || source.includes("ccusage")) {
+    return "from local CLI usage logs"
   }
   return source
 }

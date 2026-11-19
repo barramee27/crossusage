@@ -979,7 +979,7 @@ function UsageHistorySection() {
       <p className="text-sm text-muted-foreground mb-2">
         Optional local SQLite history on this device — never uploaded. With saving enabled:{" "}
         <strong>quota snapshots</strong> after each successful refresh (~one per account per 32s), plus{" "}
-        <strong>daily token totals</strong> from Claude/Codex local logs (ccusage) and Cursor local transcripts (token counts only — no dollar cost in export).
+        <strong>daily token totals</strong> from local CLI logs and Cursor local transcripts (token counts only — no dollar cost in export).
         For Cursor billing dollars, use the Cursor detail page → Billing usage table.
       </p>
       <label className="flex items-center gap-2 text-sm select-none text-foreground mb-3">

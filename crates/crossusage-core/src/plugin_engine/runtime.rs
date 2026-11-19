@@ -179,12 +179,6 @@ fn run_probe_with_account_timeout(
             }
             return error_output(plugin, "ls wrapper patch failed".to_string());
         }
-        if host_api::patch_ccusage_wrapper(&ctx).is_err() {
-            if deadline.has_elapsed() {
-                return error_output(plugin, timeout_message.clone());
-            }
-            return error_output(plugin, "ccusage wrapper patch failed".to_string());
-        }
         if host_api::patch_usage_daily_wrapper(&ctx).is_err() {
             if deadline.has_elapsed() {
                 return error_output(plugin, timeout_message.clone());

@@ -479,7 +479,7 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({ status: "no_runner" })
+    ctx.host.codexLogs.queryDaily.mockReturnValue({ status: "no_runner" })
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
@@ -508,7 +508,7 @@ describe("codex plugin", () => {
     const day = String(now.getDate()).padStart(2, "0")
     const year = now.getFullYear()
     const todayKey = month + " " + day + ", " + year
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -532,9 +532,8 @@ describe("codex plugin", () => {
       expect(last30.value).toContain("450 tokens")
       expect(last30.value).toContain("$1.75")
 
-      expect(ctx.host.ccusage.query).toHaveBeenCalled()
-      const firstCall = ctx.host.ccusage.query.mock.calls[0][0]
-      expect(firstCall.provider).toBe("codex")
+      expect(ctx.host.codexLogs.queryDaily).toHaveBeenCalled()
+      const firstCall = ctx.host.codexLogs.queryDaily.mock.calls[0][0]
       const since = new Date()
       since.setDate(since.getDate() - 30)
       const sinceYear = String(since.getFullYear())
@@ -558,13 +557,13 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({ status: "ok", data: { daily: [] } })
+    ctx.host.codexLogs.queryDaily.mockReturnValue({ status: "ok", data: { daily: [] } })
 
     const plugin = await loadPlugin()
     plugin.probe(ctx)
 
-    expect(ctx.host.ccusage.query).toHaveBeenCalled()
-    const firstCall = ctx.host.ccusage.query.mock.calls[0][0]
+    expect(ctx.host.codexLogs.queryDaily).toHaveBeenCalled()
+    const firstCall = ctx.host.codexLogs.queryDaily.mock.calls[0][0]
     expect(firstCall.homePath).toBe("/tmp/codex-home")
   })
 
@@ -579,7 +578,7 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: { daily: [{ date: "2026-02-01", totalTokens: 100, totalCost: 0.5 }] },
     })
@@ -588,7 +587,7 @@ describe("codex plugin", () => {
     plugin.probe(ctx)
     plugin.probe(ctx)
 
-    expect(ctx.host.ccusage.query).toHaveBeenCalledTimes(2)
+    expect(ctx.host.codexLogs.queryDaily).toHaveBeenCalledTimes(2)
   })
 
   it("shows empty Today state when ccusage returns ok with empty daily array", async () => {
@@ -602,7 +601,7 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({ status: "ok", data: { daily: [] } })
+    ctx.host.codexLogs.queryDaily.mockReturnValue({ status: "ok", data: { daily: [] } })
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
@@ -635,7 +634,7 @@ describe("codex plugin", () => {
     const day = String(yesterday.getDate()).padStart(2, "0")
     const year = yesterday.getFullYear()
     const yesterdayKey = month + " " + day + ", " + year
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -663,7 +662,7 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -707,7 +706,7 @@ describe("codex plugin", () => {
     const day = String(yesterday.getDate()).padStart(2, "0")
     const year = yesterday.getFullYear()
     const yesterdayKey = month + " " + day + ", " + year
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -738,7 +737,7 @@ describe("codex plugin", () => {
         headers: { "x-codex-primary-used-percent": "10" },
         bodyText: JSON.stringify({}),
       })
-      ctx.host.ccusage.query.mockReturnValue({
+      ctx.host.codexLogs.queryDaily.mockReturnValue({
         status: "ok",
         data: { daily: [{ date: "2026-03-01T12:00:00Z", totalTokens: 10, costUSD: 0.1 }] },
       })
@@ -767,7 +766,7 @@ describe("codex plugin", () => {
         headers: { "x-codex-primary-used-percent": "10" },
         bodyText: JSON.stringify({}),
       })
-      ctx.host.ccusage.query.mockReturnValue({
+      ctx.host.codexLogs.queryDaily.mockReturnValue({
         status: "ok",
         data: { daily: [{ date: "2026-03-01T00:30:00+09:00", totalTokens: 20, costUSD: 0.2 }] },
       })
@@ -796,7 +795,7 @@ describe("codex plugin", () => {
         headers: { "x-codex-primary-used-percent": "10" },
         bodyText: JSON.stringify({}),
       })
-      ctx.host.ccusage.query.mockReturnValue({
+      ctx.host.codexLogs.queryDaily.mockReturnValue({
         status: "ok",
         data: { daily: [{ date: "2026-03-01T23:30:00-08:00", totalTokens: 30, costUSD: 0.3 }] },
       })
@@ -1519,7 +1518,7 @@ describe("codex plugin", () => {
         credits: { balance: 100 },
       }),
     })
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: { daily: [] },
     })
@@ -1649,7 +1648,7 @@ describe("codex plugin", () => {
       headers: {},
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -1674,7 +1673,7 @@ describe("codex plugin", () => {
       headers: {},
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({ status: "runner_failed" })
+    ctx.host.codexLogs.queryDaily.mockReturnValue({ status: "runner_failed" })
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
     expect(result.lines.find((l) => l.label === "Today")).toBeUndefined()
@@ -2049,9 +2048,9 @@ describe("codex plugin", () => {
     expect(() => plugin.probe(ctx)).toThrow("Token expired")
   })
 
-  it("uses no_runner when ccusage host API is unavailable", async () => {
+  it("uses no_runner when codexLogs host API is unavailable", async () => {
     const ctx = makeCtx()
-    ctx.host.ccusage = null
+    ctx.host.codexLogs = null
     ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
       tokens: { access_token: "token" },
       last_refresh: new Date().toISOString(),
@@ -2079,7 +2078,7 @@ describe("codex plugin", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({ status: "ok", data: {} })
+    ctx.host.codexLogs.queryDaily.mockReturnValue({ status: "ok", data: {} })
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
@@ -2107,7 +2106,7 @@ describe("codex plugin", () => {
       const day = String(now.getDate()).padStart(2, "0")
       const year = now.getFullYear()
       const todayKey = month + " " + day + ", " + year
-      ctx.host.ccusage.query.mockReturnValue({
+      ctx.host.codexLogs.queryDaily.mockReturnValue({
         status: "ok",
         data: {
           daily: [

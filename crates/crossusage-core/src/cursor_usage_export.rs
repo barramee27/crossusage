@@ -14,6 +14,9 @@ use std::time::{Duration, Instant};
 
 use crate::log_usage_types::TokenBreakdown;
 use crate::model_pricing::default_pricing;
+use crate::provider_accounts::{
+    self, ProviderAccount, ProviderAccountContext, ProviderCredential,
+};
 
 const REFRESH_URL: &str = "https://api2.cursor.sh/oauth/token";
 const CLIENT_ID: &str = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB";
@@ -24,6 +27,92 @@ const SPEND_HISTORY_BUDGET: Duration = Duration::from_secs(20);
 const ACCESS_KEY: &str = "cursorAuth/accessToken";
 const REFRESH_KEY: &str = "cursorAuth/refreshToken";
 const REFRESH_BUFFER_MS: i64 = 5 * 60 * 1000;
+
+/// Multi-account credential override for Cursor billing export.
+/// When supplied, billing queries authenticate strictly as this account instead of
+/// reading the desktop `state.vscdb` / CLI `auth.json`, and cache keys are scoped to `instance_id`.
+#[derive(Debug, Clone)]
+pub struct CursorExportAccount {
+    pub instance_id: String,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub store_path: Option<PathBuf>,
+}
+
+impl CursorExportAccount {
+    fn non_empty(value: Option<&str>) -> Option<String> {
+        value
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
+
+    pub fn from_credential(
+        instance_id: impl Into<String>,
+        credential: &ProviderCredential,
+        store_path: Option<PathBuf>,
+    ) -> Option<Self> {
+        let access_token = Self::non_empty(credential.access_token.as_deref())
+            .or_else(|| Self::non_empty(credential.session_key.as_deref()));
+        let refresh_token = Self::non_empty(credential.refresh_token.as_deref());
+        if access_token.is_none() && refresh_token.is_none() {
+            return None;
+        }
+        Some(Self {
+            instance_id: instance_id.into(),
+            access_token,
+            refresh_token,
+            store_path,
+        })
+    }
+
+    pub fn from_stored_account(account: &ProviderAccount, store_path: Option<PathBuf>) -> Option<Self> {
+        Self::from_credential(
+            account.instance_id.clone(),
+            &account.credential,
+            store_path.clone(),
+        )
+        .or_else(|| {
+                // Non-default multi-account instances must stay isolated and never fall back to
+                // the desktop default account's state.vscdb / CLI auth.json.
+                (account.instance_id != account.base_provider_id).then(|| Self {
+                    instance_id: account.instance_id.clone(),
+                    access_token: None,
+                    refresh_token: None,
+                    store_path,
+                })
+            },
+        )
+    }
+
+    pub fn from_provider_account(account: &ProviderAccountContext) -> Option<Self> {
+        // Re-read the store when available so a token refreshed earlier in the same probe is picked up.
+        if let Some(ref path) = account.store_path {
+            if let Ok(store) = provider_accounts::load_store_path(path) {
+                if let Some(stored) = store.accounts.get(&account.instance_id) {
+                    if let Some(resolved) = Self::from_stored_account(stored, Some(path.clone())) {
+                        return Some(resolved);
+                    }
+                }
+            }
+        }
+        if let Some(credential) = account.credential.as_ref() {
+            if let Some(resolved) = Self::from_credential(
+                account.instance_id.clone(),
+                credential,
+                account.store_path.clone(),
+            ) {
+                return Some(resolved);
+            }
+        }
+        (account.instance_id != account.base_provider_id).then(|| Self {
+            instance_id: account.instance_id.clone(),
+            access_token: None,
+            refresh_token: None,
+            store_path: account.store_path.clone(),
+        })
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct RowAgg {
@@ -230,6 +319,15 @@ pub fn query_daily_billing(
     since: Option<&str>,
     until: Option<&str>,
 ) -> Result<DailyBilling> {
+    query_daily_billing_for_account(plugin_id, None, since, until)
+}
+
+pub fn query_daily_billing_for_account(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+    since: Option<&str>,
+    until: Option<&str>,
+) -> Result<DailyBilling> {
     let (since, until) = if since.is_none() && until.is_none() {
         let (s, u) = month_to_date_range_local()?;
         (s, u)
@@ -237,7 +335,7 @@ pub fn query_daily_billing(
         resolve_date_range(since, until)?
     };
     let (rows, source) =
-        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+        load_cursor_usage_rows_with_events_fallback(plugin_id, account, &since, &until, None)?;
     let by_day = aggregate_by_day(&rows);
     let mut out: Vec<DailyBillingRow> = by_day
         .into_iter()
@@ -254,6 +352,13 @@ pub fn query_daily_billing(
 }
 
 pub fn query_daily_billing_host_json(opts_json: &str) -> String {
+    query_daily_billing_host_json_for_account(opts_json, None)
+}
+
+pub fn query_daily_billing_host_json_for_account(
+    opts_json: &str,
+    account: Option<&CursorExportAccount>,
+) -> String {
     let since = serde_json::from_str::<serde_json::Value>(opts_json)
         .ok()
         .and_then(|v| v.get("since").and_then(|s| s.as_str()).map(str::to_string));
@@ -261,7 +366,7 @@ pub fn query_daily_billing_host_json(opts_json: &str) -> String {
         .ok()
         .and_then(|v| v.get("until").and_then(|s| s.as_str()).map(str::to_string));
     let plugin_id = plugin_id_from_opts_json(opts_json);
-    match query_daily_billing(&plugin_id, since.as_deref(), until.as_deref()) {
+    match query_daily_billing_for_account(&plugin_id, account, since.as_deref(), until.as_deref()) {
         Ok(billing) => serde_json::json!({ "status": "ok", "data": billing }).to_string(),
         Err(e) => serde_json::json!({
             "status": "error",
@@ -388,16 +493,22 @@ pub struct UsageStatsPayload {
     pub totals: UsageStatsRowJson,
 }
 
-fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorMtdTotals> {
-    let has_cli_auth = crate::cursor_paths::CursorInstall::from_plugin_id(plugin_id)
-        == Some(crate::cursor_paths::CursorInstall::Stable)
-        && crate::cursor_paths::resolve_cursor_cli_auth_file().is_some();
-    if resolve_state_db_for_plugin(plugin_id).is_none() && !has_cli_auth {
-        return None;
+fn fetch_cursor_month_to_date_totals_uncached(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+) -> Option<CursorMtdTotals> {
+    if account.is_none() {
+        let has_cli_auth = crate::cursor_paths::CursorInstall::from_plugin_id(plugin_id)
+            == Some(crate::cursor_paths::CursorInstall::Stable)
+            && crate::cursor_paths::resolve_cursor_cli_auth_file().is_some();
+        if resolve_state_db_for_plugin(plugin_id).is_none() && !has_cli_auth {
+            return None;
+        }
     }
     let (since, until) = month_to_date_range_local().ok()?;
     let (rows, source) =
-        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None).ok()?;
+        load_cursor_usage_rows_with_events_fallback(plugin_id, account, &since, &until, None)
+            .ok()?;
     let agg = sum_csv_rows(&rows);
     Some(CursorMtdTotals {
         total_tokens: agg.total_tokens,
@@ -412,8 +523,18 @@ fn fetch_cursor_month_to_date_totals_uncached(plugin_id: &str) -> Option<CursorM
 
 /// Month-to-date totals from Cursor's dashboard CSV (cached ~45m per month).
 pub fn fetch_cursor_month_to_date_totals_for_plugin(plugin_id: &str) -> Option<CursorMtdTotals> {
+    fetch_cursor_month_to_date_totals_for_account(plugin_id, None)
+}
+
+pub fn fetch_cursor_month_to_date_totals_for_account(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+) -> Option<CursorMtdTotals> {
     let (since, until) = month_to_date_range_local().ok()?;
-    let cache_key = format!("{plugin_id}:{since}-{until}");
+    let scope = account
+        .map(|a| a.instance_id.as_str())
+        .unwrap_or(plugin_id);
+    let cache_key = format!("{scope}:{since}-{until}");
     if let Ok(guard) = MTD_CACHE.lock() {
         if let Some((key, at, totals)) = guard.as_ref() {
             if key == &cache_key && at.elapsed() < MTD_CACHE_TTL {
@@ -421,7 +542,7 @@ pub fn fetch_cursor_month_to_date_totals_for_plugin(plugin_id: &str) -> Option<C
             }
         }
     }
-    let totals = fetch_cursor_month_to_date_totals_uncached(plugin_id)?;
+    let totals = fetch_cursor_month_to_date_totals_uncached(plugin_id, account)?;
     if let Ok(mut guard) = MTD_CACHE.lock() {
         *guard = Some((cache_key, Instant::now(), totals.clone()));
     }
@@ -430,8 +551,15 @@ pub fn fetch_cursor_month_to_date_totals_for_plugin(plugin_id: &str) -> Option<C
 
 /// JSON for plugin host API (`cursorUsageExport.queryMtd`).
 pub fn query_mtd_host_json(opts_json: &str) -> String {
+    query_mtd_host_json_for_account(opts_json, None)
+}
+
+pub fn query_mtd_host_json_for_account(
+    opts_json: &str,
+    account: Option<&CursorExportAccount>,
+) -> String {
     let plugin_id = plugin_id_from_opts_json(opts_json);
-    match fetch_cursor_month_to_date_totals_for_plugin(&plugin_id) {
+    match fetch_cursor_month_to_date_totals_for_account(&plugin_id, account) {
         Some(data) => serde_json::json!({ "status": "ok", "data": data }).to_string(),
         None => serde_json::json!({
             "status": "error",
@@ -697,7 +825,35 @@ fn choose_auth_tokens(
 
 const ENCRYPTED_AUTH_MESSAGE: &str = "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then try again.";
 
-fn resolve_cursor_access_token(plugin_id: &str, db_path: Option<&PathBuf>) -> Result<String> {
+fn resolve_cursor_access_token(
+    plugin_id: &str,
+    db_path: Option<&PathBuf>,
+    account: Option<&CursorExportAccount>,
+) -> Result<String> {
+    if let Some(acc) = account {
+        let mut access = acc.access_token.clone();
+        if needs_refresh(access.as_deref()) {
+            if let Some(ref rt) = acc.refresh_token {
+                if let Some(new_a) = refresh_access_token(rt, None)? {
+                    if let Some(ref store_path) = acc.store_path {
+                        let _ = provider_accounts::update_credential_at_path(
+                            store_path,
+                            &acc.instance_id,
+                            ProviderCredential {
+                                access_token: Some(new_a.clone()),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                    access = Some(new_a);
+                }
+            }
+        }
+        return access.context(
+            "No usable Cursor access token for this account. Re-authenticate the account in Settings.",
+        );
+    }
+
     let (db_access, db_refresh) = match db_path {
         Some(p) => (read_sqlite_value(p, ACCESS_KEY)?, read_sqlite_value(p, REFRESH_KEY)?),
         None => (None, None),
@@ -796,6 +952,33 @@ mod auth_selection_tests {
         assert!(parse_cli_auth(r#"{"other":1}"#).is_none());
         assert!(parse_cli_auth("not json").is_none());
     }
+
+    #[test]
+    fn multi_account_override_uses_account_jwt_without_touching_state_db() {
+        // Non-expiring JWT payload: {"sub":"auth0|user_work","exp":9999999999}
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhdXRoMHx1c2VyX3dvcmsiLCJleHAiOjk5OTk5OTk5OTl9.sig";
+        let account = CursorExportAccount {
+            instance_id: "cursor:work".to_string(),
+            access_token: Some(jwt.to_string()),
+            refresh_token: None,
+            store_path: None,
+        };
+        let resolved = resolve_cursor_access_token("cursor", None, Some(&account))
+            .expect("multi-account access token");
+        assert_eq!(resolved, jwt);
+    }
+
+    #[test]
+    fn multi_account_without_tokens_does_not_leak_default_auth() {
+        let empty = CursorExportAccount {
+            instance_id: "cursor:empty".to_string(),
+            access_token: None,
+            refresh_token: None,
+            store_path: None,
+        };
+        let err = resolve_cursor_access_token("cursor", None, Some(&empty)).unwrap_err();
+        assert!(err.to_string().contains("Re-authenticate"));
+    }
 }
 
 pub fn download_cursor_usage_csv(start_ms: i64, end_ms: i64) -> Result<String> {
@@ -807,8 +990,20 @@ pub fn download_cursor_usage_csv_for_plugin(
     start_ms: i64,
     end_ms: i64,
 ) -> Result<String> {
-    let db_path = resolve_state_db_for_plugin(plugin_id);
-    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref())?;
+    download_cursor_usage_csv_for_plugin_with_account(plugin_id, None, start_ms, end_ms)
+}
+
+pub fn download_cursor_usage_csv_for_plugin_with_account(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<String> {
+    let db_path = account
+        .is_none()
+        .then(|| resolve_state_db_for_plugin(plugin_id))
+        .flatten();
+    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref(), account)?;
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
@@ -838,8 +1033,16 @@ pub fn download_cursor_usage_csv_for_plugin(
     Ok(resp.text()?)
 }
 
-fn fetch_csv_cached(plugin_id: &str, since: &str, until: &str) -> Result<String> {
-    let cache_key = format!("{plugin_id}:{since}-{until}");
+fn fetch_csv_cached(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+    since: &str,
+    until: &str,
+) -> Result<String> {
+    let scope = account
+        .map(|a| a.instance_id.as_str())
+        .unwrap_or(plugin_id);
+    let cache_key = format!("{scope}:{since}-{until}");
     if let Ok(guard) = CSV_RANGE_CACHE.lock() {
         if let Some((key, at, text)) = guard.as_ref() {
             if key == &cache_key && at.elapsed() < MTD_CACHE_TTL {
@@ -848,7 +1051,9 @@ fn fetch_csv_cached(plugin_id: &str, since: &str, until: &str) -> Result<String>
         }
     }
     let (start_ms, end_ms) = to_epoch_range_ms(since, until)?;
-    let text = download_cursor_usage_csv_for_plugin(plugin_id, start_ms, end_ms)?;
+    let text = download_cursor_usage_csv_for_plugin_with_account(
+        plugin_id, account, start_ms, end_ms,
+    )?;
     if let Ok(mut guard) = CSV_RANGE_CACHE.lock() {
         *guard = Some((cache_key, Instant::now(), text.clone()));
     }
@@ -1130,11 +1335,12 @@ fn cursor_history_day_ready_to_publish(
 
 fn fetch_cursor_usage_rows_via_events(
     plugin_id: &str,
+    account: Option<&CursorExportAccount>,
     since: &str,
     until: &str,
 ) -> Result<Vec<CsvUsageRow>> {
-    let db_path = resolve_state_db_for_plugin(plugin_id);
-    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref())?;
+    let db_path = account.is_none().then(|| resolve_state_db_for_plugin(plugin_id)).flatten();
+    let access = resolve_cursor_access_token(plugin_id, db_path.as_ref(), account)?;
     let payload = decode_jwt_payload(&access).context("invalid JWT access token")?;
     let sub = payload.sub.as_deref().context("JWT missing sub")?;
     let user_id = user_id_from_sub(sub);
@@ -1295,16 +1501,17 @@ fn pick_usage_rows(
 
 fn load_cursor_usage_rows_with_events_fallback(
     plugin_id: &str,
+    account: Option<&CursorExportAccount>,
     since: &str,
     until: &str,
     preloaded_csv: Option<String>,
 ) -> Result<(Vec<CsvUsageRow>, UsageSource)> {
     pick_usage_rows(
-        fetch_cursor_usage_rows_via_events(plugin_id, since, until),
+        fetch_cursor_usage_rows_via_events(plugin_id, account, since, until),
         || {
             let csv_text = match preloaded_csv {
                 Some(t) => t,
-                None => fetch_csv_cached(plugin_id, since, until)?,
+                None => fetch_csv_cached(plugin_id, account, since, until)?,
             };
             parse_usage_csv(&csv_text, since, until)
         },
@@ -1343,6 +1550,16 @@ pub fn query_usage_stats(
     until: Option<&str>,
     group: &str,
 ) -> Result<UsageStatsPayload> {
+    query_usage_stats_for_account(plugin_id, None, since, until, group)
+}
+
+pub fn query_usage_stats_for_account(
+    plugin_id: &str,
+    account: Option<&CursorExportAccount>,
+    since: Option<&str>,
+    until: Option<&str>,
+    group: &str,
+) -> Result<UsageStatsPayload> {
     let (since, until) = if since.is_none() && until.is_none() {
         month_to_date_range_local()?
     } else {
@@ -1354,7 +1571,7 @@ pub fn query_usage_stats(
     }
 
     let (rows, _source) =
-        load_cursor_usage_rows_with_events_fallback(plugin_id, &since, &until, None)?;
+        load_cursor_usage_rows_with_events_fallback(plugin_id, account, &since, &until, None)?;
     let map = if group == "model" {
         aggregate_by_model(&rows)
     } else {
@@ -1375,6 +1592,13 @@ pub fn query_usage_stats(
 
 /// JSON for plugin host API (`cursorUsageExport.queryStats`).
 pub fn query_usage_stats_host_json(opts_json: &str) -> String {
+    query_usage_stats_host_json_for_account(opts_json, None)
+}
+
+pub fn query_usage_stats_host_json_for_account(
+    opts_json: &str,
+    account: Option<&CursorExportAccount>,
+) -> String {
     let plugin_id = plugin_id_from_opts_json(opts_json);
     let since = serde_json::from_str::<serde_json::Value>(opts_json)
         .ok()
@@ -1387,7 +1611,13 @@ pub fn query_usage_stats_host_json(opts_json: &str) -> String {
         .and_then(|v| v.get("group").and_then(|s| s.as_str()).map(str::to_string))
         .unwrap_or_else(|| "model".into());
 
-    match query_usage_stats(&plugin_id, since.as_deref(), until.as_deref(), &group) {
+    match query_usage_stats_for_account(
+        &plugin_id,
+        account,
+        since.as_deref(),
+        until.as_deref(),
+        &group,
+    ) {
         Ok(data) => serde_json::json!({ "status": "ok", "data": data }).to_string(),
         Err(e) => serde_json::json!({
             "status": "error",

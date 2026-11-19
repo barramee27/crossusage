@@ -2891,6 +2891,27 @@ describe("cursor plugin: encrypted state.vscdb tokens and the CLI auth file", ()
     }
   })
 
+  it("finds lowercase ~/.config/cursor/auth.json on case-sensitive Linux", async () => {
+    const ctx = makeCtx()
+    const cliAccess = makeJwt({ exp: 9999999999, sub: "user_linux_cli" })
+    mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })
+    ctx.host.fs.writeText(
+      "~/.config/cursor/auth.json",
+      JSON.stringify({ accessToken: cliAccess, refreshToken: makeJwt({ exp: 9999999999 }) }),
+    )
+    ctx.host.fs.writeText.mockClear()
+    mockApi(ctx)
+
+    const plugin = await loadPlugin()
+    plugin.probe(ctx)
+
+    const sent = ctx.host.http.request.mock.calls.map(bearerOf).filter(Boolean)
+    expect(sent.length).toBeGreaterThan(0)
+    for (const header of sent) {
+      expect(header).toBe("Bearer " + cliAccess)
+    }
+  })
+
   it("reports a clear, actionable error when the only auth is ciphertext", async () => {
     const ctx = makeCtx()
     mockStateDb(ctx, { "cursorAuth/accessToken": CIPHERTEXT, "cursorAuth/refreshToken": CIPHERTEXT })

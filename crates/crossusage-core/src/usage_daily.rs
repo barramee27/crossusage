@@ -1,4 +1,4 @@
-//! Daily token rows ingested from ccusage (Claude/Codex local logs). Same SQLite DB as usage history.
+//! Daily token rows ingested from native local CLI log scanners. Same SQLite DB as usage history.
 
 use std::path::Path;
 
@@ -64,7 +64,7 @@ fn entry_cost(entry: &DailyEntry) -> Option<f64> {
         .filter(|v| v.is_finite())
 }
 
-/// Plugins call via `host.usageDaily.ingest` after a successful ccusage query.
+/// Plugins call via `host.usageDaily.ingest` after a successful local log scan.
 pub fn ingest_json(app_data_dir: &Path, instance_id: &str, payload_json: &str) -> rusqlite::Result<()> {
     if !persist_usage_history_enabled(app_data_dir) {
         return Ok(());
@@ -93,7 +93,7 @@ pub fn ingest_json(app_data_dir: &Path, instance_id: &str, payload_json: &str) -
     let source = payload
         .source
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "ccusage".to_string());
+        .unwrap_or_else(|| "local_logs".to_string());
 
     let path = usage_history_db_path(app_data_dir);
     let conn = Connection::open(&path)?;

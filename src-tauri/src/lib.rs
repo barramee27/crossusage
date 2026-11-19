@@ -943,7 +943,7 @@ fn run_and_emit_probe(
                     {
                         log::debug!("usage history append: {}", e);
                     }
-                    crossusage_core::plugin_engine::host_api::post_probe_ccusage_daily(
+                    crossusage_core::cli_usage_scanners::post_probe_local_usage_daily(
                         history_dir,
                         &plugin_id,
                         &output.display_name,
@@ -1227,18 +1227,51 @@ fn list_usage_daily(
 
 #[tauri::command]
 fn query_cursor_usage_stats(
+    state: tauri::State<'_, Mutex<AppState>>,
     plugin_id: Option<String>,
+    instance_id: Option<String>,
     since: Option<String>,
     until: Option<String>,
     group: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let plugin_id = plugin_id
+    let mut resolved_plugin_id = plugin_id
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .unwrap_or("cursor");
-    let payload = crossusage_core::cursor_usage_export::query_usage_stats(
-        plugin_id,
+        .unwrap_or("cursor")
+        .to_string();
+    let normalized_instance_id = instance_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
+    let export_account = if let Some(ref inst_id) = normalized_instance_id {
+        let app_data_dir = state
+            .lock()
+            .map_err(|e| e.to_string())?
+            .app_data_dir
+            .clone();
+        if let Some(account) = provider_accounts::get_account(&app_data_dir, inst_id)
+            .map_err(|e| e.to_string())?
+        {
+            if !account.base_provider_id.trim().is_empty() {
+                resolved_plugin_id = account.base_provider_id.clone();
+            }
+            crossusage_core::cursor_usage_export::CursorExportAccount::from_stored_account(
+                &account,
+                Some(provider_accounts::store_path(&app_data_dir)),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let payload = crossusage_core::cursor_usage_export::query_usage_stats_for_account(
+        &resolved_plugin_id,
+        export_account.as_ref(),
         since.as_deref(),
         until.as_deref(),
         group.as_deref().unwrap_or("model"),
