@@ -344,23 +344,45 @@ KIND="${INSTALL_KIND:-}"
 
 if [[ -z "$KIND" ]]; then
   DISTRO_FAMILY="$(detect_linux_distro_family)"
-  if [[ "$DISTRO_FAMILY" == "deb" ]] && have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
-    KIND=deb
-  elif [[ "$DISTRO_FAMILY" == "rpm" ]] && (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
-    KIND=rpm
-  elif [[ "$DISTRO_FAMILY" == "appimage" ]] && [[ -n "$INSTALL_AI_URL" ]]; then
-    KIND=appimage
-  elif have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
-    KIND=deb
-  elif (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
-    KIND=rpm
-  elif [[ -n "$INSTALL_AI_URL" ]]; then
-    KIND=appimage
-  elif [[ -n "$INSTALL_TAR_URL" ]]; then
-    KIND=tarball
-  else
-    die "no suitable package for this system; see ${RELEASE_PAGE_URL}"
-  fi
+  case "$DISTRO_FAMILY" in
+    deb)
+      if have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
+        KIND=deb
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    rpm)
+      if (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
+        KIND=rpm
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    appimage)
+      if [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    *)
+      if have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
+        KIND=deb
+      elif (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
+        KIND=rpm
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+  esac
+  [[ -n "$KIND" ]] || die "no suitable package for this system; see ${RELEASE_PAGE_URL}"
 fi
 
 echo "Selected Linux package format: ${KIND} (override with INSTALL_KIND=deb|rpm|appimage|tarball)"
@@ -474,8 +496,23 @@ esac
 echo ""
 echo "Verifying install ..."
 
+# Remove stale portable CLI symlink in ~/.local/bin if a system package now provides /usr/bin/crossusage-cli.
+if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage-cli ]] && [[ -L "${HOME}/.local/bin/crossusage-cli" ]]; then
+  LINK_TARGET="$(readlink "${HOME}/.local/bin/crossusage-cli" 2>/dev/null || true)"
+  if [[ "$LINK_TARGET" == "${HOME}/.local/lib/crossusage/"* || "$LINK_TARGET" == "${HOME}/.local/lib/crossusage-app/"* ]]; then
+    rm -f "${HOME}/.local/bin/crossusage-cli"
+    echo "Removed stale portable symlink ${HOME}/.local/bin/crossusage-cli (now using /usr/bin/crossusage-cli)"
+  fi
+fi
+
 if command -v crossusage-cli >/dev/null 2>&1; then
-  echo "Found: $(command -v crossusage-cli)"
+  ACTIVE_CLI="$(command -v crossusage-cli)"
+  ACTIVE_VER="$(crossusage-cli -V 2>/dev/null || true)"
+  echo "Found: ${ACTIVE_CLI}${ACTIVE_VER:+ (${ACTIVE_VER})}"
+  if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage-cli ]] && [[ "$ACTIVE_CLI" != "/usr/bin/crossusage-cli" && "$ACTIVE_CLI" != "/bin/crossusage-cli" ]]; then
+    SYS_VER="$(/usr/bin/crossusage-cli -V 2>/dev/null || true)"
+    echo "Warning: ${ACTIVE_CLI} shadows /usr/bin/crossusage-cli${SYS_VER:+ (${SYS_VER})} earlier on PATH. Remove or update ${ACTIVE_CLI} if you want the system package version." >&2
+  fi
   if crossusage-cli --json list >/dev/null 2>&1; then
     echo "crossusage-cli --json list: ok"
   else
