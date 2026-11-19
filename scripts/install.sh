@@ -505,6 +505,18 @@ if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage-cli ]] &&
   fi
 fi
 
+# Remove stale portable GUI symlink in ~/.local/bin if a system package now provides /usr/bin/crossusage.
+# Tarball: ~/.local/bin/crossusage -> ~/.local/lib/crossusage-app/crossusage
+# AppImage: ~/.local/bin/crossusage -> ~/.local/bin/crossusage.AppImage
+if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage ]] && [[ -L "${HOME}/.local/bin/crossusage" ]]; then
+  GUI_LINK_TARGET="$(readlink "${HOME}/.local/bin/crossusage" 2>/dev/null || true)"
+  GUI_LINK_BASE="${GUI_LINK_TARGET##*/}"
+  if [[ "$GUI_LINK_TARGET" == "${HOME}/.local/lib/crossusage-app/"* || "$GUI_LINK_BASE" == "crossusage.AppImage" ]]; then
+    rm -f "${HOME}/.local/bin/crossusage"
+    echo "Removed stale portable symlink ${HOME}/.local/bin/crossusage (now using /usr/bin/crossusage)"
+  fi
+fi
+
 if command -v crossusage-cli >/dev/null 2>&1; then
   ACTIVE_CLI="$(command -v crossusage-cli)"
   ACTIVE_VER="$(crossusage-cli -V 2>/dev/null || true)"
@@ -531,7 +543,11 @@ else
 fi
 
 if command -v crossusage >/dev/null 2>&1; then
-  echo "Found: $(command -v crossusage)"
+  ACTIVE_GUI="$(command -v crossusage)"
+  echo "Found: ${ACTIVE_GUI}"
+  if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage ]] && [[ "$ACTIVE_GUI" != "/usr/bin/crossusage" && "$ACTIVE_GUI" != "/bin/crossusage" ]]; then
+    echo "Warning: ${ACTIVE_GUI} shadows /usr/bin/crossusage earlier on PATH. Remove or update ${ACTIVE_GUI} if you want the system package version." >&2
+  fi
 fi
 
 echo "Done."
