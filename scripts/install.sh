@@ -1,28 +1,36 @@
 #!/usr/bin/env bash
-# CrossUsage — install from GitHub (Linux desktop / macOS+Linux CLI / Windows redirect).
+# CrossUsage — install from GitHub Releases (Linux desktop / Linux+macOS CLI / Windows redirect).
 # Repo: https://github.com/barramee27/crossusage
 #
 # Where downloads come from:
-#   • Linux full (deb/rpm/AppImage): GitHub Release **v1.0.3** only (`…/releases/tags/v1.0.3`).
-#   • INSTALL_MODE=cli (Linux/macOS tarball): that release’s assets first; only if missing, falls back to
-#     files under releases/ on the branch (raw.githubusercontent.com).
+#   • Default: latest GitHub Release (`.../releases/latest`), or pin via INSTALL_RELEASE_TAG=v1.6.1.
+#   • Linux full: auto-detects distro via /etc/os-release (Debian/Ubuntu/Mint -> .deb,
+#     Fedora/RHEL/openSUSE -> .rpm, Arch/Manjaro/NixOS/Void/Alpine/other -> .AppImage),
+#     or override with INSTALL_KIND=deb|rpm|appimage|tarball.
+#   • INSTALL_MODE=cli: portable CLI tarball from GitHub Release first, then branch releases/ fallback.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/barramee27/crossusage/feat/linux-windows-native-support/scripts/install.sh | bash
 #
 # Environment:
-#   GITHUB_REPO     default: barramee27/crossusage
-#   INSTALL_MODE     full (default) | cli — full = Linux .deb/.rpm/AppImage; cli = portable tarball (Linux or macOS); Release-first, then branch releases/ fallback (re-runs overwrite ~/.local/lib/crossusage — reinstall/update)
-#   INSTALL_KIND     force: deb | rpm | appimage (Linux full mode only)
-#   INSTALL_GIT_REF  branch or tag for raw.githubusercontent.com fallbacks (default: feat/linux-windows-native-support)
-#   INSTALL_CLI_URL  override URL for the CLI .tar.gz (optional; skips GitHub Release + branch fallbacks)
+#   GITHUB_REPO          default: barramee27/crossusage
+#   INSTALL_RELEASE_TAG  default: latest (or explicit tag like v1.6.1)
+#   INSTALL_MODE         full (default) | cli
+#   INSTALL_KIND         force: deb | rpm | appimage | tarball (Linux full mode only)
+#   INSTALL_GIT_REF      branch or tag for raw.githubusercontent.com fallbacks (default: feat/linux-windows-native-support)
+#   INSTALL_CLI_URL      override URL for the CLI .tar.gz (optional; skips GitHub Release + branch fallbacks)
 
 set -euo pipefail
 
 GITHUB_REPO="${GITHUB_REPO:-barramee27/crossusage}"
-# Pinned: CrossUsage v1.0.3 is the release with full Linux/Windows/macOS CLI assets for this fork.
-INSTALL_RELEASE_TAG="v1.0.3"
-API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${INSTALL_RELEASE_TAG}"
+INSTALL_RELEASE_TAG="${INSTALL_RELEASE_TAG:-latest}"
+if [[ "$INSTALL_RELEASE_TAG" == "latest" ]]; then
+  API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+  RELEASE_PAGE_URL="https://github.com/${GITHUB_REPO}/releases/latest"
+else
+  API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${INSTALL_RELEASE_TAG}"
+  RELEASE_PAGE_URL="https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG}"
+fi
 
 die() {
   echo "install.sh: $*" >&2
@@ -44,7 +52,7 @@ fetch_json() {
 }
 
 # Print first matching asset URL from release JSON on stdin.
-# Arg: Python-compatible regex pattern (asset filename).
+# Arg: Python/jq-compatible regex pattern (asset filename).
 pick_asset_url() {
   local pattern="$1"
   local url=""
@@ -160,6 +168,33 @@ map_rpm_arch_suffix() {
   esac
 }
 
+# Detect Linux distro family from /etc/os-release before falling back to command probing.
+# Prevents Arch/NixOS/Void systems that happen to have dpkg/rpm installed from mis-detecting.
+detect_linux_distro_family() {
+  local id="" id_like="" tokens=""
+  if [[ -r /etc/os-release ]]; then
+    id="$(awk -F= '$1=="ID" { gsub(/["'\'']/, "", $2); print tolower($2) }' /etc/os-release | head -1)"
+    id_like="$(awk -F= '$1=="ID_LIKE" { gsub(/["'\'']/, "", $2); print tolower($2) }' /etc/os-release | head -1)"
+    tokens=" ${id} ${id_like} "
+  fi
+
+  case "$tokens" in
+    *" debian "*|*" ubuntu "*|*" linuxmint "*|*" pop "*|*" elementary "*|*" zorin "*|*" kali "*|*" raspbian "*|*" neon "*|*" mx "*|*" parrot "*|*" deepin "*|*" devuan "*)
+      echo "deb"
+      return 0
+      ;;
+    *" fedora "*|*" rhel "*|*" centos "*|*" rocky "*|*" almalinux "*|*" ol "*|*" nobara "*|*" bazzite "*|*" opensuse"*|*" suse "*|*" sles "*|*" mageia "*)
+      echo "rpm"
+      return 0
+      ;;
+    *" arch "*|*" archlinux "*|*" manjaro "*|*" endeavouros "*|*" cachyos "*|*" garuda "*|*" artix "*|*" nixos "*|*" alpine "*|*" void "*|*" gentoo "*|*" solus "*|*" slackware "*|*" chimera "*|*" guix "*)
+      echo "appimage"
+      return 0
+      ;;
+  esac
+  echo ""
+}
+
 # --- OS branches ---
 
 TMP="${TMPDIR:-/tmp}"
@@ -199,7 +234,7 @@ if [[ "$INSTALL_MODE" == cli ]]; then
   echo "Downloading portable CLI bundle (${CLI_OS} ${CLI_ARCH_TAG}) …"
   rm -f "$TMP_CLI"
   GOT_FROM=""
-  # Prefer INSTALL_CLI_URL override, then pinned GitHub Release asset, then branch releases/ on raw.githubusercontent.com.
+  # Prefer INSTALL_CLI_URL override, then GitHub Release asset, then branch releases/ on raw.githubusercontent.com.
   if [[ -n "${INSTALL_CLI_URL:-}" ]]; then
     download_to "$INSTALL_CLI_URL" "$TMP_CLI"
     GOT_FROM="override"
@@ -227,10 +262,13 @@ if [[ "$INSTALL_MODE" == cli ]]; then
     fi
   fi
   if [[ ! -s "$TMP_CLI" ]]; then
-    die "No CLI tarball found. Attach crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz to GitHub release ${INSTALL_RELEASE_TAG}, or add releases/crossusage-cli_<version>_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz on branch ${INSTALL_GIT_REF} (see scripts/build-cli-tarball.sh)."
+    if [[ "$CLI_OS" == "darwin" ]]; then
+      die "No prebuilt macOS CLI tarball in release ${INSTALL_RELEASE_TAG}. Build from source with: cargo build --release -p crossusage-cli (or see ${RELEASE_PAGE_URL})."
+    fi
+    die "No CLI tarball found for ${CLI_OS}_${CLI_ARCH_TAG} in release ${INSTALL_RELEASE_TAG} (see ${RELEASE_PAGE_URL})."
   fi
   if [[ "$GOT_FROM" == "legacy" && -n "$REPO_VER" ]]; then
-    echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is committed on ${INSTALL_GIT_REF} so installs get the matching build." >&2
+    echo "Note: used legacy filename; ensure releases/crossusage-cli_${REPO_VER}_${CLI_OS}_${CLI_ARCH_TAG}.tar.gz is available." >&2
   fi
   ROOT_CLI="${HOME}/.local/lib/crossusage"
   if [[ -x "${ROOT_CLI}/crossusage-cli" ]]; then
@@ -253,7 +291,7 @@ if [[ "$INSTALL_MODE" == cli ]]; then
   echo "Verifying ..."
   export PATH="${HOME}/.local/bin:${PATH}"
   if command -v crossusage-cli >/dev/null 2>&1; then
-    crossusage-cli list >/dev/null 2>&1 && echo "crossusage-cli list: ok" || echo "crossusage-cli list: failed (check plugin resources under ${ROOT_CLI}/resources)" >&2
+    crossusage-cli --json list >/dev/null 2>&1 && echo "crossusage-cli --json list: ok" || echo "crossusage-cli --json list: failed (check plugin resources under ${ROOT_CLI}/resources)" >&2
   fi
   echo "Done."
   exit 0
@@ -261,62 +299,93 @@ fi
 
 case "$KERNEL" in
   Darwin)
-    echo "CrossUsage (this fork) does not publish a macOS desktop installer (.dmg) on this repo."
-    echo "For the terminal CLI from this fork, use:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.sh | INSTALL_MODE=cli bash"
-    echo "Upstream OpenUsage may publish macOS GUI builds separately:"
+    echo "CrossUsage (this fork) focuses on native Linux & Windows desktop packages."
+    echo "For the native Swift macOS menu-bar app, grab upstream OpenUsage:"
     echo "  https://github.com/robinebers/openusage/releases/latest"
+    echo "Or build the CrossUsage CLI from source on macOS:"
+    echo "  cargo build --release -p crossusage-cli"
     exit 0
     ;;
   MINGW*|MSYS*|CYGWIN*)
     echo "This script is for Unix shells. On Windows, use PowerShell:"
     echo "  irm https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.ps1 | iex"
     echo "Or download the Windows installer from:"
-    echo "  https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG}"
+    echo "  ${RELEASE_PAGE_URL}"
     exit 0
     ;;
 esac
 
 if [[ "$KERNEL" != Linux ]]; then
-  die "unsupported OS: $KERNEL (try manual download from https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG})"
+  die "unsupported OS: $KERNEL (try manual download from ${RELEASE_PAGE_URL})"
 fi
 
 DEB_ARCH="$(map_deb_arch)"
 AI_ARCH="$(map_appimage_arch)"
 RPM_ARCH="$(map_rpm_arch_suffix)"
 
-JSON="$(fetch_json)" || die "failed to fetch release metadata"
+JSON="$(fetch_json)" || die "failed to fetch release metadata from ${API_URL}"
 
 # Regex patterns (jq test / Python re); escape dots for literal.
 INSTALL_DEB_URL=""
 INSTALL_RPM_URL=""
 INSTALL_AI_URL=""
+INSTALL_TAR_URL=""
 INSTALL_CLI_URL="$(echo "$JSON" | pick_asset_url "crossusage-cli_.+_linux_${DEB_ARCH}\\.tar\\.gz\$" || true)"
 INSTALL_DEB_URL="$(echo "$JSON" | pick_asset_url "crossusage_.+_${DEB_ARCH}\\.deb\$" || true)"
 INSTALL_RPM_URL="$(echo "$JSON" | pick_asset_url "crossusage-.+\\.${RPM_ARCH}\\.rpm\$" || true)"
 INSTALL_AI_URL="$(echo "$JSON" | pick_asset_url "crossusage_.+_${AI_ARCH}\\.AppImage\$" || true)"
+INSTALL_TAR_URL="$(echo "$JSON" | pick_asset_url "^crossusage_[0-9].+_linux_${DEB_ARCH}\\.tar\\.gz\$" || true)"
 
-if [[ -z "$INSTALL_DEB_URL" && -z "$INSTALL_RPM_URL" && -z "$INSTALL_AI_URL" ]]; then
-    die "no Linux assets found in release ${INSTALL_RELEASE_TAG} (expected .deb / .rpm / .AppImage for ${DEB_ARCH})"
+if [[ -z "$INSTALL_DEB_URL" && -z "$INSTALL_RPM_URL" && -z "$INSTALL_AI_URL" && -z "$INSTALL_TAR_URL" ]]; then
+  die "no Linux assets found in release ${INSTALL_RELEASE_TAG} for ${DEB_ARCH} (see ${RELEASE_PAGE_URL})"
 fi
 
 KIND="${INSTALL_KIND:-}"
 
 if [[ -z "$KIND" ]]; then
-  if have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
-    KIND=deb
-  elif (have_cmd rpm || have_cmd dnf || have_cmd yum) && [[ -n "$INSTALL_RPM_URL" ]]; then
-    KIND=rpm
-  elif [[ -n "$INSTALL_AI_URL" ]]; then
-    KIND=appimage
-  elif [[ -n "$INSTALL_DEB_URL" ]]; then
-    KIND=deb
-  elif [[ -n "$INSTALL_RPM_URL" ]]; then
-    KIND=rpm
-  else
-    die "no suitable package for this system; see https://github.com/${GITHUB_REPO}/releases/tag/${INSTALL_RELEASE_TAG}"
-  fi
+  DISTRO_FAMILY="$(detect_linux_distro_family)"
+  case "$DISTRO_FAMILY" in
+    deb)
+      if have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
+        KIND=deb
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    rpm)
+      if (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
+        KIND=rpm
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    appimage)
+      if [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+    *)
+      if have_cmd apt-get && have_cmd dpkg && [[ -n "$INSTALL_DEB_URL" ]]; then
+        KIND=deb
+      elif (have_cmd dnf || have_cmd zypper || have_cmd yum || have_cmd rpm) && [[ -n "$INSTALL_RPM_URL" ]]; then
+        KIND=rpm
+      elif [[ -n "$INSTALL_AI_URL" ]]; then
+        KIND=appimage
+      elif [[ -n "$INSTALL_TAR_URL" ]]; then
+        KIND=tarball
+      fi
+      ;;
+  esac
+  [[ -n "$KIND" ]] || die "no suitable package for this system; see ${RELEASE_PAGE_URL}"
 fi
+
+echo "Selected Linux package format: ${KIND} (override with INSTALL_KIND=deb|rpm|appimage|tarball)"
 
 case "$KIND" in
   deb)
@@ -324,34 +393,24 @@ case "$KIND" in
     DEB_FILE="$TMP/crossusage-install-$$.deb"
     echo "Downloading .deb ..."
     download_to "$INSTALL_DEB_URL" "$DEB_FILE"
+    chmod 644 "$DEB_FILE"
     ensure_sudo
     echo "Installing .deb (requires sudo) ..."
-    run_sudo dpkg -i "$DEB_FILE" || true
     if have_cmd apt-get; then
-      run_sudo apt-get install -f -y -q || true
+      run_sudo apt-get install -y "$DEB_FILE" || {
+        run_sudo dpkg -i "$DEB_FILE" || true
+        run_sudo apt-get install -f -y -q
+      }
+    else
+      run_sudo dpkg -i "$DEB_FILE"
     fi
     rm -f "$DEB_FILE"
-    # Older .deb builds may omit crossusage-cli; try repo-hosted tarball (versioned = build-cli-tarball.sh), legacy path, then Release asset from JSON.
-    if [[ -x /usr/bin/crossusage ]] && [[ ! -x /usr/bin/crossusage-cli ]]; then
-      REPO_VER_DEB="$(fetch_repo_package_version || true)"
-      REPO_URL_BASE_DEB="https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/releases"
-      VERSIONED_CLI_DEB=""
-      if [[ -n "$REPO_VER_DEB" ]]; then
-        VERSIONED_CLI_DEB="${REPO_URL_BASE_DEB}/crossusage-cli_${REPO_VER_DEB}_linux_${DEB_ARCH}.tar.gz"
-      fi
-      LEGACY_CLI_DEB="${REPO_URL_BASE_DEB}/crossusage-cli_linux_${DEB_ARCH}.tar.gz"
+    # Older .deb builds may omit crossusage-cli; install portable CLI if missing.
+    if [[ -x /usr/bin/crossusage ]] && [[ ! -x /usr/bin/crossusage-cli ]] && [[ -n "${INSTALL_CLI_URL:-}" ]]; then
       TMP_CLI="$TMP/crossusage-cli-repair-$$.tar.gz"
       rm -f "$TMP_CLI"
-      GOT_CLI=0
-      if [[ -n "$VERSIONED_CLI_DEB" ]] && download_try "$VERSIONED_CLI_DEB" "$TMP_CLI"; then
-        GOT_CLI=1
-      elif download_try "$LEGACY_CLI_DEB" "$TMP_CLI"; then
-        GOT_CLI=1
-      elif [[ -n "${INSTALL_CLI_URL:-}" ]] && download_try "$INSTALL_CLI_URL" "$TMP_CLI"; then
-        GOT_CLI=1
-      fi
-      if [[ "$GOT_CLI" -eq 1 ]]; then
-        echo "This .deb has no /usr/bin/crossusage-cli. Adding portable CLI from tarball …"
+      if download_try "$INSTALL_CLI_URL" "$TMP_CLI"; then
+        echo "Adding portable crossusage-cli from release tarball …"
         ROOT_CLI="${HOME}/.local/lib/crossusage"
         mkdir -p "$ROOT_CLI"
         tar xzf "$TMP_CLI" -C "$ROOT_CLI"
@@ -367,7 +426,7 @@ case "$KIND" in
     fi
     ;;
   rpm)
-    [[ -n "$INSTALL_RPM_URL" ]] || die "no .rpm in release ${INSTALL_RELEASE_TAG}"
+    [[ -n "$INSTALL_RPM_URL" ]] || die "no .rpm for ${RPM_ARCH} in release ${INSTALL_RELEASE_TAG}"
     RPM_FILE="$TMP/crossusage-install-$$.rpm"
     echo "Downloading .rpm ..."
     download_to "$INSTALL_RPM_URL" "$RPM_FILE"
@@ -375,12 +434,14 @@ case "$KIND" in
     echo "Installing .rpm (requires sudo) ..."
     if have_cmd dnf; then
       run_sudo dnf install -y "$RPM_FILE"
+    elif have_cmd zypper; then
+      run_sudo zypper --non-interactive install --allow-unsigned-rpm "$RPM_FILE"
     elif have_cmd yum; then
       run_sudo yum install -y "$RPM_FILE"
     elif have_cmd rpm; then
       run_sudo rpm -Uvh "$RPM_FILE" || run_sudo rpm -ivh "$RPM_FILE"
     else
-      die "rpm install tool not found"
+      die "rpm install tool (dnf / zypper / yum / rpm) not found"
     fi
     rm -f "$RPM_FILE"
     ;;
@@ -402,35 +463,91 @@ case "$KIND" in
       echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
     fi
     ;;
+  tarball)
+    [[ -n "$INSTALL_TAR_URL" ]] || die "no portable Linux .tar.gz for ${DEB_ARCH} in release ${INSTALL_RELEASE_TAG}"
+    TAR_FILE="$TMP/crossusage-install-$$.tar.gz"
+    echo "Downloading portable Linux archive (.tar.gz) ..."
+    download_to "$INSTALL_TAR_URL" "$TAR_FILE"
+    ROOT_APP="${HOME}/.local/lib/crossusage-app"
+    rm -rf "$ROOT_APP"
+    mkdir -p "$ROOT_APP"
+    tar xzf "$TAR_FILE" -C "$ROOT_APP"
+    rm -f "$TAR_FILE"
+    LOCAL_BIN="${HOME}/.local/bin"
+    mkdir -p "$LOCAL_BIN"
+    if [[ -x "${ROOT_APP}/crossusage" ]]; then
+      ln -sfn "${ROOT_APP}/crossusage" "${LOCAL_BIN}/crossusage"
+    fi
+    if [[ -x "${ROOT_APP}/crossusage-cli" ]]; then
+      ln -sfn "${ROOT_APP}/crossusage-cli" "${LOCAL_BIN}/crossusage-cli"
+    fi
+    echo "Installed portable bundle under ${ROOT_APP}"
+    echo "Symlinks created in ${LOCAL_BIN}"
+    if [[ ":${PATH}:" != *":${LOCAL_BIN}:"* ]]; then
+      echo "Add to PATH (e.g. in ~/.profile):"
+      echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
+    ;;
   *)
-    die "invalid INSTALL_KIND=$KIND (use deb, rpm, or appimage)"
+    die "invalid INSTALL_KIND=$KIND (use deb, rpm, appimage, or tarball)"
     ;;
 esac
 
 echo ""
 echo "Verifying install ..."
 
+# Remove stale portable CLI symlink in ~/.local/bin if a system package now provides /usr/bin/crossusage-cli.
+if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage-cli ]] && [[ -L "${HOME}/.local/bin/crossusage-cli" ]]; then
+  LINK_TARGET="$(readlink "${HOME}/.local/bin/crossusage-cli" 2>/dev/null || true)"
+  if [[ "$LINK_TARGET" == "${HOME}/.local/lib/crossusage/"* || "$LINK_TARGET" == "${HOME}/.local/lib/crossusage-app/"* ]]; then
+    rm -f "${HOME}/.local/bin/crossusage-cli"
+    echo "Removed stale portable symlink ${HOME}/.local/bin/crossusage-cli (now using /usr/bin/crossusage-cli)"
+  fi
+fi
+
+# Remove stale portable GUI symlink in ~/.local/bin if a system package now provides /usr/bin/crossusage.
+# Tarball: ~/.local/bin/crossusage -> ~/.local/lib/crossusage-app/crossusage
+# AppImage: ~/.local/bin/crossusage -> ~/.local/bin/crossusage.AppImage
+if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage ]] && [[ -L "${HOME}/.local/bin/crossusage" ]]; then
+  GUI_LINK_TARGET="$(readlink "${HOME}/.local/bin/crossusage" 2>/dev/null || true)"
+  GUI_LINK_BASE="${GUI_LINK_TARGET##*/}"
+  if [[ "$GUI_LINK_TARGET" == "${HOME}/.local/lib/crossusage-app/"* || "$GUI_LINK_BASE" == "crossusage.AppImage" ]]; then
+    rm -f "${HOME}/.local/bin/crossusage"
+    echo "Removed stale portable symlink ${HOME}/.local/bin/crossusage (now using /usr/bin/crossusage)"
+  fi
+fi
+
 if command -v crossusage-cli >/dev/null 2>&1; then
-  echo "Found: $(command -v crossusage-cli)"
-  if crossusage-cli list >/dev/null 2>&1; then
-    echo "crossusage-cli list: ok"
+  ACTIVE_CLI="$(command -v crossusage-cli)"
+  ACTIVE_VER="$(crossusage-cli -V 2>/dev/null || true)"
+  echo "Found: ${ACTIVE_CLI}${ACTIVE_VER:+ (${ACTIVE_VER})}"
+  if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage-cli ]] && [[ "$ACTIVE_CLI" != "/usr/bin/crossusage-cli" && "$ACTIVE_CLI" != "/bin/crossusage-cli" ]]; then
+    SYS_VER="$(/usr/bin/crossusage-cli -V 2>/dev/null || true)"
+    echo "Warning: ${ACTIVE_CLI} shadows /usr/bin/crossusage-cli${SYS_VER:+ (${SYS_VER})} earlier on PATH. Remove or update ${ACTIVE_CLI} if you want the system package version." >&2
+  fi
+  if crossusage-cli --json list >/dev/null 2>&1; then
+    echo "crossusage-cli --json list: ok"
   else
-    echo "crossusage-cli list: failed (set CROSSUSAGE_RESOURCES if plugins are missing; see crates/crossusage-core/src/paths.rs)" >&2
+    echo "crossusage-cli --json list: failed (set CROSSUSAGE_RESOURCES if plugins are missing; see crates/crossusage-core/src/paths.rs)" >&2
   fi
 else
   if [[ "$KIND" == appimage ]]; then
-    echo "Note: crossusage-cli is not on PATH with the AppImage layout; use the GUI or install the .deb/.rpm for full CLI integration."
+    echo "Note: For standalone CLI alongside AppImage, run: curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/${INSTALL_GIT_REF}/scripts/install.sh | INSTALL_MODE=cli bash"
   elif [[ -x "${HOME}/.local/bin/crossusage-cli" ]]; then
     echo "Found: ${HOME}/.local/bin/crossusage-cli (add ~/.local/bin to PATH if needed)"
     export PATH="${HOME}/.local/bin:${PATH}"
-    crossusage-cli list >/dev/null 2>&1 && echo "crossusage-cli list: ok" || true
+    crossusage-cli --json list >/dev/null 2>&1 && echo "crossusage-cli --json list: ok" || true
   else
     echo "Warning: crossusage-cli not on PATH. Open a new shell, or run: export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
   fi
 fi
 
 if command -v crossusage >/dev/null 2>&1; then
-  echo "Found: $(command -v crossusage)"
+  ACTIVE_GUI="$(command -v crossusage)"
+  echo "Found: ${ACTIVE_GUI}"
+  if [[ "$KIND" == deb || "$KIND" == rpm ]] && [[ -x /usr/bin/crossusage ]] && [[ "$ACTIVE_GUI" != "/usr/bin/crossusage" && "$ACTIVE_GUI" != "/bin/crossusage" ]]; then
+    echo "Warning: ${ACTIVE_GUI} shadows /usr/bin/crossusage earlier on PATH. Remove or update ${ACTIVE_GUI} if you want the system package version." >&2
+  fi
 fi
 
 echo "Done."
