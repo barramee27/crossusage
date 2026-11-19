@@ -68,7 +68,9 @@ export function ProviderDetailPage({
         allowedLabels={allowedLabels}
         showAccountIdentity={showAccountIdentity}
       />
-      {isCursorFamily ? <CursorUsageStatsPanel pluginId={baseProviderId} /> : null}
+      {isCursorFamily ? (
+        <CursorUsageStatsPanel pluginId={baseProviderId} instanceId={plugin.meta.id} />
+      ) : null}
     </div>
   )
 }

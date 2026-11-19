@@ -25,16 +25,26 @@ pub struct EncryptedProviderAccountsFile {
 #[cfg(test)]
 static TEST_MASTER_KEY: std::sync::Mutex<Option<[u8; 32]>> = std::sync::Mutex::new(None);
 
+static CACHED_MASTER_KEY: std::sync::Mutex<Option<(PathBuf, [u8; 32])>> =
+    std::sync::Mutex::new(None);
+
 #[cfg(test)]
 pub fn set_test_master_key(key: Option<[u8; 32]>) {
     *TEST_MASTER_KEY.lock().expect("test master key lock") = key;
+    clear_cached_master_key();
+}
+
+fn clear_cached_master_key() {
+    if let Ok(mut guard) = CACHED_MASTER_KEY.lock() {
+        *guard = None;
+    }
 }
 
 pub fn encrypt_store_plaintext(
     plaintext: &str,
     app_data_dir: &Path,
 ) -> io::Result<EncryptedProviderAccountsFile> {
-    let key = master_key_bytes(app_data_dir)?;
+    let key = master_key_bytes(app_data_dir, true)?;
     let envelope = encrypt_aes_256_gcm_envelope(plaintext, &key)?;
     Ok(EncryptedProviderAccountsFile {
         format: STORE_FORMAT_V1.to_string(),
@@ -43,8 +53,16 @@ pub fn encrypt_store_plaintext(
 }
 
 pub fn decrypt_store_envelope(envelope: &str, app_data_dir: &Path) -> io::Result<String> {
-    let key = master_key_bytes(app_data_dir)?;
-    decrypt_aes_256_gcm_envelope(envelope, &key)
+    let (key, from_cache) = master_key_bytes_with_cache_info(app_data_dir, false)?;
+    match decrypt_aes_256_gcm_envelope(envelope, &key) {
+        Ok(plaintext) => Ok(plaintext),
+        Err(err) if from_cache && err.kind() == io::ErrorKind::InvalidData => {
+            clear_cached_master_key();
+            let (fresh_key, _) = master_key_bytes_with_cache_info(app_data_dir, false)?;
+            decrypt_aes_256_gcm_envelope(envelope, &fresh_key)
+        }
+        Err(err) => Err(err),
+    }
 }
 
 pub fn is_legacy_plaintext_store(text: &str) -> bool {
@@ -57,16 +75,35 @@ pub fn is_legacy_plaintext_store(text: &str) -> bool {
         .unwrap_or(true)
 }
 
-fn master_key_bytes(app_data_dir: &Path) -> io::Result<[u8; 32]> {
+fn master_key_bytes(app_data_dir: &Path, allow_create: bool) -> io::Result<[u8; 32]> {
+    master_key_bytes_with_cache_info(app_data_dir, allow_create).map(|(key, _)| key)
+}
+
+fn master_key_bytes_with_cache_info(
+    app_data_dir: &Path,
+    allow_create: bool,
+) -> io::Result<([u8; 32], bool)> {
     #[cfg(test)]
     {
         if let Some(key) = *TEST_MASTER_KEY.lock().expect("test master key lock") {
-            return Ok(key);
+            return Ok((key, false));
         }
     }
 
-    let key_b64 = read_or_create_master_key(app_data_dir).map_err(io::Error::other)?;
-    decode_master_key_b64(&key_b64)
+    if let Ok(guard) = CACHED_MASTER_KEY.lock() {
+        if let Some((cached_dir, cached_key)) = guard.as_ref() {
+            if cached_dir == app_data_dir {
+                return Ok((*cached_key, true));
+            }
+        }
+    }
+
+    let key_b64 = read_or_create_master_key(app_data_dir, allow_create).map_err(io::Error::other)?;
+    let decoded = decode_master_key_b64(&key_b64)?;
+    if let Ok(mut guard) = CACHED_MASTER_KEY.lock() {
+        *guard = Some((app_data_dir.to_path_buf(), decoded));
+    }
+    Ok((decoded, false))
 }
 
 fn decode_master_key_b64(key_b64: &str) -> io::Result<[u8; 32]> {
@@ -88,28 +125,92 @@ fn master_key_file_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join(".provider_accounts_master_key")
 }
 
-fn read_or_create_master_key(app_data_dir: &Path) -> Result<String, String> {
-    match read_or_create_keychain_master_key() {
+#[derive(Debug, PartialEq, Eq)]
+enum KeyringReadResult {
+    Found(String),
+    NotFound,
+    Unavailable(String),
+}
+
+fn resolve_keychain_master_key_with<R, C>(
+    read_fn: R,
+    create_fn: C,
+    allow_create: bool,
+) -> Result<String, String>
+where
+    R: FnOnce() -> KeyringReadResult,
+    C: FnOnce() -> Result<String, String>,
+{
+    match read_fn() {
+        KeyringReadResult::Found(existing) => Ok(existing),
+        KeyringReadResult::NotFound => {
+            if allow_create {
+                create_fn()
+            } else {
+                Err("provider accounts master key not found in keychain".to_string())
+            }
+        }
+        // Never attempt to create/overwrite a key when secure storage is locked or unavailable.
+        KeyringReadResult::Unavailable(err) => Err(err),
+    }
+}
+
+fn resolve_master_key_with<R, C>(
+    app_data_dir: &Path,
+    allow_create: bool,
+    read_keychain: R,
+    create_keychain: C,
+) -> Result<String, String>
+where
+    R: FnOnce() -> KeyringReadResult,
+    C: FnOnce() -> Result<String, String>,
+{
+    match resolve_keychain_master_key_with(read_keychain, create_keychain, allow_create) {
         Ok(key) => Ok(key),
         Err(keychain_err) => {
+            if let Some(existing) = read_existing_file_master_key(app_data_dir)? {
+                log::warn!(
+                    "provider accounts keychain unavailable ({keychain_err}); using existing app-local master key file"
+                );
+                return Ok(existing);
+            }
+            if !allow_create {
+                return Err(format!(
+                    "provider accounts keychain unavailable ({keychain_err}) and no app-local master key file exists"
+                ));
+            }
             log::warn!(
-                "provider accounts keychain unavailable ({keychain_err}); using app-local master key file"
+                "provider accounts keychain unavailable ({keychain_err}); creating app-local master key file"
             );
-            read_or_create_file_master_key(app_data_dir)
+            create_file_master_key(app_data_dir)
         }
     }
 }
 
-fn read_or_create_file_master_key(app_data_dir: &Path) -> Result<String, String> {
-    let path = master_key_file_path(app_data_dir);
-    if path.is_file() {
-        let text = fs::read_to_string(&path).map_err(|err| err.to_string())?;
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
-        }
-    }
+fn read_or_create_master_key(app_data_dir: &Path, allow_create: bool) -> Result<String, String> {
+    resolve_master_key_with(
+        app_data_dir,
+        allow_create,
+        || read_platform_keyring_password(KEYCHAIN_SERVICE, Some(KEYCHAIN_ACCOUNT)),
+        create_keychain_master_key,
+    )
+}
 
+fn read_existing_file_master_key(app_data_dir: &Path) -> Result<Option<String>, String> {
+    let path = master_key_file_path(app_data_dir);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
+fn create_file_master_key(app_data_dir: &Path) -> Result<String, String> {
+    let path = master_key_file_path(app_data_dir);
     let encoded = create_random_key_b64();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -134,14 +235,6 @@ fn restrict_private_file_permissions(path: &Path) -> Result<(), String> {
 #[cfg(not(unix))]
 fn restrict_private_file_permissions(_path: &Path) -> Result<(), String> {
     Ok(())
-}
-
-fn read_or_create_keychain_master_key() -> Result<String, String> {
-    match read_platform_keyring_password(KEYCHAIN_SERVICE, Some(KEYCHAIN_ACCOUNT)) {
-        Ok(existing) if !existing.trim().is_empty() => Ok(existing),
-        Ok(_) => create_keychain_master_key(),
-        Err(_) => create_keychain_master_key(),
-    }
 }
 
 fn create_keychain_master_key() -> Result<String, String> {
@@ -280,30 +373,45 @@ fn windows_go_keyring_target(service: &str, user: &str) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn read_windows_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
+fn read_windows_keyring_password(service: &str, account: Option<&str>) -> KeyringReadResult {
     let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
-    let mut errors: Vec<String> = Vec::new();
+    let mut unavailable_errors: Vec<String> = Vec::new();
+    let mut saw_no_entry = false;
 
     if !user.is_empty() {
         let go_target = windows_go_keyring_target(service, user);
         match keyring::Entry::new_with_target(&go_target, service, user) {
             Ok(entry) => match entry.get_password() {
-                Ok(password) => return Ok(password),
-                Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
+                Ok(password) if !password.trim().is_empty() => {
+                    return KeyringReadResult::Found(password)
+                }
+                Ok(_) => saw_no_entry = true,
+                Err(keyring::Error::NoEntry) => saw_no_entry = true,
+                Err(e) => unavailable_errors.push(format!("go-keyring target {go_target}: {e}")),
             },
-            Err(e) => errors.push(format!("go-keyring target {go_target}: {e}")),
+            Err(e) => unavailable_errors.push(format!("go-keyring target {go_target}: {e}")),
         }
     }
 
     match keyring::Entry::new(service, user) {
         Ok(entry) => match entry.get_password() {
-            Ok(password) => return Ok(password),
-            Err(e) => errors.push(format!("keyring crate default: {e}")),
+            Ok(password) if !password.trim().is_empty() => {
+                return KeyringReadResult::Found(password)
+            }
+            Ok(_) => saw_no_entry = true,
+            Err(keyring::Error::NoEntry) => saw_no_entry = true,
+            Err(e) => unavailable_errors.push(format!("keyring crate default: {e}")),
         },
-        Err(e) => errors.push(format!("keyring crate default: {e}")),
+        Err(e) => unavailable_errors.push(format!("keyring crate default: {e}")),
     }
 
-    Err(errors.join("; "))
+    if !unavailable_errors.is_empty() {
+        KeyringReadResult::Unavailable(unavailable_errors.join("; "))
+    } else if saw_no_entry {
+        KeyringReadResult::NotFound
+    } else {
+        KeyringReadResult::NotFound
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -346,7 +454,7 @@ fn write_platform_keyring_password(
     }
 }
 
-fn read_platform_keyring_password(service: &str, account: Option<&str>) -> Result<String, String> {
+fn read_platform_keyring_password(service: &str, account: Option<&str>) -> KeyringReadResult {
     #[cfg(target_os = "windows")]
     {
         return read_windows_keyring_password(service, account);
@@ -355,24 +463,43 @@ fn read_platform_keyring_password(service: &str, account: Option<&str>) -> Resul
     #[cfg(not(target_os = "windows"))]
     {
         let user = account.map(str::trim).filter(|a| !a.is_empty()).unwrap_or("");
-        let keyring_err = match keyring::Entry::new(service, user) {
+        match keyring::Entry::new(service, user) {
             Ok(entry) => match entry.get_password() {
-                Ok(password) => return Ok(password),
-                Err(e) => e.to_string(),
+                Ok(password) if !password.trim().is_empty() => {
+                    return KeyringReadResult::Found(password)
+                }
+                Ok(_) => return KeyringReadResult::NotFound,
+                Err(keyring::Error::NoEntry) => {
+                    // Entry genuinely absent in default keyring; on Linux check secret-tool once
+                    // in case an existing entry was stored with different attributes.
+                }
+                Err(e) => {
+                    // Locked keyring, dismissed unlock prompt, or D-Bus error — do NOT fall
+                    // through to secret-tool or key creation (would trigger duplicate prompts).
+                    return KeyringReadResult::Unavailable(e.to_string());
+                }
             },
-            Err(e) => e.to_string(),
+            Err(e) => return KeyringReadResult::Unavailable(e.to_string()),
         };
 
         #[cfg(target_os = "linux")]
         {
-            return read_linux_secret_tool_password(service, account)
-                .map_err(|secret_tool_err| format!("{keyring_err}; {secret_tool_err}"));
+            match read_linux_secret_tool_password(service, account) {
+                Ok(password) => KeyringReadResult::Found(password),
+                Err(err)
+                    if err.contains("returned no entry")
+                        || err.contains("returned empty secret")
+                        || err.contains("secret-tool not installed") =>
+                {
+                    KeyringReadResult::NotFound
+                }
+                Err(err) => KeyringReadResult::Unavailable(err),
+            }
         }
 
         #[cfg(not(target_os = "linux"))]
         {
-            let _ = keyring_err;
-            Err("keyring read failed".to_string())
+            KeyringReadResult::NotFound
         }
     }
 }
@@ -415,5 +542,70 @@ mod tests {
         };
         let text = serde_json::to_string(&encrypted).expect("serialize");
         assert!(!is_legacy_plaintext_store(&text));
+    }
+
+    #[test]
+    fn unavailable_keychain_never_calls_create() {
+        let mut created = false;
+        let res = resolve_keychain_master_key_with(
+            || KeyringReadResult::Unavailable("Secret Service: unlock prompt was dismissed".into()),
+            || {
+                created = true;
+                Ok("new-key".into())
+            },
+            true,
+        );
+        assert!(res.is_err());
+        assert!(!created, "locked/unavailable keyring must never trigger create");
+    }
+
+    #[test]
+    fn not_found_keychain_creates_only_when_allowed() {
+        let mut created = false;
+        let denied = resolve_keychain_master_key_with(
+            || KeyringReadResult::NotFound,
+            || {
+                created = true;
+                Ok("new-key".into())
+            },
+            false,
+        );
+        assert!(denied.is_err());
+        assert!(!created);
+
+        let allowed = resolve_keychain_master_key_with(
+            || KeyringReadResult::NotFound,
+            || {
+                created = true;
+                Ok("new-key".into())
+            },
+            true,
+        );
+        assert_eq!(allowed.as_deref(), Ok("new-key"));
+        assert!(created);
+    }
+
+    #[test]
+    fn decrypt_does_not_fabricate_master_key_file_when_keychain_unavailable() {
+        let dir = std::env::temp_dir().join(format!(
+            "crossusage-crypto-no-fabricate-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp dir");
+
+        let res = resolve_master_key_with(
+            &dir,
+            false,
+            || KeyringReadResult::Unavailable("unlock prompt was dismissed".into()),
+            || panic!("must not attempt keychain create"),
+        );
+        assert!(res.is_err());
+        assert!(
+            !master_key_file_path(&dir).exists(),
+            "decrypt path must not create a brand-new .provider_accounts_master_key file"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

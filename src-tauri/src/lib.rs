@@ -943,7 +943,7 @@ fn run_and_emit_probe(
                     {
                         log::debug!("usage history append: {}", e);
                     }
-                    crossusage_core::plugin_engine::host_api::post_probe_ccusage_daily(
+                    crossusage_core::cli_usage_scanners::post_probe_local_usage_daily(
                         history_dir,
                         &plugin_id,
                         &output.display_name,
@@ -1225,20 +1225,83 @@ fn list_usage_daily(
     .map_err(|e| e.to_string())
 }
 
+fn resolve_cursor_usage_stats_target(
+    app_data_dir: &std::path::Path,
+    plugin_id: Option<&str>,
+    instance_id: Option<&str>,
+) -> Result<(String, Option<crossusage_core::cursor_usage_export::CursorExportAccount>), String> {
+    let normalized_plugin_id = plugin_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let normalized_instance_id = instance_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
+    let mut resolved_plugin_id = normalized_plugin_id.unwrap_or_else(|| {
+        normalized_instance_id
+            .as_deref()
+            .and_then(|id| {
+                let candidate = id.split_once(':').map(|(base, _)| base).unwrap_or(id);
+                crossusage_core::cursor_paths::CursorInstall::from_plugin_id(candidate)
+                    .map(|_| candidate.to_string())
+            })
+            .unwrap_or_else(|| "cursor".to_string())
+    });
+
+    let export_account = if let Some(ref inst_id) = normalized_instance_id {
+        let store_path = provider_accounts::store_path(app_data_dir);
+        if let Some(account) = provider_accounts::get_account(app_data_dir, inst_id)
+            .map_err(|e| e.to_string())?
+        {
+            if !account.base_provider_id.trim().is_empty() {
+                resolved_plugin_id = account.base_provider_id.trim().to_string();
+            }
+            crossusage_core::cursor_usage_export::CursorExportAccount::from_stored_account(
+                &account,
+                Some(store_path),
+            )
+        } else if inst_id != &resolved_plugin_id {
+            Some(crossusage_core::cursor_usage_export::CursorExportAccount {
+                instance_id: inst_id.clone(),
+                access_token: None,
+                refresh_token: None,
+                store_path: Some(store_path),
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok((resolved_plugin_id, export_account))
+}
+
 #[tauri::command]
 fn query_cursor_usage_stats(
+    state: tauri::State<'_, Mutex<AppState>>,
     plugin_id: Option<String>,
+    instance_id: Option<String>,
     since: Option<String>,
     until: Option<String>,
     group: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let plugin_id = plugin_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("cursor");
-    let payload = crossusage_core::cursor_usage_export::query_usage_stats(
-        plugin_id,
+    let app_data_dir = state
+        .lock()
+        .map_err(|e| e.to_string())?
+        .app_data_dir
+        .clone();
+    let (resolved_plugin_id, export_account) = resolve_cursor_usage_stats_target(
+        &app_data_dir,
+        plugin_id.as_deref(),
+        instance_id.as_deref(),
+    )?;
+
+    let payload = crossusage_core::cursor_usage_export::query_usage_stats_for_account(
+        &resolved_plugin_id,
+        export_account.as_ref(),
         since.as_deref(),
         until.as_deref(),
         group.as_deref().unwrap_or("model"),
@@ -1548,9 +1611,11 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        DAILY_ACTIVE_TRACKED_DAY_KEY, seconds_until_next_utc_day, should_track_daily_active,
+        DAILY_ACTIVE_TRACKED_DAY_KEY, resolve_cursor_usage_stats_target,
+        seconds_until_next_utc_day, should_track_daily_active,
     };
     use chrono::TimeZone;
+    use crossusage_core::provider_accounts::{self, ProviderAccount, ProviderCredential};
 
     #[test]
     fn should_track_when_no_previous_day() {
@@ -1579,5 +1644,94 @@ mod tests {
         let now = chrono::Utc.with_ymd_and_hms(2026, 2, 12, 23, 59, 50).unwrap();
 
         assert_eq!(seconds_until_next_utc_day(now), 10);
+    }
+
+    #[test]
+    fn missing_non_default_cursor_account_stays_isolated() {
+        let dir = std::env::temp_dir().join(format!(
+            "crossusage-cursor-stats-missing-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let (plugin_id, account) =
+            resolve_cursor_usage_stats_target(&dir, Some("cursor"), Some("cursor:work")).unwrap();
+        assert_eq!(plugin_id, "cursor");
+        let account = account.expect("missing non-default account must force an isolated override");
+        assert_eq!(account.instance_id, "cursor:work");
+        assert_eq!(account.access_token, None);
+        assert_eq!(account.refresh_token, None);
+        let err = crossusage_core::cursor_usage_export::query_usage_stats_for_account(
+            &plugin_id,
+            Some(&account),
+            Some("20260101"),
+            Some("20260102"),
+            "model",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("Re-authenticate"));
+
+        let (nightly_plugin_id, nightly_account) =
+            resolve_cursor_usage_stats_target(&dir, None, Some("cursor-nightly:work")).unwrap();
+        assert_eq!(nightly_plugin_id, "cursor-nightly");
+        let nightly_account = nightly_account
+            .expect("missing non-default nightly account must force an isolated override");
+        assert_eq!(nightly_account.instance_id, "cursor-nightly:work");
+        assert_eq!(nightly_account.access_token, None);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn default_cursor_account_without_store_row_uses_default_auth() {
+        let dir = std::env::temp_dir().join(format!(
+            "crossusage-cursor-stats-default-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let (plugin_id, account) =
+            resolve_cursor_usage_stats_target(&dir, Some("cursor"), Some("cursor")).unwrap();
+        assert_eq!(plugin_id, "cursor");
+        assert!(account.is_none());
+
+        let (nightly_plugin_id, nightly_account) =
+            resolve_cursor_usage_stats_target(&dir, None, Some("cursor-nightly")).unwrap();
+        assert_eq!(nightly_plugin_id, "cursor-nightly");
+        assert!(nightly_account.is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stored_non_default_cursor_account_uses_saved_credentials() {
+        let dir = std::env::temp_dir().join(format!(
+            "crossusage-cursor-stats-stored-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        provider_accounts::upsert_account(
+            &dir,
+            ProviderAccount {
+                instance_id: "cursor:work".to_string(),
+                base_provider_id: "cursor".to_string(),
+                label: "Work".to_string(),
+                credential: ProviderCredential {
+                    access_token: Some("work-token".to_string()),
+                    ..Default::default()
+                },
+            },
+        )
+        .unwrap();
+
+        let (plugin_id, account) =
+            resolve_cursor_usage_stats_target(&dir, Some("cursor"), Some("cursor:work")).unwrap();
+        assert_eq!(plugin_id, "cursor");
+        let account = account.expect("stored non-default account should resolve");
+        assert_eq!(account.instance_id, "cursor:work");
+        assert_eq!(account.access_token.as_deref(), Some("work-token"));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

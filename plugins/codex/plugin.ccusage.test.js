@@ -16,13 +16,13 @@ function dayKey(daysAgo) {
   return year + "-" + month + "-" + day
 }
 
-describe("codex plugin ccusage usage trend", () => {
+describe("codex plugin native log usage trend", () => {
   beforeEach(() => {
     delete globalThis.__openusage_plugin
     vi.resetModules()
   })
 
-  it("adds model percentage text lines and a usage chart from codex ccusage", async () => {
+  it("adds model percentage text lines and a usage chart from native codexLogs", async () => {
     const ctx = makeCtx()
     ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
       tokens: { access_token: "token" },
@@ -33,7 +33,7 @@ describe("codex plugin ccusage usage trend", () => {
       headers: { "x-codex-primary-used-percent": "10" },
       bodyText: JSON.stringify({}),
     })
-    ctx.host.ccusage.query.mockReturnValue({
+    ctx.host.codexLogs.queryDaily.mockReturnValue({
       status: "ok",
       data: {
         daily: [
@@ -78,7 +78,7 @@ describe("codex plugin ccusage usage trend", () => {
     })
   })
 
-  it("falls back to ccusage when native codexLogs returns no_data", async () => {
+  it("omits token lines cleanly when native codexLogs returns no_data", async () => {
     const ctx = makeCtx()
     ctx.host.fs.writeText("~/.codex/auth.json", JSON.stringify({
       tokens: { access_token: "token" },
@@ -92,20 +92,12 @@ describe("codex plugin ccusage usage trend", () => {
     ctx.host.codexLogs = {
       queryDaily: vi.fn(() => ({ status: "no_data", data: { daily: [] } })),
     }
-    ctx.host.ccusage.query.mockReturnValue({
-      status: "ok",
-      data: {
-        daily: [{ date: dayKey(0), totalTokens: 77 }],
-      },
-    })
 
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
     expect(ctx.host.codexLogs.queryDaily).toHaveBeenCalled()
-    expect(ctx.host.ccusage.query).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "codex" }),
-    )
-    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/77/)
+    expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Today")).toBeUndefined()
   })
 })

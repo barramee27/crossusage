@@ -723,34 +723,6 @@
     return false
   }
 
-  function queryCcusageDaily(ctx, queryOpts, provider, logPrefix) {
-    if (!ctx.host.ccusage || typeof ctx.host.ccusage.query !== "function") {
-      return { status: "no_runner", data: null }
-    }
-    const opts = Object.assign({}, queryOpts)
-    if (provider) opts.provider = provider
-    const result = ctx.host.ccusage.query(opts)
-    if (!result || typeof result !== "object" || typeof result.status !== "string") {
-      if (logPrefix) {
-        ctx.host.log.warn(logPrefix + " ccusage returned invalid shape")
-      }
-      return { status: "runner_failed", data: null }
-    }
-    if (result.status !== "ok") {
-      if (logPrefix) {
-        ctx.host.log.info(logPrefix + " ccusage status=" + result.status)
-      }
-      return { status: result.status, data: null }
-    }
-    if (!result.data || !Array.isArray(result.data.daily)) {
-      if (logPrefix) {
-        ctx.host.log.warn(logPrefix + " ccusage ok but daily missing")
-      }
-      return { status: "runner_failed", data: null }
-    }
-    return { status: "ok", data: result.data }
-  }
-
   function queryTokenUsage(ctx, homePath) {
     const since = new Date()
     // Inclusive range: today + previous 30 days = 31 calendar days.
@@ -765,29 +737,28 @@
       queryOpts.homePath = homePath
     }
 
-    if (ctx.host.claudeLogs && typeof ctx.host.claudeLogs.queryDaily === "function") {
-      try {
-        const native = ctx.host.claudeLogs.queryDaily(queryOpts)
-        if (
-          native &&
-          native.status === "ok" &&
-          native.data &&
-          dailyHasUsage(native.data.daily)
-        ) {
-          return { status: "ok", data: native.data }
-        }
-        const reason = !native
-          ? "no response"
-          : native.status !== "ok"
-            ? "status=" + String(native.status)
-            : "empty daily"
-        ctx.host.log.info("claudeLogs " + reason + ", falling back to ccusage")
-      } catch (e) {
-        ctx.host.log.warn("claudeLogs native scan failed, falling back to ccusage: " + String(e))
-      }
+    if (!ctx.host.claudeLogs || typeof ctx.host.claudeLogs.queryDaily !== "function") {
+      return { status: "no_runner", data: null }
     }
-
-    return queryCcusageDaily(ctx, queryOpts, "claude", "claude")
+    try {
+      const native = ctx.host.claudeLogs.queryDaily(queryOpts)
+      if (!native || typeof native !== "object" || typeof native.status !== "string") {
+        ctx.host.log.warn("claudeLogs returned invalid shape")
+        return { status: "runner_failed", data: null }
+      }
+      if (native.status !== "ok") {
+        ctx.host.log.info("claudeLogs status=" + String(native.status))
+        return { status: native.status, data: null }
+      }
+      if (!native.data || !Array.isArray(native.data.daily)) {
+        ctx.host.log.warn("claudeLogs ok but daily missing")
+        return { status: "runner_failed", data: null }
+      }
+      return { status: "ok", data: native.data }
+    } catch (e) {
+      ctx.host.log.warn("claudeLogs native scan failed: " + String(e))
+      return { status: "runner_failed", data: null }
+    }
   }
 
   function fmtTokens(n) {

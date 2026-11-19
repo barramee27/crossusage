@@ -18,6 +18,7 @@ pub mod codex_pricing;
 pub mod codex_usage_scanner;
 pub mod grok_usage_scanner;
 pub mod pi_usage_scanner;
+pub mod cli_usage_scanners;
 pub mod log_usage_types;
 pub mod model_pricing;
 pub mod usage_daily;

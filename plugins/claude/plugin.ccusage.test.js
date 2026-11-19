@@ -13,16 +13,13 @@ const USAGE_RESPONSE = JSON.stringify({
   seven_day: { utilization: 50, resets_at: "2099-01-01T00:00:00.000Z" },
 })
 
-function makeProbeCtx({ ccusageResult = { status: "runner_failed" }, claudeLogsResult = null } = {}) {
+function makeProbeCtx({ claudeLogsResult = { status: "runner_failed" } } = {}) {
   const ctx = makeCtx()
   ctx.host.fs.exists = () => true
   ctx.host.fs.readText = () => CRED_JSON
   ctx.host.http.request.mockReturnValue({ status: 200, bodyText: USAGE_RESPONSE })
-  ctx.host.ccusage.query = vi.fn(() => ccusageResult)
-  if (claudeLogsResult != null) {
-    ctx.host.claudeLogs = {
-      queryDaily: vi.fn(() => claudeLogsResult),
-    }
+  ctx.host.claudeLogs = {
+    queryDaily: vi.fn(() => claudeLogsResult),
   }
   return ctx
 }
@@ -36,17 +33,17 @@ function localDayKey(date) {
   return year + "-" + month + "-" + day
 }
 
-describe("claude plugin ccusage usage trend", () => {
+describe("claude plugin native log usage trend", () => {
   beforeEach(() => {
     delete globalThis.__openusage_plugin
     vi.resetModules()
   })
 
-  it("adds model percentage text lines and a usage chart from claude ccusage", async () => {
+  it("adds model percentage text lines and a usage chart from native claudeLogs", async () => {
     const todayKey = localDayKey(new Date())
     const yesterdayKey = localDayKey(new Date(Date.now() - 24 * 60 * 60 * 1000))
     const ctx = makeProbeCtx({
-      ccusageResult: okUsage([
+      claudeLogsResult: okUsage([
         {
           date: todayKey,
           totalTokens: 300,
@@ -94,31 +91,8 @@ describe("claude plugin ccusage usage trend", () => {
     })
   })
 
-  it("falls back to ccusage when native claudeLogs returns empty daily", async () => {
-    const todayKey = localDayKey(new Date())
-    const ctx = makeProbeCtx({
-      claudeLogsResult: { status: "ok", data: { daily: [] } },
-      ccusageResult: okUsage([
-        { date: todayKey, totalTokens: 42, totalCost: 1 },
-      ]),
-    })
-    const plugin = await loadPlugin()
-    const result = plugin.probe(ctx)
-
-    expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalled()
-    expect(ctx.host.ccusage.query).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "claude", since: expect.any(String) }),
-    )
-    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/42/)
-  })
-
-  it("falls back to ccusage when native claudeLogs throws", async () => {
-    const todayKey = localDayKey(new Date())
-    const ctx = makeProbeCtx({
-      ccusageResult: okUsage([
-        { date: todayKey, totalTokens: 99, totalCost: 1 },
-      ]),
-    })
+  it("omits token lines gracefully when native claudeLogs throws", async () => {
+    const ctx = makeProbeCtx()
     ctx.host.claudeLogs = {
       queryDaily: vi.fn(() => {
         throw new Error("scan failed")
@@ -127,7 +101,8 @@ describe("claude plugin ccusage usage trend", () => {
     const plugin = await loadPlugin()
     const result = plugin.probe(ctx)
 
-    expect(ctx.host.ccusage.query).toHaveBeenCalled()
-    expect(result.lines.find((line) => line.label === "Today")?.value).toMatch(/99/)
+    expect(ctx.host.claudeLogs.queryDaily).toHaveBeenCalled()
+    expect(result.lines.find((line) => line.label === "Session")).toBeTruthy()
+    expect(result.lines.find((line) => line.label === "Today")).toBeUndefined()
   })
 })

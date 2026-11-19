@@ -107,9 +107,6 @@ export const makeCtx = () => {
       ls: {
         discover: vi.fn(() => null),
       },
-      ccusage: {
-        query: vi.fn(() => null),
-      },
       usageDaily: {
         ingest: vi.fn(),
       },

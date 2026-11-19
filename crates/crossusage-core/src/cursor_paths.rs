@@ -115,10 +115,22 @@ pub fn is_encrypted_auth_value(value: &str) -> bool {
 /// `agent login` (Cursor CLI) writes plaintext `accessToken` / `refreshToken` here,
 /// next to the desktop app's data. It is the readable source when `state.vscdb`
 /// holds ciphertext. Stable Cursor only: the CLI login is not tied to Nightly.
+/// On Linux (case-sensitive), `agent login` writes lowercase `~/.config/cursor/auth.json`,
+/// while macOS/Windows use `Cursor/auth.json`.
+const CLI_AUTH_APP_DIR_NAMES: [&str; 2] = ["Cursor", "cursor"];
+
 pub fn resolve_cursor_cli_auth_file() -> Option<PathBuf> {
-    platform_roots()
-        .into_iter()
-        .map(|root| root.join(CursorInstall::Stable.app_dir_name()).join("auth.json"))
+    resolve_cursor_cli_auth_file_in_roots(&platform_roots())
+}
+
+fn resolve_cursor_cli_auth_file_in_roots(roots: &[PathBuf]) -> Option<PathBuf> {
+    roots
+        .iter()
+        .flat_map(|root| {
+            CLI_AUTH_APP_DIR_NAMES
+                .iter()
+                .map(move |dir| root.join(dir).join("auth.json"))
+        })
         .find(|p| p.is_file())
 }
 
@@ -163,5 +175,22 @@ mod tests {
         // A real JWT and an empty value are not ciphertext.
         assert!(!is_encrypted_auth_value("eyJhbGciOiJIUzI1NiJ9.e30.sig"));
         assert!(!is_encrypted_auth_value(""));
+    }
+
+    #[test]
+    fn resolves_lowercase_linux_cli_auth_file() {
+        let root = std::env::temp_dir().join(format!(
+            "crossusage-cursor-cli-auth-test-{}",
+            std::process::id()
+        ));
+        let lowercase_dir = root.join("cursor");
+        let auth_file = lowercase_dir.join("auth.json");
+        std::fs::create_dir_all(&lowercase_dir).expect("create lowercase cursor dir");
+        std::fs::write(&auth_file, r#"{"accessToken":"tok"}"#).expect("write auth.json");
+
+        let found = resolve_cursor_cli_auth_file_in_roots(&[root.clone()]);
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_eq!(found, Some(auth_file));
     }
 }

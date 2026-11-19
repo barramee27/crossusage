@@ -720,43 +720,6 @@
     return lines.join("\n")
   }
 
-  function dailyHasUsage(daily) {
-    if (!Array.isArray(daily) || daily.length === 0) return false
-    for (let i = 0; i < daily.length; i++) {
-      const tokens = Number(daily[i] && daily[i].totalTokens)
-      if (Number.isFinite(tokens) && tokens > 0) return true
-    }
-    return false
-  }
-
-  function queryCcusageDaily(ctx, queryOpts, provider, logPrefix) {
-    if (!ctx.host.ccusage || typeof ctx.host.ccusage.query !== "function") {
-      return { status: "no_runner", data: null }
-    }
-    const opts = Object.assign({}, queryOpts)
-    if (provider) opts.provider = provider
-    const result = ctx.host.ccusage.query(opts)
-    if (!result || typeof result !== "object" || typeof result.status !== "string") {
-      if (logPrefix) {
-        ctx.host.log.warn(logPrefix + " ccusage returned invalid shape")
-      }
-      return { status: "runner_failed", data: null }
-    }
-    if (result.status !== "ok") {
-      if (logPrefix) {
-        ctx.host.log.info(logPrefix + " ccusage status=" + result.status)
-      }
-      return { status: result.status, data: null }
-    }
-    if (!result.data || !Array.isArray(result.data.daily)) {
-      if (logPrefix) {
-        ctx.host.log.warn(logPrefix + " ccusage ok but daily missing")
-      }
-      return { status: "runner_failed", data: null }
-    }
-    return { status: "ok", data: result.data }
-  }
-
   function queryTokenUsage(ctx) {
     const since = new Date()
     // Inclusive range: today + previous 30 days = 31 calendar days.
@@ -771,29 +734,28 @@
       queryOpts.homePath = codexHome
     }
 
-    if (ctx.host.codexLogs && typeof ctx.host.codexLogs.queryDaily === "function") {
-      try {
-        const native = ctx.host.codexLogs.queryDaily(queryOpts)
-        if (
-          native &&
-          native.status === "ok" &&
-          native.data &&
-          dailyHasUsage(native.data.daily)
-        ) {
-          return { status: "ok", data: native.data }
-        }
-        const reason = !native
-          ? "no response"
-          : native.status !== "ok"
-            ? "status=" + String(native.status)
-            : "empty daily"
-        ctx.host.log.info("codexLogs " + reason + ", falling back to ccusage")
-      } catch (e) {
-        ctx.host.log.warn("codexLogs native scan failed, falling back to ccusage: " + String(e))
-      }
+    if (!ctx.host.codexLogs || typeof ctx.host.codexLogs.queryDaily !== "function") {
+      return { status: "no_runner", data: null }
     }
-
-    return queryCcusageDaily(ctx, queryOpts, "codex", "codex")
+    try {
+      const native = ctx.host.codexLogs.queryDaily(queryOpts)
+      if (!native || typeof native !== "object" || typeof native.status !== "string") {
+        ctx.host.log.warn("codexLogs returned invalid shape")
+        return { status: "runner_failed", data: null }
+      }
+      if (native.status !== "ok") {
+        ctx.host.log.info("codexLogs status=" + String(native.status))
+        return { status: native.status, data: null }
+      }
+      if (!native.data || !Array.isArray(native.data.daily)) {
+        ctx.host.log.warn("codexLogs ok but daily missing")
+        return { status: "runner_failed", data: null }
+      }
+      return { status: "ok", data: native.data }
+    } catch (e) {
+      ctx.host.log.warn("codexLogs native scan failed: " + String(e))
+      return { status: "runner_failed", data: null }
+    }
   }
 
   function fmtTokens(n) {

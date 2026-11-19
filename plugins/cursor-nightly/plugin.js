@@ -211,9 +211,10 @@ globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__ = "cursor-nightly";
   // Cursor 3.2x+ keeps the desktop app's own tokens encrypted in state.vscdb as
   // "cursor-safe-storage:v1:<base64>" (Electron safeStorage). That is ciphertext, not a
   // token: sent to the API it is rejected as "not logged in". `agent login` (Cursor CLI)
-  // writes plaintext tokens to <app data>/Cursor/auth.json instead, so use that.
+  // writes plaintext tokens to <app data>/Cursor/auth.json (or ~/.config/cursor/auth.json
+  // on case-sensitive Linux) instead, so use that.
   const ENCRYPTED_AUTH_PREFIX = "cursor-safe-storage:"
-  const CLI_AUTH_FILE = "Cursor/auth.json"
+  const CLI_AUTH_FILES = ["Cursor/auth.json", "cursor/auth.json"]
   const ENCRYPTED_AUTH_MESSAGE =
     "Cursor keeps its sign-in encrypted, which CrossUsage cannot read. Run `agent login` (Cursor CLI), then refresh."
 
@@ -237,7 +238,11 @@ globalThis.__OPENUSAGE_PLUGIN_REGISTRATION_ID__ = "cursor-nightly";
     if (isNightly(ctx)) return null
     try {
       if (!ctx.host.fs || typeof ctx.host.fs.firstExistingAppSupport !== "function") return null
-      const path = ctx.host.fs.firstExistingAppSupport(CLI_AUTH_FILE)
+      var path = null
+      for (var i = 0; i < CLI_AUTH_FILES.length; i++) {
+        path = ctx.host.fs.firstExistingAppSupport(CLI_AUTH_FILES[i])
+        if (path) break
+      }
       if (!path) return null
       const parsed = ctx.util.tryParseJson(ctx.host.fs.readText(path))
       if (!parsed || typeof parsed !== "object") return null

@@ -53,11 +53,13 @@ function fmtNum(n: number): string {
 type CursorUsageStatsPanelProps = {
   className?: string
   pluginId?: string
+  instanceId?: string
 }
 
 export function CursorUsageStatsPanel({
   className,
   pluginId = "cursor",
+  instanceId,
 }: CursorUsageStatsPanelProps) {
   const [preset, setPreset] = useState<RangePreset>("mtd")
   const [group, setGroup] = useState<GroupMode>("model")
@@ -73,6 +75,7 @@ export function CursorUsageStatsPanel({
     try {
       const result = await invoke<UsageStatsPayload>("query_cursor_usage_stats", {
         pluginId,
+        instanceId: instanceId ?? pluginId,
         since: range.since,
         until: range.until,
         group,
@@ -85,7 +88,7 @@ export function CursorUsageStatsPanel({
     } finally {
       setLoading(false)
     }
-  }, [pluginId, preset, group])
+  }, [pluginId, instanceId, preset, group])
 
   useEffect(() => {
     void load()
