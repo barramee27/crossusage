@@ -13,7 +13,7 @@ import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { formatTrayIssuesAppendage } from "@/lib/tray-health"
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress"
 import { pickTrayProviderId } from "@/lib/tray-provider-id"
-import { formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
+import { fitTrayTooltipToLimit, formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
 import { formatTopTrayInsightLine } from "@/lib/usage-insights"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
@@ -230,9 +230,12 @@ export function useTrayIcon({
         typeof maybeSetTooltip === "function"
           ? (value: string | null) => maybeSetTooltip.call(tray, value)
           : null
+      const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
       const setTrayTooltip = (tooltip: string | null) => {
         if (setTooltipFn) {
-          return setTooltipFn(tooltip)
+          const fitted =
+            tooltip !== null && isWindows ? fitTrayTooltipToLimit(tooltip) : tooltip
+          return setTooltipFn(fitted)
         }
         return Promise.resolve()
       }

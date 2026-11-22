@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
+  fitTrayTooltipToLimit,
   formatTrayItemCaption,
   formatTrayPercentText,
   formatTrayTooltip,
+  WINDOWS_TRAY_TOOLTIP_MAX_CHARS,
 } from "./tray-tooltip"
 import type { PluginMeta } from "./plugin-types"
 import type { TrayPrimaryBar } from "./tray-primary-progress"
@@ -109,6 +111,46 @@ describe("tray-tooltip", () => {
       ]
       const tooltip = formatTrayTooltip(bars, mockMeta)
       expect(tooltip).toBe("CrossUsage\nPlugin 1 · A: 50%\nPlugin 1 · B: 25%")
+    })
+  })
+
+  describe("fitTrayTooltipToLimit", () => {
+    it("leaves a short tooltip unchanged", () => {
+      expect(fitTrayTooltipToLimit("CrossUsage\nClaude · Session: 94%")).toBe(
+        "CrossUsage\nClaude · Session: 94%"
+      )
+    })
+
+    it("drops the line that Windows would cut in half", () => {
+      const tooltip = [
+        "CrossUsage",
+        "Claude · Session: 94%",
+        "Claude · Weekly: 66%",
+        "Codex · Session: 12%",
+      ].join("\n")
+      const fitted = fitTrayTooltipToLimit(tooltip)
+      expect(tooltip.length).toBeGreaterThan(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
+      expect(fitted).toBe("CrossUsage\nClaude · Session: 94%\nClaude · Weekly: 66%")
+      expect(fitted.length).toBeLessThanOrEqual(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
+    })
+
+    it("keeps the app name when later lines do not fit", () => {
+      const longLine = `Claude · ${"Session".repeat(12)}: 94%`
+      const fitted = fitTrayTooltipToLimit(`CrossUsage\n${longLine}`)
+      expect(fitted).toBe("CrossUsage")
+    })
+
+    it("cuts the first line only when that line alone exceeds the limit", () => {
+      const fitted = fitTrayTooltipToLimit("C".repeat(80))
+      expect(fitted).toBe("C".repeat(WINDOWS_TRAY_TOOLTIP_MAX_CHARS))
+    })
+
+    it("strips a trailing blank separator line left behind after dropping an insight section", () => {
+      const tooltip =
+        "CrossUsage\nClaude · Session: 94%\n\nClaude pace is running ahead of schedule today"
+      const fitted = fitTrayTooltipToLimit(tooltip)
+      expect(tooltip.length).toBeGreaterThan(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
+      expect(fitted).toBe("CrossUsage\nClaude · Session: 94%")
     })
   })
 })
