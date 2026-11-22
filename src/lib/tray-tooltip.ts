@@ -72,3 +72,28 @@ export function formatTrayTooltip(
   if (contentLines.length === 0) return TRAY_APP_LABEL
   return [TRAY_APP_LABEL, ...contentLines].join("\n")
 }
+
+/**
+ * Legacy Windows tray tip: 64 UTF-16 code units, including the terminating NUL.
+ * tray-icon writes a 128-unit buffer but never sends NIM_SETVERSION, so the shell
+ * still reads the first 64 units. A longer string is cut in the middle of a line.
+ */
+export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 63
+
+/**
+ * Drops trailing whole lines until the tooltip fits.
+ * Keeps the first line, and cuts that line only when it alone is too long.
+ */
+export function fitTrayTooltipToLimit(
+  tooltip: string,
+  maxChars: number = WINDOWS_TRAY_TOOLTIP_MAX_CHARS
+): string {
+  if (tooltip.length <= maxChars) return tooltip
+  const lines = tooltip.split("\n")
+  while (lines.length > 1 && lines.join("\n").length > maxChars) {
+    lines.pop()
+  }
+  const fitted = lines.join("\n")
+  if (fitted.length <= maxChars) return fitted
+  return fitted.slice(0, maxChars)
+}
