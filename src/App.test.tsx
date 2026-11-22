@@ -30,6 +30,8 @@ const state = vi.hoisted(() => ({
   migrateLegacyTraySettingsMock: vi.fn(),
   loadGlobalShortcutMock: vi.fn(),
   saveGlobalShortcutMock: vi.fn(),
+  loadStartHiddenMock: vi.fn(),
+  saveStartHiddenMock: vi.fn(),
   loadStartOnLoginMock: vi.fn(),
   saveStartOnLoginMock: vi.fn(),
   loadShowAccountIdentityMock: vi.fn(),
@@ -257,6 +259,8 @@ vi.mock("@/lib/settings", async () => {
     migrateLegacyTraySettings: state.migrateLegacyTraySettingsMock,
     loadGlobalShortcut: state.loadGlobalShortcutMock,
     saveGlobalShortcut: state.saveGlobalShortcutMock,
+    loadStartHidden: state.loadStartHiddenMock,
+    saveStartHidden: state.saveStartHiddenMock,
     loadStartOnLogin: state.loadStartOnLoginMock,
     saveStartOnLogin: state.saveStartOnLoginMock,
     loadShowAccountIdentity: state.loadShowAccountIdentityMock,
@@ -299,6 +303,8 @@ describe("App", () => {
     state.migrateLegacyTraySettingsMock.mockReset()
     state.loadGlobalShortcutMock.mockReset()
     state.saveGlobalShortcutMock.mockReset()
+    state.loadStartHiddenMock.mockReset()
+    state.saveStartHiddenMock.mockReset()
     state.loadStartOnLoginMock.mockReset()
     state.saveStartOnLoginMock.mockReset()
     state.loadShowAccountIdentityMock.mockReset()
@@ -341,6 +347,8 @@ describe("App", () => {
     state.migrateLegacyTraySettingsMock.mockResolvedValue(undefined)
     state.loadGlobalShortcutMock.mockResolvedValue(null)
     state.saveGlobalShortcutMock.mockResolvedValue(undefined)
+    state.loadStartHiddenMock.mockResolvedValue(false)
+    state.saveStartHiddenMock.mockResolvedValue(undefined)
     state.loadStartOnLoginMock.mockResolvedValue(false)
     state.saveStartOnLoginMock.mockResolvedValue(undefined)
     state.loadShowAccountIdentityMock.mockResolvedValue(true)

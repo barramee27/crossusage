@@ -44,6 +44,31 @@ use uuid::Uuid;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const GLOBAL_SHORTCUT_STORE_KEY: &str = "globalShortcut";
+const START_HIDDEN_STORE_KEY: &str = "startHidden";
+
+/// Only an explicit `true` hides the window. A missing or non-boolean value keeps
+/// the historical Windows/Linux behavior of showing the main window on launch.
+fn start_hidden_from_setting(value: Option<&serde_json::Value>) -> bool {
+    matches!(value, Some(serde_json::Value::Bool(true)))
+}
+
+fn should_show_main_window_on_launch(start_hidden: bool) -> bool {
+    !start_hidden
+}
+
+fn load_start_hidden(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+
+    match app.store("settings.json") {
+        Ok(store) => start_hidden_from_setting(store.get(START_HIDDEN_STORE_KEY).as_ref()),
+        Err(error) => {
+            log::warn!(
+                "startHidden: settings store unavailable ({error}); showing the main window"
+            );
+            false
+        }
+    }
+}
 const DAILY_ACTIVE_TRACKED_DAY_KEY: &str = "analytics.daily_active_day";
 const DAILY_ACTIVE_EVENT_NAME: &str = "app_started";
 const MAX_CONCURRENT_PROBES: usize = 4;
@@ -1544,13 +1569,17 @@ pub fn run() {
 
             tray::create(app.handle())?;
 
-            // Main window defaults to `visible: false` in `tauri.conf.json`. Windows already
-            // shows it here; Linux needs the same so `tauri dev` is usable without hunting the
-            // tray first (especially when the shell job is easy to confuse with a crash).
+            // Main window defaults to `visible: false` in `tauri.conf.json`. Windows and Linux
+            // show it here unless `startHidden` is set, so a first launch is visible without
+            // hunting the tray (especially when a shell job is easy to confuse with a crash).
             #[cfg(any(target_os = "windows", target_os = "linux"))]
             {
                 panel::init(app.handle())?;
-                panel::show_panel(app.handle());
+                if should_show_main_window_on_launch(load_start_hidden(app.handle())) {
+                    panel::show_panel(app.handle());
+                } else {
+                    log::info!("startHidden is set; leaving the main window in the tray");
+                }
             }
 
             app.handle()
@@ -1612,7 +1641,8 @@ pub fn run() {
 mod tests {
     use super::{
         DAILY_ACTIVE_TRACKED_DAY_KEY, resolve_cursor_usage_stats_target,
-        seconds_until_next_utc_day, should_track_daily_active,
+        seconds_until_next_utc_day, should_show_main_window_on_launch, should_track_daily_active,
+        start_hidden_from_setting,
     };
     use chrono::TimeZone;
     use crossusage_core::provider_accounts::{self, ProviderAccount, ProviderCredential};
@@ -1733,5 +1763,25 @@ mod tests {
         assert_eq!(account.access_token.as_deref(), Some("work-token"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_start_hidden_setting_shows_the_window() {
+        assert!(!start_hidden_from_setting(None));
+        assert!(should_show_main_window_on_launch(false));
+    }
+
+    #[test]
+    fn start_hidden_true_keeps_the_window_closed() {
+        let value = serde_json::Value::Bool(true);
+        assert!(start_hidden_from_setting(Some(&value)));
+        assert!(!should_show_main_window_on_launch(true));
+    }
+
+    #[test]
+    fn non_boolean_start_hidden_setting_shows_the_window() {
+        let value = serde_json::Value::String("yes".to_string());
+        assert!(!start_hidden_from_setting(Some(&value)));
+        assert!(should_show_main_window_on_launch(false));
     }
 }

@@ -12,6 +12,7 @@ import {
   DEFAULT_SHOW_TRAY_INSIGHT,
   DEFAULT_SHOW_TOTAL_SPEND,
   DEFAULT_TOTAL_SPEND_METRIC,
+  DEFAULT_START_HIDDEN,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_UI_LAYOUT,
@@ -55,6 +56,7 @@ type AppPreferencesStore = {
   appLocale: AppLocale
   displayCurrency: DisplayCurrency
   globalShortcut: GlobalShortcut
+  startHidden: boolean
   startOnLogin: boolean
   showAccountIdentity: boolean
   menubarIconStyle: MenubarIconStyle
@@ -85,6 +87,7 @@ type AppPreferencesStore = {
   setAppLocale: (value: AppLocale) => void
   setDisplayCurrency: (value: DisplayCurrency) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
+  setStartHidden: (value: boolean) => void
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
@@ -118,6 +121,7 @@ const initialState = {
   appLocale: DEFAULT_APP_LOCALE,
   displayCurrency: DEFAULT_DISPLAY_CURRENCY,
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
+  startHidden: DEFAULT_START_HIDDEN,
   startOnLogin: DEFAULT_START_ON_LOGIN,
   showAccountIdentity: DEFAULT_SHOW_ACCOUNT_IDENTITY,
   menubarIconStyle: DEFAULT_MENUBAR_ICON_STYLE,
@@ -151,6 +155,7 @@ export const useAppPreferencesStore = create<AppPreferencesStore>((set) => ({
   setAppLocale: (value) => set({ appLocale: value }),
   setDisplayCurrency: (value) => set({ displayCurrency: value }),
   setGlobalShortcut: (value) => set({ globalShortcut: value }),
+  setStartHidden: (value) => set({ startHidden: value }),
   setStartOnLogin: (value) => set({ startOnLogin: value }),
   setShowAccountIdentity: (value) => set({ showAccountIdentity: value }),
   setMenubarIconStyle: (value) => set({ menubarIconStyle: value }),

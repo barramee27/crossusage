@@ -96,7 +96,7 @@ Services (single desktop product; no backend server): Vite dev UI (port 1420, au
 
 - **Standard commands** live in `package.json`/README "Develop": `bun run tauri:dev` (GUI), `bun run test` (Vitest), `bun run build` (typecheck+vite), `cargo test -p crossusage-cli`, `cargo run -p crossusage-cli -- list`.
 - **GUI dev requires the CLI sidecar first** (non-obvious): `bun run tauri:dev` fails with `resource path binaries/crossusage-cli-<triple> doesn't exist` until you run `bash scripts/prepare-cli-sidecar.sh` once (builds `crossusage-cli --release` into `src-tauri/binaries/`). Only `tauri:build` builds it automatically.
-- On Linux the app auto-shows its main window on launch (`panel::show_panel` in `lib.rs` setup); no system tray needed to see the UI under Xvfb.
+- On Linux and Windows the app shows its main window on launch (`panel::show_panel` in `lib.rs` setup) unless `startHidden` is true in `settings.json`. With the setting off, no system tray is needed to see the UI under Xvfb.
 - Run the GUI under `DISPLAY=:1`; keep it in a tmux session (`bun run tauri:dev`) — it is long-running.
 - No credentials → real providers probe as "not logged in" (expected). For a GUI usage demo without secrets, enable the built-in `mock` provider by removing `"mock"` from the `disabled` array in `~/.local/share/com.barramee27.crossusage/settings.json`, then restart (settings load only at startup — no hot-reload).
 - Keyring is unavailable (no `secret-tool`/Secret Service); keychain reads log warnings and fail gracefully — harmless.

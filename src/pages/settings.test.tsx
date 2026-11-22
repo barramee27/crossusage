@@ -131,6 +131,8 @@ const defaultProps = {
   },
   globalShortcut: null,
   onGlobalShortcutChange: vi.fn(),
+  startHidden: false,
+  onStartHiddenChange: vi.fn(),
   startOnLogin: false,
   onStartOnLoginChange: vi.fn(),
   usageAlertEnabled: false,
@@ -586,6 +588,16 @@ describe("SettingsPage", () => {
     })
     await userEvent.click(screen.getByText("Start on login"))
     expect(onStartOnLoginChange).toHaveBeenCalledWith(true)
+  })
+
+  it("toggles start hidden checkbox", async () => {
+    const onStartHiddenChange = vi.fn()
+    renderSettings({
+      ...defaultProps,
+      onStartHiddenChange,
+    })
+    await userEvent.click(screen.getByRole("checkbox", { name: "Start hidden" }))
+    expect(onStartHiddenChange).toHaveBeenCalledWith(true)
   })
 
   it("toggles account identity visibility", async () => {

@@ -92,6 +92,7 @@ const LEGACY_TRAY_ICON_STYLE_KEY = "trayIconStyle";
 const LEGACY_TRAY_SHOW_PERCENTAGE_KEY = "trayShowPercentage";
 const GLOBAL_SHORTCUT_KEY = "globalShortcut";
 const START_ON_LOGIN_KEY = "startOnLogin";
+const START_HIDDEN_KEY = "startHidden";
 export const USAGE_ALERT_ENABLED_KEY = "usageAlertEnabled";
 export const USAGE_ALERT_THRESHOLD_KEY = "usageAlertThreshold";
 export const USAGE_ALERT_CUSTOM_THRESHOLD_KEY = "usageAlertCustomThreshold";
@@ -126,6 +127,8 @@ export const DEFAULT_MENUBAR_ICON_STYLE: MenubarIconStyle = "provider";
 export const DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT = false;
 export const DEFAULT_GLOBAL_SHORTCUT: GlobalShortcut = null;
 export const DEFAULT_START_ON_LOGIN = false;
+/** Off keeps the current Windows/Linux behavior: the main window opens on launch. */
+export const DEFAULT_START_HIDDEN = false;
 export const DEFAULT_USAGE_ALERT_ENABLED = false;
 export const DEFAULT_USAGE_ALERT_THRESHOLD: UsageAlertThreshold = 20;
 export const DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD: number | null = null;
@@ -883,6 +886,17 @@ export async function saveStartOnLogin(value: boolean): Promise<void> {
   await store.save();
 }
 
+export async function loadStartHidden(): Promise<boolean> {
+  const stored = await store.get<unknown>(START_HIDDEN_KEY);
+  if (typeof stored === "boolean") return stored;
+  return DEFAULT_START_HIDDEN;
+}
+
+export async function saveStartHidden(value: boolean): Promise<void> {
+  await store.set(START_HIDDEN_KEY, value);
+  await store.save();
+}
+
 export function isUsageAlertThreshold(value: unknown): value is UsageAlertThreshold {
   return value === "custom" || (typeof value === "number" && [10, 20, 30].includes(value));
 }
@@ -1261,6 +1275,7 @@ export async function resetAllUserPreferences(): Promise<void> {
   await store.set(PREFER_MENUBAR_WEEKLY_LIMIT_KEY, DEFAULT_PREFER_MENUBAR_WEEKLY_LIMIT);
   await store.set(GLOBAL_SHORTCUT_KEY, DEFAULT_GLOBAL_SHORTCUT);
   await store.set(START_ON_LOGIN_KEY, DEFAULT_START_ON_LOGIN);
+  await store.set(START_HIDDEN_KEY, DEFAULT_START_HIDDEN);
   await store.set(USAGE_ALERT_ENABLED_KEY, DEFAULT_USAGE_ALERT_ENABLED);
   await store.set(USAGE_ALERT_THRESHOLD_KEY, DEFAULT_USAGE_ALERT_THRESHOLD);
   await store.set(USAGE_ALERT_CUSTOM_THRESHOLD_KEY, DEFAULT_USAGE_ALERT_CUSTOM_THRESHOLD);

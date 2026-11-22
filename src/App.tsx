@@ -97,6 +97,7 @@ function App() {
     uiScale,
     setUIScale,
     setGlobalShortcut,
+    setStartHidden,
     setStartOnLogin,
     setUsageAlertEnabled,
     setUsageAlertThreshold,
@@ -135,6 +136,7 @@ function App() {
       uiScale: state.uiScale,
       setUIScale: state.setUIScale,
       setGlobalShortcut: state.setGlobalShortcut,
+      setStartHidden: state.setStartHidden,
       setStartOnLogin: state.setStartOnLogin,
       setUsageAlertEnabled: state.setUsageAlertEnabled,
       setUsageAlertThreshold: state.setUsageAlertThreshold,
@@ -218,6 +220,7 @@ function App() {
     setShowTotalSpend,
     setTotalSpendMetric,
     setGlobalShortcut,
+    setStartHidden,
     setStartOnLogin,
     setUsageAlertEnabled,
     setUsageAlertThreshold,
@@ -285,6 +288,7 @@ function App() {
   const {
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
+    handleStartHiddenChange,
     handleStartOnLoginChange,
     startOnLoginError,
   } = useSettingsSystemActions({
@@ -292,6 +296,7 @@ function App() {
     setAutoUpdateInterval,
     setAutoUpdateNextAt,
     setGlobalShortcut,
+    setStartHidden,
     setStartOnLogin,
     applyStartOnLogin,
   })
@@ -697,6 +702,7 @@ function App() {
       onPreferMenubarWeeklyLimitChange: handlePreferMenubarWeeklyLimitChange,
       traySettingsPreview,
       onGlobalShortcutChange: handleGlobalShortcutChange,
+      onStartHiddenChange: handleStartHiddenChange,
       onStartOnLoginChange: handleStartOnLoginChange,
       startOnLoginError,
       onUsageAlertEnabledChange: handleUsageAlertEnabledChange,

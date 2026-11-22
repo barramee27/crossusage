@@ -6,11 +6,13 @@ const {
   invokeMock,
   saveAutoUpdateIntervalMock,
   saveGlobalShortcutMock,
+  saveStartHiddenMock,
   saveStartOnLoginMock,
 } = vi.hoisted(() => ({
   getEnabledPluginIdsMock: vi.fn(),
   saveAutoUpdateIntervalMock: vi.fn(),
   saveGlobalShortcutMock: vi.fn(),
+  saveStartHiddenMock: vi.fn(),
   saveStartOnLoginMock: vi.fn(),
   invokeMock: vi.fn(),
 }))
@@ -23,6 +25,7 @@ vi.mock("@/lib/settings", () => ({
   getEnabledPluginIds: getEnabledPluginIdsMock,
   saveAutoUpdateInterval: saveAutoUpdateIntervalMock,
   saveGlobalShortcut: saveGlobalShortcutMock,
+  saveStartHidden: saveStartHiddenMock,
   saveStartOnLogin: saveStartOnLoginMock,
 }))
 
@@ -33,6 +36,7 @@ describe("useSettingsSystemActions", () => {
     getEnabledPluginIdsMock.mockReset()
     saveAutoUpdateIntervalMock.mockReset()
     saveGlobalShortcutMock.mockReset()
+    saveStartHiddenMock.mockReset()
     saveStartOnLoginMock.mockReset()
     invokeMock.mockReset()
 
@@ -41,6 +45,7 @@ describe("useSettingsSystemActions", () => {
     )
     saveAutoUpdateIntervalMock.mockResolvedValue(undefined)
     saveGlobalShortcutMock.mockResolvedValue(undefined)
+    saveStartHiddenMock.mockResolvedValue(undefined)
     saveStartOnLoginMock.mockResolvedValue(undefined)
     invokeMock.mockResolvedValue(undefined)
   })
@@ -56,6 +61,7 @@ describe("useSettingsSystemActions", () => {
         setAutoUpdateInterval,
         setAutoUpdateNextAt,
         setGlobalShortcut: vi.fn(),
+        setStartHidden: vi.fn(),
         setStartOnLogin: vi.fn(),
         applyStartOnLogin: vi.fn().mockResolvedValue(undefined),
       })
@@ -80,6 +86,7 @@ describe("useSettingsSystemActions", () => {
         setAutoUpdateInterval: vi.fn(),
         setAutoUpdateNextAt,
         setGlobalShortcut: vi.fn(),
+        setStartHidden: vi.fn(),
         setStartOnLogin: vi.fn(),
         applyStartOnLogin: vi.fn().mockResolvedValue(undefined),
       })
@@ -103,6 +110,7 @@ describe("useSettingsSystemActions", () => {
         setAutoUpdateInterval: vi.fn(),
         setAutoUpdateNextAt: vi.fn(),
         setGlobalShortcut,
+        setStartHidden: vi.fn(),
         setStartOnLogin,
         applyStartOnLogin,
       })
@@ -144,6 +152,7 @@ describe("useSettingsSystemActions", () => {
         setAutoUpdateInterval: vi.fn(),
         setAutoUpdateNextAt: vi.fn(),
         setGlobalShortcut: vi.fn(),
+        setStartHidden: vi.fn(),
         setStartOnLogin: vi.fn(),
         applyStartOnLogin,
       })
