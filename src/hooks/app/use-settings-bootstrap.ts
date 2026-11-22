@@ -28,6 +28,7 @@ import {
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
   DEFAULT_SHOW_TRAY_ICON,
   DEFAULT_SHOW_TRAY_INSIGHT,
+  DEFAULT_START_HIDDEN,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_UI_LAYOUT,
@@ -56,6 +57,7 @@ import {
   loadShowTrayInsight,
   loadShowTotalSpend,
   loadTotalSpendMetric,
+  loadStartHidden,
   loadStartOnLogin,
   loadThemeMode,
   loadUILayout,
@@ -103,6 +105,7 @@ type UseSettingsBootstrapArgs = {
   setAppLocale: (value: AppLocale) => void
   setDisplayCurrency: (value: DisplayCurrency) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
+  setStartHidden: (value: boolean) => void
   setStartOnLogin: (value: boolean) => void
   setShowAccountIdentity: (value: boolean) => void
   setMenubarIconStyle: (value: MenubarIconStyle) => void
@@ -138,6 +141,7 @@ export function useSettingsBootstrap({
   setAppLocale,
   setDisplayCurrency,
   setGlobalShortcut,
+  setStartHidden,
   setStartOnLogin,
   setShowAccountIdentity,
   setMenubarIconStyle,
@@ -322,6 +326,13 @@ export function useSettingsBootstrap({
           console.error("Failed to load start on login:", error)
         }
 
+        let storedStartHidden = DEFAULT_START_HIDDEN
+        try {
+          storedStartHidden = await loadStartHidden()
+        } catch (error) {
+          console.error("Failed to load start hidden:", error)
+        }
+
         let storedShowAccountIdentity = DEFAULT_SHOW_ACCOUNT_IDENTITY
         try {
           storedShowAccountIdentity = await loadShowAccountIdentity()
@@ -458,6 +469,7 @@ export function useSettingsBootstrap({
           setDisplayCurrency(storedDisplayCurrency)
           setGlobalShortcut(storedGlobalShortcut)
           setStartOnLogin(storedStartOnLogin)
+          setStartHidden(storedStartHidden)
           setShowAccountIdentity(storedShowAccountIdentity)
           setShowTrayIcon(storedShowTrayIcon)
           setShowTrayInsight(storedShowTrayInsight)
@@ -517,6 +529,7 @@ export function useSettingsBootstrap({
     setShowTotalSpend,
     setTotalSpendMetric,
     setOnboardingComplete,
+    setStartHidden,
     setStartOnLogin,
     setShowAccountIdentity,
     setThemeMode,

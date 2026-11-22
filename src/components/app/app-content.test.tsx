@@ -77,6 +77,7 @@ function createProps(): AppContentProps {
       providerPercentText: "--%",
     },
     onGlobalShortcutChange: vi.fn(),
+    onStartHiddenChange: vi.fn(),
     onStartOnLoginChange: vi.fn(),
     onTimeFormatModeChange: vi.fn(),
     onTrayLineToggle: vi.fn(),

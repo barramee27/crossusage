@@ -58,6 +58,7 @@ export type AppContentActionProps = {
   onPreferMenubarWeeklyLimitChange: (value: boolean) => void
   traySettingsPreview: TraySettingsPreview
   onGlobalShortcutChange: (value: GlobalShortcut) => void
+  onStartHiddenChange: (value: boolean) => void
   onStartOnLoginChange: (value: boolean) => void
   startOnLoginError?: string | null
   onUsageAlertEnabledChange: (value: boolean) => void
@@ -104,6 +105,7 @@ export function AppContent({
   onPreferMenubarWeeklyLimitChange,
   traySettingsPreview,
   onGlobalShortcutChange,
+  onStartHiddenChange,
   onStartOnLoginChange,
   startOnLoginError,
   onUsageAlertEnabledChange,
@@ -140,6 +142,7 @@ export function AppContent({
     autoUpdateInterval,
     globalShortcut,
     themeMode,
+    startHidden,
     startOnLogin,
     usageAlertEnabled,
     usageAlertThreshold,
@@ -164,6 +167,7 @@ export function AppContent({
       autoUpdateInterval: state.autoUpdateInterval,
       globalShortcut: state.globalShortcut,
       themeMode: state.themeMode,
+      startHidden: state.startHidden,
       startOnLogin: state.startOnLogin,
       usageAlertEnabled: state.usageAlertEnabled,
       usageAlertThreshold: state.usageAlertThreshold,
@@ -242,6 +246,8 @@ export function AppContent({
         traySettingsPreview={traySettingsPreview}
         globalShortcut={globalShortcut}
         onGlobalShortcutChange={onGlobalShortcutChange}
+        startHidden={startHidden}
+        onStartHiddenChange={onStartHiddenChange}
         startOnLogin={startOnLogin}
         onStartOnLoginChange={onStartOnLoginChange}
         startOnLoginError={startOnLoginError}

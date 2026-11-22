@@ -1228,6 +1228,8 @@ interface SettingsPageProps {
   traySettingsPreview: TraySettingsPreview;
   globalShortcut: GlobalShortcut;
   onGlobalShortcutChange: (value: GlobalShortcut) => void;
+  startHidden: boolean;
+  onStartHiddenChange: (value: boolean) => void;
   startOnLogin: boolean;
   onStartOnLoginChange: (value: boolean) => void;
   startOnLoginError?: string | null;
@@ -1288,6 +1290,8 @@ export function SettingsPage({
   traySettingsPreview,
   globalShortcut,
   onGlobalShortcutChange,
+  startHidden,
+  onStartHiddenChange,
   startOnLogin,
   onStartOnLoginChange,
   startOnLoginError,
@@ -1894,6 +1898,21 @@ export function SettingsPage({
             Couldn&apos;t update start on login: {startOnLoginError}
           </p>
         ) : null}
+      </section>
+      <section>
+        <h3 className="text-lg font-semibold mb-0">Start hidden</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          Leave the window closed when CrossUsage launches, including at sign-in.
+          It stays in the tray until you open it. This applies the next time the app starts.
+        </p>
+        <label className="flex items-center gap-2 text-sm select-none text-foreground">
+          <Checkbox
+            key={`start-hidden-${startHidden}`}
+            checked={startHidden}
+            onCheckedChange={(checked) => onStartHiddenChange(checked === true)}
+          />
+          Start hidden
+        </label>
       </section>
       <InsightsSection />
       <ProductPollsSection />

@@ -4,6 +4,7 @@ import {
   getEnabledPluginIds,
   saveAutoUpdateInterval,
   saveGlobalShortcut,
+  saveStartHidden,
   saveStartOnLogin,
   type AutoUpdateIntervalMinutes,
   type GlobalShortcut,
@@ -15,6 +16,7 @@ type UseSettingsSystemActionsArgs = {
   setAutoUpdateInterval: (value: AutoUpdateIntervalMinutes) => void
   setAutoUpdateNextAt: (value: number | null) => void
   setGlobalShortcut: (value: GlobalShortcut) => void
+  setStartHidden: (value: boolean) => void
   setStartOnLogin: (value: boolean) => void
   applyStartOnLogin: (value: boolean) => Promise<void>
 }
@@ -24,6 +26,7 @@ export function useSettingsSystemActions({
   setAutoUpdateInterval,
   setAutoUpdateNextAt,
   setGlobalShortcut,
+  setStartHidden,
   setStartOnLogin,
   applyStartOnLogin,
 }: UseSettingsSystemActionsArgs) {
@@ -69,9 +72,17 @@ export function useSettingsSystemActions({
     })
   }, [applyStartOnLogin, setStartOnLogin])
 
+  const handleStartHiddenChange = useCallback((value: boolean) => {
+    setStartHidden(value)
+    void saveStartHidden(value).catch((error) => {
+      console.error("Failed to save start hidden:", error)
+    })
+  }, [setStartHidden])
+
   return {
     handleAutoUpdateIntervalChange,
     handleGlobalShortcutChange,
+    handleStartHiddenChange,
     handleStartOnLoginChange,
     startOnLoginError,
   }

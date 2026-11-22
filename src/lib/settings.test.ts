@@ -9,6 +9,7 @@ import {
   DEFAULT_REDUCE_ANIMATIONS,
   DEFAULT_RESET_TIMER_DISPLAY_MODE,
   DEFAULT_SHOW_ACCOUNT_IDENTITY,
+  DEFAULT_START_HIDDEN,
   DEFAULT_START_ON_LOGIN,
   DEFAULT_THEME_MODE,
   DEFAULT_TIME_FORMAT_MODE,
@@ -38,6 +39,7 @@ import {
   loadPluginSettings,
   loadResetTimerDisplayMode,
   loadShowAccountIdentity,
+  loadStartHidden,
   loadStartOnLogin,
   loadTimeFormatMode,
   loadUsageAlertCustomThreshold,
@@ -66,6 +68,7 @@ import {
   saveReduceAnimations,
   saveResetTimerDisplayMode,
   saveShowAccountIdentity,
+  saveStartHidden,
   saveStartOnLogin,
   saveTimeFormatMode,
   saveThemeMode,
@@ -786,6 +789,17 @@ describe("settings", () => {
     await expect(loadStartOnLogin()).resolves.toBe(DEFAULT_START_ON_LOGIN)
   })
 
+  it("loads default start hidden when missing or invalid", async () => {
+    await expect(loadStartHidden()).resolves.toBe(DEFAULT_START_HIDDEN)
+    storeState.set("startHidden", "yes")
+    await expect(loadStartHidden()).resolves.toBe(DEFAULT_START_HIDDEN)
+  })
+
+  it("saves start hidden", async () => {
+    await saveStartHidden(true)
+    await expect(loadStartHidden()).resolves.toBe(true)
+  })
+
   describe("isUsageAlertThreshold", () => {
     it("returns true for valid thresholds", () => {
       expect(isUsageAlertThreshold(10)).toBe(true)
@@ -939,10 +953,12 @@ describe("settings", () => {
       await saveProductPollsEnabled(false)
       await saveProductPollsInstallId("install-keep")
       await saveProductPollsAnswered({ "poll-1": "opt-a" })
+      await saveStartHidden(true)
 
       await resetAllUserPreferences()
 
       await expect(loadThemeMode()).resolves.toBe(DEFAULT_THEME_MODE)
+      await expect(loadStartHidden()).resolves.toBe(DEFAULT_START_HIDDEN)
       await expect(loadReduceAnimations()).resolves.toBe(DEFAULT_REDUCE_ANIMATIONS)
       await expect(loadProductPollsEnabled()).resolves.toBe(true)
       await expect(loadPluginSettings()).resolves.toEqual(plugins)
