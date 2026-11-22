@@ -144,5 +144,13 @@ describe("tray-tooltip", () => {
       const fitted = fitTrayTooltipToLimit("C".repeat(80))
       expect(fitted).toBe("C".repeat(WINDOWS_TRAY_TOOLTIP_MAX_CHARS))
     })
+
+    it("strips a trailing blank separator line left behind after dropping an insight section", () => {
+      const tooltip =
+        "CrossUsage\nClaude · Session: 94%\n\nClaude pace is running ahead of schedule today"
+      const fitted = fitTrayTooltipToLimit(tooltip)
+      expect(tooltip.length).toBeGreaterThan(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
+      expect(fitted).toBe("CrossUsage\nClaude · Session: 94%")
+    })
   })
 })

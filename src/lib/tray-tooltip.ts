@@ -93,6 +93,9 @@ export function fitTrayTooltipToLimit(
   while (lines.length > 1 && lines.join("\n").length > maxChars) {
     lines.pop()
   }
+  while (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop()
+  }
   const fitted = lines.join("\n")
   if (fitted.length <= maxChars) return fitted
   return fitted.slice(0, maxChars)
