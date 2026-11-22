@@ -44,18 +44,22 @@ use uuid::Uuid;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const GLOBAL_SHORTCUT_STORE_KEY: &str = "globalShortcut";
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 const START_HIDDEN_STORE_KEY: &str = "startHidden";
 
 /// Only an explicit `true` hides the window. A missing or non-boolean value keeps
 /// the historical Windows/Linux behavior of showing the main window on launch.
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
 fn start_hidden_from_setting(value: Option<&serde_json::Value>) -> bool {
     matches!(value, Some(serde_json::Value::Bool(true)))
 }
 
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
 fn should_show_main_window_on_launch(start_hidden: bool) -> bool {
     !start_hidden
 }
 
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 fn load_start_hidden(app: &tauri::AppHandle) -> bool {
     use tauri_plugin_store::StoreExt;
 
