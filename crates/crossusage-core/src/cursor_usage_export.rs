@@ -993,6 +993,19 @@ pub fn download_cursor_usage_csv_for_plugin(
     download_cursor_usage_csv_for_plugin_with_account(plugin_id, None, start_ms, end_ms)
 }
 
+const CSV_SHORT_RANGE_TIMEOUT_SECS: u64 = 20;
+const CSV_LONG_RANGE_TIMEOUT_SECS: u64 = 120;
+const CSV_LONG_RANGE_THRESHOLD_MS: i64 = 35 * 24 * 60 * 60 * 1000;
+
+fn csv_export_timeout(start_ms: i64, end_ms: i64) -> Duration {
+    let span_ms = end_ms.saturating_sub(start_ms);
+    if span_ms > CSV_LONG_RANGE_THRESHOLD_MS {
+        Duration::from_secs(CSV_LONG_RANGE_TIMEOUT_SECS)
+    } else {
+        Duration::from_secs(CSV_SHORT_RANGE_TIMEOUT_SECS)
+    }
+}
+
 pub fn download_cursor_usage_csv_for_plugin_with_account(
     plugin_id: &str,
     account: Option<&CursorExportAccount>,
@@ -1007,7 +1020,8 @@ pub fn download_cursor_usage_csv_for_plugin_with_account(
     let cookie = build_session_cookie(&access)?;
 
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(20))
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(csv_export_timeout(start_ms, end_ms))
         .build()?;
 
     let url = format!(
@@ -1828,5 +1842,18 @@ mod tests {
         let v = serde_json::to_value(&mtd).unwrap();
         assert_eq!(v["source"], "csv");
         assert_eq!(v["costUsd"], 1.0);
+    }
+
+    #[test]
+    fn csv_export_timeout_scales_for_multi_month_ranges() {
+        let day_ms: i64 = 24 * 60 * 60 * 1000;
+        assert_eq!(
+            csv_export_timeout(0, 30 * day_ms),
+            Duration::from_secs(CSV_SHORT_RANGE_TIMEOUT_SECS)
+        );
+        assert_eq!(
+            csv_export_timeout(0, 400 * day_ms),
+            Duration::from_secs(CSV_LONG_RANGE_TIMEOUT_SECS)
+        );
     }
 }
