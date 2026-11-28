@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Rect};
 
 const WINDOW_LABEL: &str = "trayhover";
 const DEFAULT_WIDTH: f64 = 280.0;
 const DEFAULT_HEIGHT: f64 = 160.0;
+const ICON_POINTER_PAD: i32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +48,7 @@ struct HoverState {
     height: f64,
     anchor: Option<IconAnchor>,
     visible: bool,
+    generation: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -65,6 +69,7 @@ static HOVER: Mutex<HoverState> = Mutex::new(HoverState {
     height: DEFAULT_HEIGHT,
     anchor: None,
     visible: false,
+    generation: 0,
 });
 
 fn lock() -> std::sync::MutexGuard<'static, HoverState> {
@@ -119,6 +124,7 @@ pub fn ensure_window(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub fn show_at(app: &AppHandle, rect: &Rect) {
+    ensure_pointer_watch(app);
     let anchor = icon_anchor(rect);
     {
         let mut state = lock();
@@ -126,6 +132,7 @@ pub fn show_at(app: &AppHandle, rect: &Rect) {
             return;
         }
         state.anchor = Some(anchor);
+        state.generation = state.generation.wrapping_add(1);
         state.visible = true;
     }
     place(app, anchor);
@@ -133,9 +140,116 @@ pub fn show_at(app: &AppHandle, rect: &Rect) {
 
 pub fn hide(app: &AppHandle) {
     lock().visible = false;
-    if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
-        let _ = window.hide();
+    hide_window(app);
+}
+
+fn hide_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        return;
+    };
+    // Shown with SetWindowPos, so tao still has VISIBLE unset and window.hide()
+    // becomes a no-op. Hide the HWND directly, then sync tao.
+    #[cfg(target_os = "windows")]
+    if let Ok(handle) = window.hwnd() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+        unsafe {
+            ShowWindow(handle.0 as _, SW_HIDE);
+        }
     }
+    let _ = window.hide();
+}
+
+fn ensure_pointer_watch(app: &AppHandle) {
+    static STARTED: AtomicBool = AtomicBool::new(false);
+    if STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    if std::thread::Builder::new()
+        .name("tray-hover-pointer".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(Duration::from_millis(80));
+                if !lock().visible {
+                    continue;
+                }
+                let app_for_hide = app.clone();
+                if app
+                    .run_on_main_thread(move || dismiss_if_pointer_left(&app_for_hide))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .is_err()
+    {
+        STARTED.store(false, Ordering::SeqCst);
+    }
+}
+
+fn dismiss_if_pointer_left(app: &AppHandle) {
+    let (anchor, generation) = {
+        let state = lock();
+        if !state.visible {
+            return;
+        }
+        (state.anchor, state.generation)
+    };
+    let Some(anchor) = anchor else {
+        return;
+    };
+    if pointer_on_icon_now(anchor) {
+        return;
+    }
+    {
+        let state = lock();
+        if state.generation != generation || !state.visible {
+            return;
+        }
+    }
+    if pointer_on_icon_now(anchor) {
+        return;
+    }
+    {
+        let mut state = lock();
+        if state.generation != generation || !state.visible {
+            return;
+        }
+        state.visible = false;
+    }
+    hide_window(app);
+}
+
+fn pointer_on_icon(x: i32, y: i32, anchor: IconAnchor) -> bool {
+    let left = anchor.x.saturating_sub(ICON_POINTER_PAD);
+    let top = anchor.y.saturating_sub(ICON_POINTER_PAD);
+    let right = anchor
+        .x
+        .saturating_add(anchor.w)
+        .saturating_add(ICON_POINTER_PAD);
+    let bottom = anchor
+        .y
+        .saturating_add(anchor.h)
+        .saturating_add(ICON_POINTER_PAD);
+    x >= left && y >= top && x < right && y < bottom
+}
+
+#[cfg(target_os = "windows")]
+fn pointer_on_icon_now(anchor: IconAnchor) -> bool {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    let mut cursor = POINT { x: 0, y: 0 };
+    if unsafe { GetCursorPos(&mut cursor) } == 0 {
+        return true;
+    }
+    pointer_on_icon(cursor.x, cursor.y, anchor)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn pointer_on_icon_now(anchor: IconAnchor) -> bool {
+    let _ = anchor;
+    true
 }
 
 fn icon_anchor(rect: &Rect) -> IconAnchor {
@@ -278,5 +392,19 @@ mod tests {
         let (x, y) = hover_origin(10, 0, 24, 40, 280, 160, 0, 0, 1920, 1080, 8);
         assert_eq!(y, 48);
         assert_eq!(x, 0);
+    }
+
+    #[test]
+    fn pointer_on_the_icon_includes_a_small_edge_pad() {
+        let anchor = super::IconAnchor {
+            x: 100,
+            y: 200,
+            w: 24,
+            h: 24,
+        };
+        assert!(super::pointer_on_icon(100, 200, anchor));
+        assert!(super::pointer_on_icon(96, 200, anchor));
+        assert!(!super::pointer_on_icon(95, 200, anchor));
+        assert!(!super::pointer_on_icon(128, 200, anchor));
     }
 }
