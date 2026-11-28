@@ -1,5 +1,10 @@
 # Choices
 
+## 2026-11-28
+
+- **Windows tray hover:** a separate undecorated window, created on the first hover, not the shell tooltip. The shell tip cannot change font or exceed 127 characters. The card shows every pinned line and stays while the pointer is on the icon or the card, so a long list can scroll. It hides about 280ms after the pointer leaves both. It does not take focus. Hide it with `ShowWindow(SW_HIDE)`: the card is shown with `SetWindowPos`, so tao still thinks it is hidden and `window.hide()` does nothing. The cursor is polled because tray-icon's leave timer checks once after a move and then drops the cursor position.
+- **No shell-tip subclass on the hover-card path.** Resending the tip with a full `NOTIFYICONDATAW` kept `last_tip` when `setTooltip(null)` arrived, then every icon update put "CrossUsage" back on top of the card. The Windows hover is the card only. Do not call `NIM_SETVERSION` with version 4; that changes tray click messages.
+
 ## 2026-11-04
 
 - Antigravity CLI quota summary: use the tested versioned `antigravity/cli/1.5.0` identity for `retrieveUserQuotaSummary`; the unversioned identity produced a partial response without Gemini buckets on one account. See [the dated decision](DECISIONS.md#2026-11-04--identify-the-antigravity-cli-quota-client-with-a-versioned-user-agent) for evidence and reconsideration triggers.

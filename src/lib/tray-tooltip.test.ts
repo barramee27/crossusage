@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  buildTrayHoverGroups,
+  trayHoverAppearance,
   fitTrayTooltipToLimit,
   formatTrayItemCaption,
   formatTrayPercentText,
@@ -121,33 +123,92 @@ describe("tray-tooltip", () => {
       )
     })
 
-    it("drops the line that Windows would cut in half", () => {
+    it("keeps Claude, Codex, and the first Cursor line inside 127 characters", () => {
       const tooltip = [
         "CrossUsage",
-        "Claude · Session: 94%",
-        "Claude · Weekly: 66%",
-        "Codex · Session: 12%",
+        "Claude · Session: 100%",
+        "Claude · Weekly: 100%",
+        "Codex · Session: 100%",
+        "Codex · Weekly: 100%",
+        "Cursor · Credits: 100%",
+        "Cursor · Total usage: 100%",
       ].join("\n")
       const fitted = fitTrayTooltipToLimit(tooltip)
       expect(tooltip.length).toBeGreaterThan(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
-      expect(fitted).toBe("CrossUsage\nClaude · Session: 94%\nClaude · Weekly: 66%")
+      expect(fitted).toBe(
+        [
+          "CrossUsage",
+          "Claude · Session: 100%",
+          "Claude · Weekly: 100%",
+          "Codex · Session: 100%",
+          "Codex · Weekly: 100%",
+          "Cursor · Credits: 100%",
+        ].join("\n")
+      )
       expect(fitted.length).toBeLessThanOrEqual(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
     })
 
     it("keeps the app name when later lines do not fit", () => {
-      const longLine = `Claude · ${"Session".repeat(12)}: 94%`
+      const longLine = `Claude · ${"Session".repeat(20)}: 94%`
       const fitted = fitTrayTooltipToLimit(`CrossUsage\n${longLine}`)
       expect(fitted).toBe("CrossUsage")
     })
 
     it("cuts the first line only when that line alone exceeds the limit", () => {
-      const fitted = fitTrayTooltipToLimit("C".repeat(80))
+      const fitted = fitTrayTooltipToLimit("C".repeat(200))
       expect(fitted).toBe("C".repeat(WINDOWS_TRAY_TOOLTIP_MAX_CHARS))
     })
 
+    it("follows the settings theme instead of waiting for the document class", () => {
+      expect(trayHoverAppearance("light", true)).toEqual({ dark: false, glass: false })
+      expect(trayHoverAppearance("dark", false)).toEqual({ dark: true, glass: false })
+      expect(trayHoverAppearance("glass", true)).toEqual({ dark: true, glass: true })
+      expect(trayHoverAppearance("glass", false)).toEqual({ dark: false, glass: true })
+      expect(trayHoverAppearance("system", true)).toEqual({ dark: true, glass: false })
+    })
+
+    it("groups every pinned line under its provider for the hover card", () => {
+      const bars: TrayPrimaryBar[] = [
+        {
+          id: "p1",
+          color: "#111111",
+          items: [
+            { label: "Session", fraction: 1 },
+            { label: "Weekly", fraction: 0.5 },
+          ],
+        },
+        { id: "p2", items: [{ label: "Session", fraction: 0.25 }] },
+      ]
+      const meta: PluginMeta[] = [
+        {
+          id: "p1",
+          name: "Claude",
+          brandColor: "#d97706",
+          iconUrl: "",
+          lines: [],
+          links: [],
+          primaryCandidates: [],
+        },
+        { id: "p2", name: "Codex", iconUrl: "", lines: [], links: [], primaryCandidates: [] },
+      ]
+      expect(buildTrayHoverGroups(bars, meta)).toEqual([
+        {
+          name: "Claude",
+          color: "#d97706",
+          items: [
+            { label: "Session", caption: "100%" },
+            { label: "Weekly", caption: "50%" },
+          ],
+        },
+        {
+          name: "Codex",
+          items: [{ label: "Session", caption: "25%" }],
+        },
+      ])
+    })
+
     it("strips a trailing blank separator line left behind after dropping an insight section", () => {
-      const tooltip =
-        "CrossUsage\nClaude · Session: 94%\n\nClaude pace is running ahead of schedule today"
+      const tooltip = `CrossUsage\nClaude · Session: 94%\n\n${"x".repeat(120)}`
       const fitted = fitTrayTooltipToLimit(tooltip)
       expect(tooltip.length).toBeGreaterThan(WINDOWS_TRAY_TOOLTIP_MAX_CHARS)
       expect(fitted).toBe("CrossUsage\nClaude · Session: 94%")

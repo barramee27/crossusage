@@ -24,6 +24,23 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": false
+      },
+      {
+        "label": "trayhover",
+        "title": "CrossUsage",
+        "create": false,
+        "url": "index.html",
+        "width": 280,
+        "height": 160,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "focus": false,
+        "focusable": false,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

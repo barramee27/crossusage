@@ -21,6 +21,7 @@ mod popover_platform;
 mod tray;
 #[cfg(target_os = "linux")]
 mod tray_linux;
+mod tray_hover;
 #[cfg(target_os = "macos")]
 mod webkit_config;
 
@@ -1187,6 +1188,21 @@ fn update_tray_usage_summary(summary: String) {
 }
 
 #[tauri::command]
+fn set_tray_hover_model(app: tauri::AppHandle, model: tray_hover::TrayHoverModel) {
+    tray_hover::set_model(&app, model);
+}
+
+#[tauri::command]
+fn set_tray_hover_size(app: tauri::AppHandle, width: f64, height: f64) {
+    tray_hover::set_size(&app, width, height);
+}
+
+#[tauri::command]
+fn tray_hover_model() -> tray_hover::TrayHoverModel {
+    tray_hover::model()
+}
+
+#[tauri::command]
 fn get_support_bundle_json(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
     support_bundle::build_support_bundle(&app_handle)
 }
@@ -1515,6 +1531,9 @@ pub fn run() {
             usage_alert_sound::play_usage_alert_sound,
             get_os_diagnostics,
             update_tray_usage_summary,
+            set_tray_hover_model,
+            set_tray_hover_size,
+            tray_hover_model,
             set_tray_restart_label,
             update_global_shortcut
         ])

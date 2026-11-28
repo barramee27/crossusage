@@ -1,5 +1,5 @@
 import type { PluginMeta } from "@/lib/plugin-types"
-import type { DisplayMode } from "@/lib/settings"
+import type { DisplayMode, ThemeMode } from "@/lib/settings"
 import { DEFAULT_DISPLAY_MODE } from "@/lib/settings"
 import i18n from "@/i18n"
 import { formatMoney } from "@/lib/locale-format"
@@ -73,12 +73,71 @@ export function formatTrayTooltip(
   return [TRAY_APP_LABEL, ...contentLines].join("\n")
 }
 
+export type TrayHoverItem = {
+  label: string
+  caption: string
+}
+
+export type TrayHoverGroup = {
+  name: string
+  color?: string
+  items: TrayHoverItem[]
+}
+
+/** One group per provider, in tray order. The hover card renders every item. */
+export function buildTrayHoverGroups(
+  bars: TrayPrimaryBar[],
+  pluginsMeta: PluginMeta[],
+  displayMode: DisplayMode = DEFAULT_DISPLAY_MODE
+): TrayHoverGroup[] {
+  const metaById = new Map(pluginsMeta.map((plugin) => [plugin.id, plugin]))
+  const groups: TrayHoverGroup[] = []
+
+  for (const bar of bars) {
+    const meta = metaById.get(bar.id)
+    if (!meta || bar.items.length === 0) continue
+    const items = bar.items.map((item) => ({
+      label: item.label,
+      caption: formatTrayItemCaption(item, displayMode),
+    }))
+    groups.push({
+      name: meta.name,
+      color: meta.brandColor,
+      items,
+    })
+  }
+
+  return groups
+}
+
+/** Same dark/glass flags the settings theme writes onto the main document. */
+export function trayHoverAppearance(
+  themeMode: ThemeMode,
+  systemDark: boolean
+): { dark: boolean; glass: boolean } {
+  switch (themeMode) {
+    case "light":
+      return { dark: false, glass: false }
+    case "dark":
+      return { dark: true, glass: false }
+    case "glass":
+      return { dark: systemDark, glass: true }
+    case "system":
+      return { dark: systemDark, glass: false }
+    default: {
+      const exhaustive: never = themeMode
+      return exhaustive
+    }
+  }
+}
+
 /**
- * Legacy Windows tray tip: 64 UTF-16 code units, including the terminating NUL.
- * tray-icon writes a 128-unit buffer but never sends NIM_SETVERSION, so the shell
- * still reads the first 64 units. A longer string is cut in the middle of a line.
+ * Windows shows 128 UTF-16 units of a tray tip, including the terminating NUL,
+ * when the notify-icon call sets cbSize to the full structure.
+ * tray-icon leaves cbSize at 0, so the shell keeps the legacy 64-unit tip.
+ * The Windows hover card does not use this fitter; the shell tip is cleared.
  */
-export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 63
+export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 127
 
 /**
  * Drops trailing whole lines until the tooltip fits.

@@ -3,7 +3,9 @@ import ReactDOM from "react-dom/client";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { error as logError, warn as logWarn } from "@tauri-apps/plugin-log";
 import { I18nProvider } from "@/components/i18n-provider";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { App } from "./App";
+import { TrayHoverApp } from "@/components/tray-hover";
 import "./index.css";
 import "@/i18n";
 
@@ -45,10 +47,23 @@ if (isTauri()) {
   })();
 }
 
+function isTrayHoverWindow(): boolean {
+  if (!isTauri()) return false;
+  try {
+    return getCurrentWindow().label === "trayhover";
+  } catch {
+    return false;
+  }
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <I18nProvider>
-      <App />
-    </I18nProvider>
+    {isTrayHoverWindow() ? (
+      <TrayHoverApp />
+    ) : (
+      <I18nProvider>
+        <App />
+      </I18nProvider>
+    )}
   </React.StrictMode>,
 );

@@ -13,7 +13,7 @@ import { getTrayIconSizePx } from "@/lib/tray-icon-size"
 import { formatTrayIssuesAppendage } from "@/lib/tray-health"
 import type { TrayPrimaryBar } from "@/lib/tray-primary-progress"
 import { pickTrayProviderId } from "@/lib/tray-provider-id"
-import { fitTrayTooltipToLimit, formatTrayItemCaption, formatTrayTooltip } from "@/lib/tray-tooltip"
+import { buildTrayHoverGroups, formatTrayItemCaption, formatTrayTooltip, trayHoverAppearance } from "@/lib/tray-tooltip"
 import { formatTopTrayInsightLine } from "@/lib/usage-insights"
 import { useAppPreferencesStore } from "@/stores/app-preferences-store"
 
@@ -122,14 +122,20 @@ export function useTrayIcon({
   const pinnedMetricIdsRef = useRef<string[]>([])
   const trayFocusProviderIdRef = useRef<string | null>(null)
   const lastTrayProviderIdRef = useRef<string | null>(null)
+  const hoverModelJsonRef = useRef("")
 
   const systemDark = useSystemDarkMode()
   const showTrayInsight = useAppPreferencesStore((state) => state.showTrayInsight)
+  const themeMode = useAppPreferencesStore((state) => state.themeMode)
   const showTrayInsightRef = useRef(showTrayInsight)
   const systemDarkRef = useRef(systemDark)
+  const themeModeRef = useRef(themeMode)
   useEffect(() => {
     systemDarkRef.current = systemDark
   }, [systemDark])
+  useEffect(() => {
+    themeModeRef.current = themeMode
+  }, [themeMode])
   useEffect(() => {
     showTrayInsightRef.current = showTrayInsight
   }, [showTrayInsight])
@@ -233,15 +239,23 @@ export function useTrayIcon({
       const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
       const setTrayTooltip = (tooltip: string | null) => {
         if (setTooltipFn) {
-          const fitted =
-            tooltip !== null && isWindows ? fitTrayTooltipToLimit(tooltip) : tooltip
-          return setTooltipFn(fitted)
+          return setTooltipFn(isWindows ? null : tooltip)
         }
         return Promise.resolve()
+      }
+      const publishHoverModel = (groups: ReturnType<typeof buildTrayHoverGroups>) => {
+        if (!isWindows) return
+        const appearance = trayHoverAppearance(themeModeRef.current, systemDarkRef.current)
+        const model = { ...appearance, groups }
+        const encoded = JSON.stringify(model)
+        if (encoded === hoverModelJsonRef.current) return
+        hoverModelJsonRef.current = encoded
+        void invoke("set_tray_hover_model", { model })
       }
 
       const restoreGaugeIcon = () => {
         mirrorTrayUsageSummaryToBackend("CrossUsage")
+        publishHoverModel([])
         const gaugePath = trayGaugeIconPathRef.current
         if (gaugePath) {
           Promise.all([
@@ -407,6 +421,13 @@ export function useTrayIcon({
       })
       const tooltip = issuesLine ? `${tooltipBody}\n${issuesLine}` : tooltipBody
       mirrorTrayUsageSummaryToBackend(tooltip)
+      publishHoverModel(
+        buildTrayHoverGroups(
+          tooltipBars,
+          pluginsMetaRef.current,
+          displayModeRef.current
+        )
+      )
       const updateTooltip = () => setTrayTooltip(tooltip)
 
       if (style === "bars") {
@@ -599,7 +620,7 @@ export function useTrayIcon({
   useEffect(() => {
     if (!trayReady) return
     scheduleTrayIconUpdate("settings", 0)
-  }, [scheduleTrayIconUpdate, systemDark, trayReady])
+  }, [scheduleTrayIconUpdate, systemDark, themeMode, trayReady])
 
   useEffect(() => {
     return () => {
