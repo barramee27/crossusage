@@ -2,8 +2,8 @@
 
 ## 2026-11-28
 
-- **Windows tray hover:** a separate undecorated window, not the shell tooltip. The shell tip cannot change font or exceed 127 characters. The card shows every pinned line. It does not take focus. Native tooltip text is cleared on Windows so the two do not stack. Hide it with `ShowWindow(SW_HIDE)`: the card is shown with `SetWindowPos`, so tao still thinks it is hidden and `window.hide()` does nothing. Also poll the cursor. tray-icon's leave timer checks once after a move and then drops the cursor position, so leaving the icon often never emits Leave.
-- **Windows tray hover text:** resend the tip with the full `NOTIFYICONDATAW` size so the shell shows 127 characters instead of the legacy 64. Do not call `NIM_SETVERSION` with version 4; that changes tray click messages. 127 is the shell maximum, so a later whole line can still be dropped.
+- **Windows tray hover:** a separate undecorated window, created on the first hover, not the shell tooltip. The shell tip cannot change font or exceed 127 characters. The card shows every pinned line and stays while the pointer is on the icon or the card, so a long list can scroll. It hides about 280ms after the pointer leaves both. It does not take focus. Hide it with `ShowWindow(SW_HIDE)`: the card is shown with `SetWindowPos`, so tao still thinks it is hidden and `window.hide()` does nothing. The cursor is polled because tray-icon's leave timer checks once after a move and then drops the cursor position.
+- **No shell-tip subclass on the hover-card path.** Resending the tip with a full `NOTIFYICONDATAW` kept `last_tip` when `setTooltip(null)` arrived, then every icon update put "CrossUsage" back on top of the card. The Windows hover is the card only. Do not call `NIM_SETVERSION` with version 4; that changes tray click messages.
 
 ## 2026-11-04
 

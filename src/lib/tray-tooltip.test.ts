@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   buildTrayHoverGroups,
+  trayHoverAppearance,
   fitTrayTooltipToLimit,
   formatTrayItemCaption,
   formatTrayPercentText,
@@ -156,6 +157,14 @@ describe("tray-tooltip", () => {
     it("cuts the first line only when that line alone exceeds the limit", () => {
       const fitted = fitTrayTooltipToLimit("C".repeat(200))
       expect(fitted).toBe("C".repeat(WINDOWS_TRAY_TOOLTIP_MAX_CHARS))
+    })
+
+    it("follows the settings theme instead of waiting for the document class", () => {
+      expect(trayHoverAppearance("light", true)).toEqual({ dark: false, glass: false })
+      expect(trayHoverAppearance("dark", false)).toEqual({ dark: true, glass: false })
+      expect(trayHoverAppearance("glass", true)).toEqual({ dark: true, glass: true })
+      expect(trayHoverAppearance("glass", false)).toEqual({ dark: false, glass: true })
+      expect(trayHoverAppearance("system", true)).toEqual({ dark: true, glass: false })
     })
 
     it("groups every pinned line under its provider for the hover card", () => {

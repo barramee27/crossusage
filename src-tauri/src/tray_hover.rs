@@ -1,13 +1,18 @@
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+#[cfg(target_os = "windows")]
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Rect};
+use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "windows")]
+use tauri::{PhysicalPosition, PhysicalSize, Rect};
 
 const WINDOW_LABEL: &str = "trayhover";
 const DEFAULT_WIDTH: f64 = 280.0;
 const DEFAULT_HEIGHT: f64 = 160.0;
 const ICON_POINTER_PAD: i32 = 4;
+const POINTER_LEAVE_GRACE_MS: u64 = 280;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +54,7 @@ struct HoverState {
     anchor: Option<IconAnchor>,
     visible: bool,
     generation: u64,
+    outside_since: Option<std::time::Instant>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -70,6 +76,7 @@ static HOVER: Mutex<HoverState> = Mutex::new(HoverState {
     anchor: None,
     visible: false,
     generation: 0,
+    outside_since: None,
 });
 
 fn lock() -> std::sync::MutexGuard<'static, HoverState> {
@@ -99,11 +106,13 @@ pub fn set_size(app: &AppHandle, width: f64, height: f64) {
             None
         }
     };
+    #[cfg(target_os = "windows")]
     if let Some(anchor) = anchor {
         place(app, anchor);
     }
 }
 
+#[cfg(target_os = "windows")]
 pub fn ensure_window(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window(WINDOW_LABEL).is_some() {
         return Ok(());
@@ -123,7 +132,12 @@ pub fn ensure_window(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
 pub fn show_at(app: &AppHandle, rect: &Rect) {
+    if let Err(error) = ensure_window(app) {
+        log::warn!("tray hover window was not created: {error}");
+        return;
+    }
     ensure_pointer_watch(app);
     let anchor = icon_anchor(rect);
     {
@@ -134,15 +148,18 @@ pub fn show_at(app: &AppHandle, rect: &Rect) {
         state.anchor = Some(anchor);
         state.generation = state.generation.wrapping_add(1);
         state.visible = true;
+        state.outside_since = None;
     }
     place(app, anchor);
 }
 
+#[cfg(target_os = "windows")]
 pub fn hide(app: &AppHandle) {
     lock().visible = false;
     hide_window(app);
 }
 
+#[cfg(target_os = "windows")]
 fn hide_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
         return;
@@ -159,6 +176,7 @@ fn hide_window(app: &AppHandle) {
     let _ = window.hide();
 }
 
+#[cfg(target_os = "windows")]
 fn ensure_pointer_watch(app: &AppHandle) {
     static STARTED: AtomicBool = AtomicBool::new(false);
     if STARTED.swap(true, Ordering::SeqCst) {
@@ -188,6 +206,7 @@ fn ensure_pointer_watch(app: &AppHandle) {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn dismiss_if_pointer_left(app: &AppHandle) {
     let (anchor, generation) = {
         let state = lock();
@@ -199,40 +218,78 @@ fn dismiss_if_pointer_left(app: &AppHandle) {
     let Some(anchor) = anchor else {
         return;
     };
-    if pointer_on_icon_now(anchor) {
+    if pointer_on_icon_now(anchor) || pointer_on_hover_window(app) {
+        lock().outside_since = None;
         return;
     }
-    {
-        let state = lock();
-        if state.generation != generation || !state.visible {
-            return;
-        }
-    }
-    if pointer_on_icon_now(anchor) {
+    let now = std::time::Instant::now();
+    let mut state = lock();
+    if state.generation != generation || !state.visible {
         return;
     }
-    {
-        let mut state = lock();
-        if state.generation != generation || !state.visible {
-            return;
-        }
-        state.visible = false;
+    let since = *state.outside_since.get_or_insert(now);
+    let elapsed = now.checked_duration_since(since).unwrap_or(Duration::ZERO);
+    if elapsed < Duration::from_millis(POINTER_LEAVE_GRACE_MS) {
+        return;
     }
+    state.visible = false;
+    state.outside_since = None;
+    drop(state);
     hide_window(app);
 }
 
-fn pointer_on_icon(x: i32, y: i32, anchor: IconAnchor) -> bool {
-    let left = anchor.x.saturating_sub(ICON_POINTER_PAD);
-    let top = anchor.y.saturating_sub(ICON_POINTER_PAD);
-    let right = anchor
-        .x
-        .saturating_add(anchor.w)
-        .saturating_add(ICON_POINTER_PAD);
-    let bottom = anchor
-        .y
-        .saturating_add(anchor.h)
-        .saturating_add(ICON_POINTER_PAD);
+#[cfg(target_os = "windows")]
+fn pointer_on_hover_window(app: &AppHandle) -> bool {
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        return false;
+    };
+    let Ok(handle) = window.hwnd() else {
+        return false;
+    };
+    let mut cursor = POINT { x: 0, y: 0 };
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    unsafe {
+        if GetCursorPos(&mut cursor) == 0 || GetWindowRect(handle.0 as _, &mut rect) == 0 {
+            return true;
+        }
+    }
+    pointer_inside(cursor.x, cursor.y, rect.left, rect.top, rect.right, rect.bottom)
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn pointer_inside(x: i32, y: i32, left: i32, top: i32, right: i32, bottom: i32) -> bool {
     x >= left && y >= top && x < right && y < bottom
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn pointer_on_icon(x: i32, y: i32, anchor: IconAnchor) -> bool {
+    pointer_inside(
+        x,
+        y,
+        anchor.x.saturating_sub(ICON_POINTER_PAD),
+        anchor.y.saturating_sub(ICON_POINTER_PAD),
+        anchor
+            .x
+            .saturating_add(anchor.w)
+            .saturating_add(ICON_POINTER_PAD),
+        anchor
+            .y
+            .saturating_add(anchor.h)
+            .saturating_add(ICON_POINTER_PAD),
+    )
+}
+
+/// Hide only after the pointer has been outside both the icon and the card.
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn pointer_left_long_enough(on_icon: bool, on_card: bool, outside_ms: u64) -> bool {
+    !on_icon && !on_card && outside_ms >= POINTER_LEAVE_GRACE_MS
 }
 
 #[cfg(target_os = "windows")]
@@ -246,12 +303,7 @@ fn pointer_on_icon_now(anchor: IconAnchor) -> bool {
     pointer_on_icon(cursor.x, cursor.y, anchor)
 }
 
-#[cfg(not(target_os = "windows"))]
-fn pointer_on_icon_now(anchor: IconAnchor) -> bool {
-    let _ = anchor;
-    true
-}
-
+#[cfg(target_os = "windows")]
 fn icon_anchor(rect: &Rect) -> IconAnchor {
     let (x, y) = match rect.position {
         tauri::Position::Physical(position) => (position.x, position.y),
@@ -267,6 +319,7 @@ fn icon_anchor(rect: &Rect) -> IconAnchor {
     IconAnchor { x, y, w, h }
 }
 
+#[cfg(target_os = "windows")]
 fn place(app: &AppHandle, anchor: IconAnchor) {
     let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
         log::warn!("tray hover window is not open");
@@ -340,12 +393,8 @@ fn show_without_focus(window: &tauri::WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
-fn show_without_focus(window: &tauri::WebviewWindow) {
-    let _ = window.show();
-}
-
 /// Place the card above the tray icon when it fits, otherwise below, then clamp to the work area.
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
 pub(crate) fn hover_origin(
     icon_x: i32,
     icon_y: i32,
@@ -406,5 +455,13 @@ mod tests {
         assert!(super::pointer_on_icon(96, 200, anchor));
         assert!(!super::pointer_on_icon(95, 200, anchor));
         assert!(!super::pointer_on_icon(128, 200, anchor));
+    }
+
+    #[test]
+    fn card_stays_while_the_pointer_is_on_it_and_hides_after_the_grace() {
+        assert!(!super::pointer_left_long_enough(true, false, 1_000));
+        assert!(!super::pointer_left_long_enough(false, true, 1_000));
+        assert!(!super::pointer_left_long_enough(false, false, 80));
+        assert!(super::pointer_left_long_enough(false, false, 280));
     }
 }

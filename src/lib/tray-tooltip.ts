@@ -1,5 +1,5 @@
 import type { PluginMeta } from "@/lib/plugin-types"
-import type { DisplayMode } from "@/lib/settings"
+import type { DisplayMode, ThemeMode } from "@/lib/settings"
 import { DEFAULT_DISPLAY_MODE } from "@/lib/settings"
 import i18n from "@/i18n"
 import { formatMoney } from "@/lib/locale-format"
@@ -110,11 +110,32 @@ export function buildTrayHoverGroups(
   return groups
 }
 
+/** Same dark/glass flags the settings theme writes onto the main document. */
+export function trayHoverAppearance(
+  themeMode: ThemeMode,
+  systemDark: boolean
+): { dark: boolean; glass: boolean } {
+  switch (themeMode) {
+    case "light":
+      return { dark: false, glass: false }
+    case "dark":
+      return { dark: true, glass: false }
+    case "glass":
+      return { dark: systemDark, glass: true }
+    case "system":
+      return { dark: systemDark, glass: false }
+    default: {
+      const exhaustive: never = themeMode
+      return exhaustive
+    }
+  }
+}
+
 /**
  * Windows shows 128 UTF-16 units of a tray tip, including the terminating NUL,
  * when the notify-icon call sets cbSize to the full structure.
- * tray-icon leaves cbSize at 0, so the shell would keep the legacy 64-unit tip.
- * The Windows shell resend in tray_windows_tip supplies the real cbSize.
+ * tray-icon leaves cbSize at 0, so the shell keeps the legacy 64-unit tip.
+ * The Windows hover card does not use this fitter; the shell tip is cleared.
  */
 export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 127
 

@@ -21,8 +21,6 @@ mod popover_platform;
 mod tray;
 #[cfg(target_os = "linux")]
 mod tray_linux;
-#[cfg(target_os = "windows")]
-mod tray_windows_tip;
 mod tray_hover;
 #[cfg(target_os = "macos")]
 mod webkit_config;
@@ -1559,11 +1557,6 @@ pub fn run() {
                 app.config().identifier,
                 os_diagnostics::log_summary_one_line()
             );
-
-            #[cfg(target_os = "windows")]
-            if let Err(error) = tray_hover::ensure_window(app.handle()) {
-                log::warn!("tray hover window was not created: {error}");
-            }
 
             ensure_crossusage_user_config_file();
 
