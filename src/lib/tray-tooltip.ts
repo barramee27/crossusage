@@ -74,11 +74,12 @@ export function formatTrayTooltip(
 }
 
 /**
- * Legacy Windows tray tip: 64 UTF-16 code units, including the terminating NUL.
- * tray-icon writes a 128-unit buffer but never sends NIM_SETVERSION, so the shell
- * still reads the first 64 units. A longer string is cut in the middle of a line.
+ * Windows shows 128 UTF-16 units of a tray tip, including the terminating NUL,
+ * when the notify-icon call sets cbSize to the full structure.
+ * tray-icon leaves cbSize at 0, so the shell would keep the legacy 64-unit tip.
+ * The Windows shell resend in tray_windows_tip supplies the real cbSize.
  */
-export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 63
+export const WINDOWS_TRAY_TOOLTIP_MAX_CHARS = 127
 
 /**
  * Drops trailing whole lines until the tooltip fits.

@@ -1,5 +1,9 @@
 # Choices
 
+## 2026-11-28
+
+- **Windows tray hover text:** resend the tip with the full `NOTIFYICONDATAW` size so the shell shows 127 characters instead of the legacy 64. Do not call `NIM_SETVERSION` with version 4; that changes tray click messages. 127 is the shell maximum, so a later whole line can still be dropped.
+
 ## 2026-11-04
 
 - Antigravity CLI quota summary: use the tested versioned `antigravity/cli/1.5.0` identity for `retrieveUserQuotaSummary`; the unversioned identity produced a partial response without Gemini buckets on one account. See [the dated decision](DECISIONS.md#2026-11-04--identify-the-antigravity-cli-quota-client-with-a-versioned-user-agent) for evidence and reconsideration triggers.

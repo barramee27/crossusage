@@ -547,5 +547,8 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
         log::warn!("Linux tray secondary-activate wiring failed: {}", e);
     }
 
+    #[cfg(target_os = "windows")]
+    crate::tray_windows_tip::install();
+
     Ok(())
 }

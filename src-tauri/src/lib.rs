@@ -21,6 +21,8 @@ mod popover_platform;
 mod tray;
 #[cfg(target_os = "linux")]
 mod tray_linux;
+#[cfg(target_os = "windows")]
+mod tray_windows_tip;
 #[cfg(target_os = "macos")]
 mod webkit_config;
 
