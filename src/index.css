@@ -195,6 +195,15 @@ html:not(.tauri-popover) #root {
   flex-direction: column;
 }
 
+html.tray-hover,
+html.tray-hover body,
+html.tray-hover #root {
+  width: auto;
+  height: auto;
+  display: block;
+  background: transparent;
+}
+
 html:not(.tauri-popover) .app-popover-shell {
   flex: 1;
   min-height: 0;

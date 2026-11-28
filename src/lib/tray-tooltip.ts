@@ -73,6 +73,43 @@ export function formatTrayTooltip(
   return [TRAY_APP_LABEL, ...contentLines].join("\n")
 }
 
+export type TrayHoverItem = {
+  label: string
+  caption: string
+}
+
+export type TrayHoverGroup = {
+  name: string
+  color?: string
+  items: TrayHoverItem[]
+}
+
+/** One group per provider, in tray order. The hover card renders every item. */
+export function buildTrayHoverGroups(
+  bars: TrayPrimaryBar[],
+  pluginsMeta: PluginMeta[],
+  displayMode: DisplayMode = DEFAULT_DISPLAY_MODE
+): TrayHoverGroup[] {
+  const metaById = new Map(pluginsMeta.map((plugin) => [plugin.id, plugin]))
+  const groups: TrayHoverGroup[] = []
+
+  for (const bar of bars) {
+    const meta = metaById.get(bar.id)
+    if (!meta || bar.items.length === 0) continue
+    const items = bar.items.map((item) => ({
+      label: item.label,
+      caption: formatTrayItemCaption(item, displayMode),
+    }))
+    groups.push({
+      name: meta.name,
+      color: meta.brandColor,
+      items,
+    })
+  }
+
+  return groups
+}
+
 /**
  * Windows shows 128 UTF-16 units of a tray tip, including the terminating NUL,
  * when the notify-icon call sets cbSize to the full structure.

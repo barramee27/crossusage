@@ -486,19 +486,31 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
             {
                 let app_handle = tray.app_handle();
 
-                if let TrayIconEvent::Click {
-                    button,
-                    button_state,
-                    rect,
-                    ..
-                } = event
-                {
+                match &event {
+                    TrayIconEvent::Enter { rect, .. } | TrayIconEvent::Move { rect, .. } => {
+                        #[cfg(target_os = "windows")]
+                        crate::tray_hover::show_at(app_handle, rect);
+                        #[cfg(not(target_os = "windows"))]
+                        let _ = rect;
+                    }
+                    TrayIconEvent::Leave { .. } => {
+                        #[cfg(target_os = "windows")]
+                        crate::tray_hover::hide(app_handle);
+                    }
+                    TrayIconEvent::Click {
+                        button,
+                        button_state,
+                        rect,
+                        ..
+                    } => {
+                        #[cfg(target_os = "windows")]
+                        crate::tray_hover::hide(app_handle);
                     #[cfg(not(target_os = "macos"))]
                     let _ = rect;
 
                     // Secondary click opens the tray menu. Primary press toggles the stats UI
                     // (Down is more reliable than Up on some Windows shells).
-                    if button != MouseButton::Left || button_state != MouseButtonState::Down {
+                    if *button != MouseButton::Left || *button_state != MouseButtonState::Down {
                         return;
                     }
 
@@ -533,6 +545,12 @@ pub fn create(app_handle: &AppHandle) -> tauri::Result<()> {
                         log::debug!("tray click: toggle popover (linux)");
                         toggle_panel(app_handle);
                     }
+                    }
+                    TrayIconEvent::DoubleClick { .. } => {
+                        #[cfg(target_os = "windows")]
+                        crate::tray_hover::hide(app_handle);
+                    }
+                    &_ => {}
                 }
             }
             #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

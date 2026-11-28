@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  buildTrayHoverGroups,
   fitTrayTooltipToLimit,
   formatTrayItemCaption,
   formatTrayPercentText,
@@ -155,6 +156,46 @@ describe("tray-tooltip", () => {
     it("cuts the first line only when that line alone exceeds the limit", () => {
       const fitted = fitTrayTooltipToLimit("C".repeat(200))
       expect(fitted).toBe("C".repeat(WINDOWS_TRAY_TOOLTIP_MAX_CHARS))
+    })
+
+    it("groups every pinned line under its provider for the hover card", () => {
+      const bars: TrayPrimaryBar[] = [
+        {
+          id: "p1",
+          color: "#111111",
+          items: [
+            { label: "Session", fraction: 1 },
+            { label: "Weekly", fraction: 0.5 },
+          ],
+        },
+        { id: "p2", items: [{ label: "Session", fraction: 0.25 }] },
+      ]
+      const meta: PluginMeta[] = [
+        {
+          id: "p1",
+          name: "Claude",
+          brandColor: "#d97706",
+          iconUrl: "",
+          lines: [],
+          links: [],
+          primaryCandidates: [],
+        },
+        { id: "p2", name: "Codex", iconUrl: "", lines: [], links: [], primaryCandidates: [] },
+      ]
+      expect(buildTrayHoverGroups(bars, meta)).toEqual([
+        {
+          name: "Claude",
+          color: "#d97706",
+          items: [
+            { label: "Session", caption: "100%" },
+            { label: "Weekly", caption: "50%" },
+          ],
+        },
+        {
+          name: "Codex",
+          items: [{ label: "Session", caption: "25%" }],
+        },
+      ])
     })
 
     it("strips a trailing blank separator line left behind after dropping an insight section", () => {

@@ -2,6 +2,7 @@
 
 ## 2026-11-28
 
+- **Windows tray hover:** a separate undecorated window, not the shell tooltip. The shell tip cannot change font or exceed 127 characters. The card shows every pinned line. It does not take focus. Native tooltip text is cleared on Windows so the two do not stack.
 - **Windows tray hover text:** resend the tip with the full `NOTIFYICONDATAW` size so the shell shows 127 characters instead of the legacy 64. Do not call `NIM_SETVERSION` with version 4; that changes tray click messages. 127 is the shell maximum, so a later whole line can still be dropped.
 
 ## 2026-11-04
